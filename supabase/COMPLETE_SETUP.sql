@@ -1,5 +1,5 @@
 -- ====================================================================
--- VIBELY / DUOCHAT COMPLETE DATABASE SETUP SCRIPT
+-- VIBELY COMPLETE DATABASE SETUP SCRIPT
 -- Run this script in your Supabase Project:
 -- Dashboard -> SQL Editor -> New Query -> Paste & Click Run
 -- ====================================================================

@@ -1,5 +1,5 @@
 -- ====================================================================
--- DUOCHAT DATABASE SCHEMA & SECURITY MIGRATION
+-- VIBELY DATABASE SCHEMA & SECURITY MIGRATION
 -- Production-minded PostgreSQL schema for private real-time messaging
 -- ====================================================================
 
