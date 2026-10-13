@@ -7,18 +7,21 @@ import {
   UserPlus,
   Settings,
   Search,
-  Image as ImageIcon,
-  Music,
-  Film,
+  Camera,
+  Mic,
+  Video,
   FileText,
   Sparkles,
   Heart,
   FolderHeart,
-  CalendarHeart,
   Copy,
   Check,
+  CheckCheck,
+  Clock,
+  AlertCircle,
   X,
-  Bell
+  Bell,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -27,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
 import { NotificationBell } from './notification-bar';
-import { formatMessageTime, cn } from '@/lib/utils';
+import { formatConversationTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 
 export function Sidebar() {
@@ -40,12 +43,14 @@ export function Sidebar() {
     setIsMediaDrawerOpen,
     incomingRequests,
     respondToRequest,
+    typingUsers,
   } = useChat();
   const router = useRouter();
 
-  const { daysTogether } = useRomanticFeatures();
+  const { daysTogether, favorites } = useRomanticFeatures();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [filterText, setFilterText] = React.useState('');
+  const [filterTab, setFilterTab] = React.useState<'all' | 'unread' | 'favorites'>('all');
   const [copiedId, setCopiedId] = React.useState(false);
 
   const myUsername = profile?.username ? `@${profile.username}` : '';
@@ -60,24 +65,66 @@ export function Sidebar() {
   };
 
   const filteredConversations = conversations.filter(c => {
+    if (filterTab === 'unread' && c.unreadCount <= 0) return false;
+    if (filterTab === 'favorites' && c.lastMessage && !favorites.includes(c.lastMessage.id)) {
+      return false;
+    }
     if (!filterText) return true;
     const name = c.otherUser?.display_name?.toLowerCase() || '';
     const user = c.otherUser?.username?.toLowerCase() || '';
     return name.includes(filterText.toLowerCase()) || user.includes(filterText.toLowerCase());
   });
 
+  // Outgoing last message status tick (exact WhatsApp style)
+  const renderLastMessageStatus = (lastMsg: any, isPartnerOnline: boolean) => {
+    if (!lastMsg || lastMsg.sender_id !== profile?.id) return null;
 
+    if (lastMsg.deliveryStatus === 'sending' || lastMsg.isOptimistic) {
+      return <Clock className="w-3.5 h-3.5 text-muted-foreground/70 inline-block mr-1 shrink-0 animate-pulse" />;
+    }
+    if (lastMsg.deliveryStatus === 'failed') {
+      return <AlertCircle className="w-3.5 h-3.5 text-rose-500 inline-block mr-1 shrink-0" />;
+    }
+    if (lastMsg.deliveryStatus === 'read') {
+      return <CheckCheck className="w-4 h-4 text-[#38BDF8] inline-block mr-1 shrink-0 stroke-[2.5]" />;
+    }
+    if (lastMsg.deliveryStatus === 'delivered' || isPartnerOnline) {
+      return <CheckCheck className="w-4 h-4 text-muted-foreground/80 inline-block mr-1 shrink-0 stroke-[2]" />;
+    }
+    // Default: Sent (partner offline)
+    return <Check className="w-4 h-4 text-muted-foreground/80 inline-block mr-1 shrink-0 stroke-[2]" />;
+  };
 
-  const getMediaPreviewIcon = (type?: string) => {
+  const renderMediaPreview = (type?: string, filename?: string | null) => {
     switch (type) {
       case 'image':
-        return <ImageIcon className="w-3.5 h-3.5 text-rose-500 shrink-0 inline mr-1" />;
+        return (
+          <span className="inline-flex items-center gap-1">
+            <Camera className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span>Photo</span>
+          </span>
+        );
       case 'audio':
-        return <Music className="w-3.5 h-3.5 text-violet-500 shrink-0 inline mr-1" />;
+        return (
+          <span className="inline-flex items-center gap-1">
+            <Mic className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span>Voice message</span>
+          </span>
+        );
       case 'video':
-        return <Film className="w-3.5 h-3.5 text-sky-500 shrink-0 inline mr-1" />;
+        return (
+          <span className="inline-flex items-center gap-1">
+            <Video className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span>Video</span>
+          </span>
+        );
       case 'file':
-        return <FileText className="w-3.5 h-3.5 text-amber-500 shrink-0 inline mr-1" />;
+        return (
+          <span className="inline-flex items-center gap-1">
+            <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="truncate">{filename || 'Document'}</span>
+          </span>
+        );
       default:
         return null;
     }
@@ -85,7 +132,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="w-full md:w-80 lg:w-88 flex flex-col h-full max-h-[100dvh] bg-sidebar-bg border-r border-border/70 select-none overflow-hidden overscroll-none">
+      <aside className="w-full md:w-80 lg:w-92 flex flex-col h-full max-h-[100dvh] bg-sidebar-bg border-r border-border/70 select-none overflow-hidden overscroll-none">
         {/* Brand Header */}
         <div className="shrink-0 p-3.5 sm:p-4 border-b border-border/50 flex flex-col gap-2 pt-[max(env(safe-area-inset-top),0.875rem)]">
           <div className="flex items-center justify-between">
@@ -98,7 +145,7 @@ export function Sidebar() {
                 size="sm"
                 variant="outline"
                 onClick={() => setIsInviteOpen(true)}
-                className="rounded-xl text-xs gap-1.5 border-primary/20 bg-primary/5 text-primary hover:bg-primary/15 hover:text-primary transition-all cursor-pointer font-medium"
+                className="rounded-xl text-xs gap-1.5 border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 transition-all cursor-pointer font-medium"
                 title="Connect partner"
               >
                 <UserPlus className="w-3.5 h-3.5" />
@@ -123,38 +170,80 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Search Conversations Input */}
-        <div className="shrink-0 px-3 pt-2.5 pb-1">
+        {/* WhatsApp-Style Search Input */}
+        <div className="shrink-0 px-3 pt-2.5 pb-1.5 space-y-2">
           <div className="relative flex items-center">
             <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 pointer-events-none" />
             <input
               type="text"
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
-              placeholder="Search conversations..."
-              className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-background/60 border border-input focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground transition-all"
+              placeholder="Search or start new chat"
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-muted/60 hover:bg-muted/80 focus:bg-background border border-border/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder:text-muted-foreground transition-all"
             />
+            {filterText && (
+              <button
+                onClick={() => setFilterText('')}
+                className="absolute right-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* WhatsApp Filter Tabs: All, Unread, Favourites */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setFilterTab('all')}
+              className={cn(
+                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                filterTab === 'all'
+                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              )}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFilterTab('unread')}
+              className={cn(
+                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                filterTab === 'unread'
+                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              )}
+            >
+              Unread
+            </button>
+            <button
+              onClick={() => setFilterTab('favorites')}
+              className={cn(
+                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                filterTab === 'favorites'
+                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              )}
+            >
+              Favourites
+            </button>
+
+            <button
+              onClick={() => setIsMediaDrawerOpen(true)}
+              className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              title="Open Our Moments gallery"
+            >
+              <FolderHeart className="w-3 h-3 text-primary" />
+              <span>Moments</span>
+            </button>
           </div>
         </div>
 
-        {/* Quick Couple Shortcuts: Our Moments */}
-        <div className="shrink-0 px-3 py-1 flex items-center gap-1.5">
-          <button
-            onClick={() => setIsMediaDrawerOpen(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 border border-transparent hover:border-border/50 transition-all cursor-pointer"
-            title="Open Our Moments gallery"
-          >
-            <FolderHeart className="w-3.5 h-3.5 text-primary" />
-            <span>Our Moments</span>
-          </button>
-        </div>
-
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-2 space-y-1.5">
+        {/* Conversations List (WhatsApp Chat Feed) */}
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y divide-y divide-border/30">
           {/* Pending Connection Requests Banner in Sidebar */}
           {incomingRequests.length > 0 && (
-            <div className="space-y-1.5 mb-2">
-              <div className="flex items-center justify-between px-1 text-[11px] font-semibold text-primary">
+            <div className="p-2 space-y-1.5 bg-card/60">
+              <div className="flex items-center justify-between px-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                 <span className="flex items-center gap-1">
                   <Bell className="w-3 h-3 text-rose-500 animate-bounce" />
                   Connection Requests ({incomingRequests.length})
@@ -166,7 +255,7 @@ export function Sidebar() {
                 return (
                   <div
                     key={req.id}
-                    className="p-2.5 rounded-2xl bg-[#0C3B2E]/5 dark:bg-white/5 border border-primary/25 space-y-2 shadow-xs"
+                    className="p-2.5 rounded-2xl bg-card border border-emerald-500/25 space-y-2 shadow-xs"
                   >
                     <div className="flex items-center gap-2.5">
                       <Avatar
@@ -210,19 +299,19 @@ export function Sidebar() {
           )}
 
           {filteredConversations.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground space-y-2">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center">
-                <Heart className="w-5 h-5" />
+            <div className="p-8 text-center text-muted-foreground space-y-2">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+                <Heart className="w-6 h-6" />
               </div>
-              <p className="text-xs font-medium text-foreground">No conversations yet</p>
-              <p className="text-[11px] text-muted-foreground max-w-[200px] mx-auto">
-                Share your username or enter your partner&apos;s username to start chatting.
+              <p className="text-sm font-semibold text-foreground">No chats found</p>
+              <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
+                Share your username or connect with your partner to start chatting.
               </p>
               <Button
                 variant="default"
                 size="sm"
                 onClick={() => setIsInviteOpen(true)}
-                className="mt-2 text-xs rounded-xl shadow-sm"
+                className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
               >
                 <UserPlus className="w-3.5 h-3.5 mr-1.5" />
                 Connect Partner
@@ -233,23 +322,30 @@ export function Sidebar() {
               const other = conv.otherUser;
               const isActive = conv.id === activeConversationId;
               const isOtherOnline = other?.id === friendPresence.userId ? friendPresence.online : false;
+              const isPartnerTyping = typingUsers.some(
+                u => u === other?.display_name || u === other?.username
+              );
+
+              const lastTime = conv.lastMessage?.created_at || conv.updated_at;
+              const hasUnread = conv.unreadCount > 0;
 
               return (
                 <div
                   key={conv.id}
                   onClick={() => setActiveConversationId(conv.id)}
                   className={cn(
-                    'flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-150 relative group',
+                    'flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150 relative group',
                     isActive
-                      ? 'bg-card border border-rose-200/60 dark:border-rose-900/40 shadow-xs text-card-foreground'
-                      : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
+                      ? 'bg-muted/80 dark:bg-card/90 shadow-2xs'
+                      : 'hover:bg-muted/40'
                   )}
                 >
-                  {/* Subtle active left glow line */}
+                  {/* Active Left Indicator Bar */}
                   {isActive && (
-                    <div className="absolute left-1.5 top-3 bottom-3 w-1 rounded-full bg-primary" />
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600 dark:bg-emerald-500" />
                   )}
 
+                  {/* Partner Avatar with live green online dot */}
                   <Avatar
                     src={other?.avatar_path}
                     name={other?.display_name || 'Partner'}
@@ -258,34 +354,76 @@ export function Sidebar() {
                     className="shrink-0"
                   />
 
+                  {/* WhatsApp Content Details */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
+                    {/* Top Row: Partner Name + WhatsApp Timestamp */}
+                    <div className="flex items-center justify-between mb-1">
                       <h4
                         className={cn(
-                          'text-xs font-semibold truncate flex items-center gap-1',
-                          isActive ? 'text-foreground font-bold' : 'text-foreground/90'
+                          'text-sm font-semibold truncate text-foreground',
+                          hasUnread && 'font-bold'
                         )}
                       >
-                        {other?.display_name || 'My Partner'}
+                        {other?.display_name || 'Partner'}
                       </h4>
-                      {conv.lastMessage && (
-                        <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-                          {formatMessageTime(conv.lastMessage.created_at)}
+
+                      {lastTime && (
+                        <span
+                          className={cn(
+                            'text-[11px] shrink-0 font-medium',
+                            hasUnread
+                              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                              : 'text-muted-foreground'
+                          )}
+                        >
+                          {formatConversationTime(lastTime)}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <p className="truncate text-[11px] text-muted-foreground max-w-[170px]">
-                        {getMediaPreviewIcon(conv.lastMessage?.message_type)}
-                        {conv.lastMessage?.body?.startsWith('[💌 Note]')
-                          ? '💌 Sent a Little Note'
-                          : conv.lastMessage?.body ||
-                            conv.lastMessage?.original_filename ||
-                            (conv.lastMessage?.message_type ? `[${conv.lastMessage.message_type}]` : 'Say hello!')}
-                      </p>
-                      {conv.unreadCount > 0 && (
-                        <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-primary text-primary-foreground shadow-xs">
+                    {/* Bottom Row: Status Tick + Last Message / Typing... + Unread Badge */}
+                    <div className="flex items-center justify-between gap-1.5 text-xs">
+                      <div className="truncate flex items-center min-w-0 max-w-[190px] sm:max-w-[210px]">
+                        {isPartnerTyping ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1 animate-pulse">
+                            typing...
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              'truncate text-xs flex items-center',
+                              hasUnread
+                                ? 'text-foreground font-semibold'
+                                : 'text-muted-foreground'
+                            )}
+                          >
+                            {/* WhatsApp Status Tick if outgoing */}
+                            {renderLastMessageStatus(conv.lastMessage, isOtherOnline)}
+
+                            {/* Media icon if media */}
+                            {renderMediaPreview(
+                              conv.lastMessage?.message_type,
+                              conv.lastMessage?.original_filename
+                            )}
+
+                            {/* Text preview */}
+                            {!['image', 'audio', 'video', 'file'].includes(
+                              conv.lastMessage?.message_type || ''
+                            ) && (
+                              <span className="truncate">
+                                {conv.lastMessage?.body?.startsWith('[💌 Note]')
+                                  ? '💌 Sent a Little Note'
+                                  : conv.lastMessage?.body ||
+                                    (conv.lastMessage ? 'Sent a message' : 'Say hello!')}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Unread Counter Badge (Emerald Circle) */}
+                      {hasUnread && (
+                        <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                           {conv.unreadCount}
                         </span>
                       )}
@@ -297,7 +435,13 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* User Footer Profile & Controls */}
+        {/* WhatsApp End-to-End Encryption Notice Footer */}
+        <div className="shrink-0 py-2 px-3 text-center text-[10px] text-muted-foreground/60 flex items-center justify-center gap-1.5 border-t border-border/30 bg-muted/20">
+          <Lock className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span>Your personal messages are end-to-end encrypted</span>
+        </div>
+
+        {/* User Profile Footer */}
         <div className="shrink-0 p-3 border-t border-border/60 bg-card/60 flex items-center justify-between gap-1 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
           <Link
             href="/settings/profile"
@@ -330,7 +474,7 @@ export function Sidebar() {
 
           <div className="flex items-center shrink-0">
             <Link
-              href="/settings/profile"
+              href="/settings"
               className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="Settings & Preferences"
               aria-label="Settings"

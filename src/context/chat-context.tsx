@@ -10,6 +10,8 @@ import {
   MessageType,
   UserPresence,
   MessageReaction,
+  DeliveryStatus,
+  Message,
 } from '@/types/database';
 import { encryptMessage, decryptMessage } from '@/lib/e2ee';
 
@@ -184,6 +186,34 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           .limit(1)
           .maybeSingle();
 
+        let lastMsg: (Message & { deliveryStatus?: DeliveryStatus }) | null = lastMsgData ? { ...lastMsgData } : null;
+        if (lastMsg) {
+          if (lastMsg.body) {
+            try {
+              lastMsg.body = await decryptMessage(lastMsg.body, conv.id);
+            } catch {
+              // fallback to raw body if decryption fails
+            }
+          }
+
+          if (lastMsg.sender_id === profile.id) {
+            const { data: receipts } = await supabase
+              .from('message_receipts')
+              .select('*')
+              .eq('message_id', lastMsg.id);
+
+            const readReceipt = receipts?.find((r: any) => r.read_at);
+            const deliveredReceipt = receipts?.find((r: any) => r.delivered_at);
+            if (readReceipt) {
+              lastMsg.deliveryStatus = 'read';
+            } else if (deliveredReceipt) {
+              lastMsg.deliveryStatus = 'delivered';
+            } else {
+              lastMsg.deliveryStatus = 'sent';
+            }
+          }
+        }
+
         // Count unread
         const { count: unreadCount } = await supabase
           .from('messages')
@@ -200,7 +230,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           updated_at: conv.updated_at,
           members: mappedMembers,
           otherUser: otherMember?.profile,
-          lastMessage: lastMsgData ?? null,
+          lastMessage: lastMsg,
           unreadCount: unreadCount || 0,
         });
       }
@@ -652,6 +682,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               : m
           )
         );
+        setConversations(prev =>
+          prev.map(c =>
+            c.id === activeConversationId && c.lastMessage?.sender_id === profile.id
+              ? {
+                  ...c,
+                  lastMessage: {
+                    ...c.lastMessage,
+                    deliveryStatus: 'read',
+                  },
+                }
+              : c
+          )
+        );
       }
     });
 
@@ -879,6 +922,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => [...prev, optimisticMessage]);
     setReplyingTo(null);
 
+    // Optimistically update conversation's last message in sidebar
+    setConversations(prev =>
+      prev.map(c =>
+        c.id === activeConversationId
+          ? {
+              ...c,
+              lastMessage: {
+                ...optimisticMessage,
+                deliveryStatus: 'sending',
+              },
+              updated_at: optimisticMessage.created_at,
+            }
+          : c
+      )
+    );
+
     if (!activeConversationId) {
       return { error: 'No conversation selected' };
     }
@@ -942,6 +1001,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           m.id === optimisticId
             ? { ...m, ...insertedMsg, body: payload.body || null, isOptimistic: false, deliveryStatus: initialDeliveryStatus }
             : m
+        )
+      );
+
+      // Also finalize conversation last message in sidebar
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === activeConversationId
+            ? {
+                ...c,
+                lastMessage: {
+                  ...insertedMsg,
+                  body: payload.body || null,
+                  deliveryStatus: initialDeliveryStatus,
+                },
+                updated_at: insertedMsg.created_at,
+              }
+            : c
         )
       );
 

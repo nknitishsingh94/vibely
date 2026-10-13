@@ -26,6 +26,7 @@ import Link from 'next/link';
 export function ConversationHeader() {
   const {
     activeConversation,
+    setActiveConversationId,
     friendPresence,
     isSearching,
     setIsSearching,
@@ -75,13 +76,14 @@ export function ConversationHeader() {
         <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile Back Button */}
-            <Link
-              href="/chat"
-              className="md:hidden p-2 -ml-1 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            <button
+              type="button"
+              onClick={() => setActiveConversationId(null)}
+              className="md:hidden p-2 -ml-1 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               aria-label="Back to conversations list"
             >
               <ArrowLeft className="w-5 h-5" />
-            </Link>
+            </button>
 
             {/* Friend Avatar with presence ring */}
             <div className="relative">
@@ -107,17 +109,16 @@ export function ConversationHeader() {
 
               <div className="flex items-center gap-2 text-xs truncate">
                 {typingUsers.length > 0 ? (
-                  <span className="text-primary font-medium flex items-center gap-1 animate-pulse">
-                    <span>typing</span>
-                    <span className="inline-block animate-bounce">...</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 animate-pulse">
+                    typing...
                   </span>
                 ) : friendPresence.online ? (
-                  <span className="text-emerald-500 font-medium flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                    Online now
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    online
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">
+                  <span className="text-muted-foreground text-[11px]">
                     {formatLastSeen(friend?.last_seen_at || friendPresence.lastSeen)}
                   </span>
                 )}

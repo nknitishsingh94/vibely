@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useChat } from '@/context/chat-context';
 import { MessageBubble } from './message-bubble';
 import { formatMessageDate } from '@/lib/utils';
-import { Heart, Search, Sparkles } from 'lucide-react';
+import { Heart, Search, Sparkles, Lock } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 
 export function MessageList() {
@@ -86,19 +86,19 @@ export function MessageList() {
           </>
         ) : (
           <div className="space-y-3 max-w-sm animate-in fade-in duration-300">
-            <div className="w-16 h-16 rounded-full bg-rose-500/10 text-primary flex items-center justify-center mx-auto shadow-xs border border-rose-500/20">
-              <Heart className="w-8 h-8 fill-primary/20 stroke-primary" />
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto shadow-xs border border-emerald-500/20">
+              <Heart className="w-8 h-8 fill-emerald-500/20 stroke-emerald-600" />
             </div>
-            <h3 className="text-base font-serif font-bold text-foreground">
+            <h3 className="text-base font-bold text-foreground">
               Your story starts with a hello.
             </h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Every little moment matters. Share a heartfelt note, a photo, a favorite song, or say what&apos;s on your mind.
+              Every little moment matters. Send a message, a voice note, a photo, or say what&apos;s on your mind.
             </p>
             <div className="pt-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium text-rose-600 dark:text-rose-300 bg-rose-500/10 border border-rose-500/15">
-                <Sparkles className="w-3 h-3 text-primary" />
-                Just us, in our own little world.
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/15">
+                <Lock className="w-3 h-3 text-emerald-600" />
+                End-to-end encrypted connection.
               </span>
             </div>
           </div>
@@ -112,18 +112,21 @@ export function MessageList() {
       ref={containerRef}
       className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-3 sm:p-5 space-y-4 romantic-wallpaper"
     >
+      {/* WhatsApp End-to-End Encryption Security Pill Banner */}
+      <div className="flex items-center justify-center my-2 px-4 select-none">
+        <div className="max-w-md px-3.5 py-1.5 rounded-xl bg-amber-500/10 dark:bg-[#182229] border border-amber-500/20 dark:border-border/60 text-center text-[11px] text-amber-800 dark:text-amber-300/90 shadow-2xs flex items-center justify-center gap-1.5 leading-snug">
+          <Lock className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span>Messages are end-to-end encrypted. No one outside of this chat, not even Vibely, can read or listen to them.</span>
+        </div>
+      </div>
+
       {groupedMessages.map(group => (
         <div key={group.date} className="space-y-2">
-          {/* Centered Editorial Date Badge */}
-          <div className="flex items-center justify-center my-4">
-            <div className="relative flex items-center justify-center w-full max-w-xs">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border/40" />
-              </div>
-              <span className="relative px-3.5 py-0.5 rounded-full text-[11px] font-serif font-medium bg-background/90 text-muted-foreground border border-border/60 select-none shadow-xs backdrop-blur-xs">
-                {group.date}
-              </span>
-            </div>
+          {/* Centered WhatsApp Date Badge */}
+          <div className="flex items-center justify-center my-3 select-none">
+            <span className="px-3 py-1 rounded-lg text-[11px] font-sans font-medium uppercase tracking-wide bg-background/90 dark:bg-[#182229] text-muted-foreground border border-border/60 shadow-2xs backdrop-blur-xs">
+              {group.date}
+            </span>
           </div>
 
           {/* Messages */}

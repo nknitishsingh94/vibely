@@ -302,8 +302,8 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           isLittleNote
             ? 'little-note-card rounded-2xl'
             : isOutgoing
-            ? 'bg-[#0C3B2E] text-white rounded-br-xs shadow-sm shadow-[#0C3B2E]/15'
-            : 'bg-white dark:bg-[#0D281E] text-foreground border border-border/70 rounded-bl-xs shadow-2xs'
+            ? 'bg-[#005C4B] text-white rounded-br-xs shadow-sm shadow-[#005C4B]/20'
+            : 'bg-white dark:bg-[#202C33] text-foreground border border-border/70 rounded-bl-xs shadow-2xs'
         )}
       >
         {/* Little Note Header Badge */}

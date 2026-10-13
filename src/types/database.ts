@@ -102,7 +102,7 @@ export interface MessageWithDetails extends Message {
 export interface ConversationWithDetails extends Conversation {
   members: (ConversationMember & { profile: Profile })[];
   otherUser?: Profile;
-  lastMessage?: Message | null;
+  lastMessage?: (Message & { deliveryStatus?: DeliveryStatus }) | MessageWithDetails | null;
   unreadCount: number;
 }
 

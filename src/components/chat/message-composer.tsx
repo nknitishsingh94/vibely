@@ -13,7 +13,8 @@ import {
   FileText,
   AlertCircle,
   Sparkles,
-  Heart,
+  Camera,
+  Loader2,
 } from 'lucide-react';
 import { useChat } from '@/context/chat-context';
 import { validateFileAttachment } from '@/lib/validations/message';
@@ -45,12 +46,17 @@ export function MessageComposer() {
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const typingTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const QUICK_EMOJIS = ['❤️', '💕', '🥰', '✨', '🌹', '☕', '😂', '🔥', '🎉'];
+  const QUICK_EMOJIS = ['❤️', '💕', '🥰', '😘', '✨', '🌹', '☕', '😂', '🔥', '🎉'];
 
-  // Handle typing indicator debounce
+  // Handle typing indicator debounce and auto-expand textarea
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
     broadcastTyping(true);
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
 
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => {
@@ -150,7 +156,7 @@ export function MessageComposer() {
 
   if (isRecordingVoice) {
     return (
-      <div className="shrink-0 relative border-t border-border/70 bg-card/90 backdrop-blur-md p-2 sm:p-3 select-none transition-all pb-[max(env(safe-area-inset-bottom),0.625rem)]">
+      <div className="shrink-0 relative border-t border-border/70 bg-card/95 backdrop-blur-md p-2 sm:p-2.5 select-none transition-all pb-[max(env(safe-area-inset-bottom),0.625rem)]">
         <VoiceRecorderBar
           onSendVoice={handleSendVoice}
           onCancel={() => setIsRecordingVoice(false)}
@@ -160,7 +166,7 @@ export function MessageComposer() {
   }
 
   return (
-    <div className="shrink-0 relative border-t border-border/70 bg-card/90 backdrop-blur-md p-2 sm:p-3 select-none transition-all pb-[max(env(safe-area-inset-bottom),0.625rem)]">
+    <div className="shrink-0 relative border-t border-border/60 bg-background/95 dark:bg-[#111B21] backdrop-blur-md px-2 py-2 sm:px-3 sm:py-2.5 select-none transition-all pb-[max(env(safe-area-inset-bottom),0.5rem)]">
       {/* Hidden File Input */}
       <input
         type="file"
@@ -171,7 +177,7 @@ export function MessageComposer() {
 
       {/* Error alert if any */}
       {errorMessage && (
-        <div className="flex items-center gap-2 mb-2 p-2 rounded-xl bg-destructive/10 text-destructive text-xs border border-destructive/20">
+        <div className="flex items-center gap-2 mb-2 p-2 rounded-xl bg-destructive/10 text-destructive text-xs border border-destructive/20 animate-in fade-in">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span className="flex-1 truncate">{errorMessage}</span>
           <button onClick={() => setErrorMessage(null)} className="p-0.5 cursor-pointer">
@@ -180,14 +186,14 @@ export function MessageComposer() {
         </div>
       )}
 
-      {/* Quoted Reply Preview */}
+      {/* WhatsApp Quoted Reply Preview */}
       {replyingTo && (
-        <div className="flex items-center justify-between gap-2 mb-2 p-2 px-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs">
+        <div className="flex items-center justify-between gap-2 mb-2 p-2.5 px-3 rounded-2xl bg-muted/90 dark:bg-[#202C33] border-l-4 border-l-emerald-600 dark:border-l-emerald-400 border border-border/60 text-xs shadow-2xs animate-in slide-in-from-bottom-2">
           <div className="min-w-0">
-            <span className="font-semibold text-primary">
-              Replying to {replyingTo.sender?.display_name || 'Partner'}:
+            <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+              {replyingTo.sender?.display_name || 'Partner'}
             </span>
-            <p className="truncate text-muted-foreground">
+            <p className="truncate text-muted-foreground mt-0.5">
               {replyingTo.body?.replace(/^\[💌 Note\]\s*/, '') ||
                 replyingTo.original_filename ||
                 `[${replyingTo.message_type}]`}
@@ -205,9 +211,9 @@ export function MessageComposer() {
 
       {/* Little Note Mode Banner */}
       {isLittleNoteMode && (
-        <div className="flex items-center justify-between gap-2 mb-2 px-3 py-1.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/25 text-xs text-amber-700 dark:text-amber-200">
+        <div className="flex items-center justify-between gap-2 mb-2 px-3 py-1.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/25 text-xs text-amber-700 dark:text-amber-200 animate-in fade-in">
           <span className="flex items-center gap-1.5 font-serif italic">
-            <span>💌</span> Composing a Little Note for your favorite person
+            <span>💌</span> Composing a Little Note
           </span>
           <button
             onClick={() => setIsLittleNoteMode(false)}
@@ -218,23 +224,23 @@ export function MessageComposer() {
         </div>
       )}
 
-      {/* Attachment Preview Bar */}
+      {/* Selected File Attachment Preview Chip */}
       {selectedFile && (
-        <div className="flex items-center justify-between gap-3 mb-2 p-2 px-3 rounded-xl bg-muted/80 border border-border text-xs">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center justify-between gap-3 mb-2 p-2 px-3 rounded-2xl bg-card dark:bg-[#202C33] border border-border/80 text-xs shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
             {filePreview ? (
               <img
                 src={filePreview}
                 alt="Upload preview"
-                className="w-10 h-10 rounded-lg object-cover border border-border"
+                className="w-10 h-10 rounded-xl object-cover border border-border"
               />
             ) : (
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
                 <FileText className="w-5 h-5" />
               </div>
             )}
             <div className="min-w-0">
-              <p className="font-medium truncate">{selectedFile.name}</p>
+              <p className="font-semibold truncate text-foreground">{selectedFile.name}</p>
               <p className="text-[11px] text-muted-foreground font-mono">
                 {formatBytes(selectedFile.size)}
               </p>
@@ -250,139 +256,30 @@ export function MessageComposer() {
         </div>
       )}
 
-      {/* Main Composer Row */}
-      <div className="flex items-end gap-1.5 sm:gap-2">
-        {/* Attachment menu trigger */}
-        <div className="relative">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowAttachMenu(prev => !prev)}
-            className="rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer"
-            title="Attach media or memories"
-            aria-label="Attach file"
-          >
-            <Paperclip className="w-4.5 h-4.5" />
-          </Button>
-
-          {/* Attachment Type Popover */}
-          {showAttachMenu && (
-            <div className="absolute bottom-full mb-2 left-0 w-52 rounded-2xl bg-card border border-border/80 p-1.5 shadow-xl z-30 animate-in zoom-in-95 space-y-0.5 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.accept = 'image/*';
-                    fileInputRef.current.click();
-                  }
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-muted text-foreground transition-colors cursor-pointer"
-              >
-                <ImageIcon className="w-4 h-4 text-rose-500" />
-                Photos & Memories
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.accept = 'audio/*';
-                    fileInputRef.current.click();
-                  }
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-muted text-foreground transition-colors cursor-pointer"
-              >
-                <Music className="w-4 h-4 text-violet-500" />
-                Songs & Audio
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.accept = 'video/*';
-                    fileInputRef.current.click();
-                  }
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-muted text-foreground transition-colors cursor-pointer"
-              >
-                <Film className="w-4 h-4 text-sky-500" />
-                Videos
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.accept = '*/*';
-                    fileInputRef.current.click();
-                  }
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-muted text-foreground transition-colors cursor-pointer"
-              >
-                <FileText className="w-4 h-4 text-amber-500" />
-                Files & Documents
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Little Note Toggle Button */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsLittleNoteMode(prev => !prev)}
-          className={cn(
-            'rounded-xl transition-colors cursor-pointer',
-            isLittleNoteMode
-              ? 'text-amber-500 bg-amber-500/15 hover:bg-amber-500/20'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
-          )}
-          title={isLittleNoteMode ? 'Little Note mode enabled' : 'Send as a Little Note'}
-          aria-label="Toggle Little Note mode"
-        >
-          <span className="text-sm">💌</span>
-        </Button>
-
-        {/* Text Input Area */}
+      {/* Main WhatsApp Composer Bar */}
+      <div className="flex items-end gap-2">
+        {/* WhatsApp Signature Input Pill */}
         <div
           className={cn(
-            'flex-1 relative flex items-center bg-background/80 rounded-2xl border shadow-xs transition-all',
-            isLittleNoteMode
-              ? 'border-amber-400/50 bg-amber-50/30 dark:bg-amber-950/20 focus-within:ring-2 focus-within:ring-amber-500/20'
-              : 'border-input focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20'
+            'flex-1 flex items-end gap-1 px-2 py-1 rounded-[24px] bg-card dark:bg-[#202C33] border border-border/70 dark:border-white/10 shadow-xs transition-all relative focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15',
+            isLittleNoteMode && 'ring-2 ring-amber-500/30 border-amber-500/40 bg-amber-50/20 dark:bg-amber-950/20'
           )}
         >
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isLittleNoteMode
-                ? 'Write your heartfelt note...'
-                : 'Type a message... (Enter to send, Shift+Enter for newline)'
-            }
-            rows={1}
-            className={cn(
-              'w-full px-3.5 py-2.5 text-sm bg-transparent border-0 focus:outline-none resize-none max-h-32 placeholder:text-muted-foreground',
-              isLittleNoteMode && 'font-serif italic'
-            )}
-          />
-
-          {/* Quick Emoji Button */}
-          <div className="relative pr-2">
+          {/* 1. Emoji Picker Button */}
+          <div className="relative shrink-0 pb-0.5">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(prev => !prev)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Insert romantic emoji"
+              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer"
+              title="Insert emoji"
               aria-label="Insert emoji"
             >
-              <Smile className="w-4 h-4" />
+              <Smile className="w-5 h-5" />
             </button>
 
+            {/* Quick Emoji Popover */}
             {showEmojiPicker && (
-              <div className="absolute bottom-full mb-2 right-0 flex items-center gap-1 p-2 rounded-2xl bg-card border border-border shadow-xl z-30 animate-in zoom-in-95 backdrop-blur-md">
+              <div className="absolute bottom-full mb-2.5 left-0 flex items-center gap-1 p-2 rounded-2xl bg-card dark:bg-[#202C33] border border-border/80 shadow-xl z-30 animate-in zoom-in-95 backdrop-blur-md">
                 {QUICK_EMOJIS.map(emoji => (
                   <button
                     key={emoji}
@@ -403,33 +300,140 @@ export function MessageComposer() {
               </div>
             )}
           </div>
+
+          {/* 2. Attachment Paperclip Button */}
+          <div className="relative shrink-0 pb-0.5">
+            <button
+              type="button"
+              onClick={() => setShowAttachMenu(prev => !prev)}
+              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer"
+              title="Attach media or document"
+              aria-label="Attach file"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+
+            {/* WhatsApp Attachment Popover Menu */}
+            {showAttachMenu && (
+              <div className="absolute bottom-full mb-3 left-0 w-56 rounded-3xl bg-card dark:bg-[#233138] border border-border/80 dark:border-white/10 p-2 shadow-2xl z-30 animate-in zoom-in-95 space-y-1 backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.accept = 'image/*';
+                      fileInputRef.current.click();
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-full bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  <span>Photos & Videos</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.accept = 'audio/*';
+                      fileInputRef.current.click();
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                    <Music className="w-4 h-4" />
+                  </div>
+                  <span>Audio & Songs</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.accept = '*/*';
+                      fileInputRef.current.click();
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <span>Document / File</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLittleNoteMode(prev => !prev);
+                    setShowAttachMenu(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer border-t border-border/40"
+                >
+                  <div className="w-8 h-8 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <span>💌 Little Note</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Text Input (Auto-Expanding) */}
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isLittleNoteMode
+                ? 'Write your heartfelt Little Note...'
+                : 'Type a message'
+            }
+            rows={1}
+            className={cn(
+              'flex-1 min-h-[36px] max-h-32 px-1.5 py-1.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none placeholder:text-muted-foreground leading-normal',
+              isLittleNoteMode && 'font-serif italic text-amber-900 dark:text-amber-100'
+            )}
+          />
+
+          {/* 4. Little Note Quick Shortcut */}
+          <div className="shrink-0 pb-0.5">
+            <button
+              type="button"
+              onClick={() => setIsLittleNoteMode(prev => !prev)}
+              className={cn(
+                'p-1.5 rounded-full transition-transform cursor-pointer text-sm',
+                isLittleNoteMode
+                  ? 'bg-amber-500/20 ring-1 ring-amber-500/40 scale-110'
+                  : 'hover:bg-muted/70 opacity-70 hover:opacity-100'
+              )}
+              title={isLittleNoteMode ? 'Little Note active' : 'Send as Little Note'}
+            >
+              💌
+            </button>
+          </div>
         </div>
 
-        {/* Send / Voice Record Button */}
-        {text.trim() || selectedFile ? (
-          <Button
-            type="button"
-            onClick={handleSend}
-            isLoading={isSending}
-            size="icon"
-            className="rounded-2xl shrink-0 bg-[#0C3B2E] hover:bg-[#155E49] text-white shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            aria-label="Send message"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsRecordingVoice(true)}
-            className="rounded-2xl shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-            title="Record voice message"
-            aria-label="Record voice message"
-          >
+        {/* WhatsApp Circular Action Button (Emerald Circle) */}
+        <button
+          type="button"
+          onClick={text.trim() || selectedFile ? handleSend : () => setIsRecordingVoice(true)}
+          disabled={isSending}
+          className="w-11 h-11 rounded-full shrink-0 flex items-center justify-center bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-md active:scale-90 transition-all cursor-pointer"
+          title={text.trim() || selectedFile ? 'Send message' : 'Record voice note'}
+          aria-label={text.trim() || selectedFile ? 'Send' : 'Record Voice'}
+        >
+          {isSending ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : text.trim() || selectedFile ? (
+            <Send className="w-5 h-5 ml-0.5" />
+          ) : (
             <Mic className="w-5 h-5" />
-          </Button>
-        )}
+          )}
+        </button>
       </div>
     </div>
   );

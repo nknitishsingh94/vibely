@@ -55,7 +55,7 @@ export default function PrivacySettingsPage() {
                 type="checkbox"
                 checked={readReceipts}
                 onChange={e => setReadReceipts(e.target.checked)}
-                className="w-4 h-4 rounded text-primary accent-primary cursor-pointer"
+                className="w-5 h-5 rounded-md text-emerald-600 accent-[#005C4B] cursor-pointer"
               />
             </div>
 
@@ -74,7 +74,7 @@ export default function PrivacySettingsPage() {
                 type="checkbox"
                 checked={typingIndicators}
                 onChange={e => setTypingIndicators(e.target.checked)}
-                className="w-4 h-4 rounded text-primary accent-primary cursor-pointer"
+                className="w-5 h-5 rounded-md text-emerald-600 accent-[#005C4B] cursor-pointer"
               />
             </div>
 
@@ -93,7 +93,7 @@ export default function PrivacySettingsPage() {
                 type="checkbox"
                 checked={soundEffects}
                 onChange={e => setSoundEffects(e.target.checked)}
-                className="w-4 h-4 rounded text-primary accent-primary cursor-pointer"
+                className="w-5 h-5 rounded-md text-emerald-600 accent-[#005C4B] cursor-pointer"
               />
             </div>
           </div>

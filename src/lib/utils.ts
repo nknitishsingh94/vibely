@@ -42,20 +42,34 @@ export function formatMessageDate(dateString: string): string {
   }
 }
 
-export function formatLastSeen(dateString: string): string {
+export function formatConversationTime(dateString?: string | null): string {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isToday(date)) return format(date, 'h:mm a');
+    if (isYesterday(date)) return 'Yesterday';
+    return format(date, 'dd/MM/yy');
+  } catch {
+    return '';
+  }
+}
+
+export function formatLastSeen(dateString?: string | null): string {
+  if (!dateString) return 'offline';
   try {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return 'Active just now';
-    if (diffMins < 60) return `Active ${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `Active ${diffHours}h ago`;
-    return `Last seen ${format(date, 'MMM d')}`;
+    if (diffMs < 90000) return 'online';
+    if (isToday(date)) {
+      return `last seen today at ${format(date, 'h:mm a')}`;
+    }
+    if (isYesterday(date)) {
+      return `last seen yesterday at ${format(date, 'h:mm a')}`;
+    }
+    return `last seen ${format(date, 'dd/MM/yy')} at ${format(date, 'h:mm a')}`;
   } catch {
-    return 'Offline';
+    return 'offline';
   }
 }
 

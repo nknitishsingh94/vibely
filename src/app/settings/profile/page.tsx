@@ -169,7 +169,11 @@ export default function ProfileSettingsPage() {
           </div>
 
           <div className="pt-2">
-            <Button type="submit" isLoading={isSaving} className="rounded-xl font-medium">
+            <Button
+              type="submit"
+              isLoading={isSaving}
+              className="rounded-2xl font-semibold bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-sm px-6 h-10"
+            >
               Save Changes
             </Button>
           </div>

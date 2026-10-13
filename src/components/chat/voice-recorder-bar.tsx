@@ -156,7 +156,7 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
         ) : (
           <button
             onClick={togglePreviewPlay}
-            className="w-8 h-8 rounded-full bg-[#0C3B2E] text-white flex items-center justify-center cursor-pointer shadow-xs hover:bg-[#155E49] transition-colors"
+            className="w-8 h-8 rounded-full bg-[#005C4B] text-white flex items-center justify-center cursor-pointer shadow-xs hover:bg-[#004D3F] transition-colors"
             aria-label="Play audio preview"
           >
             {isPlayingPreview ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 ml-0.5 fill-current" />}
@@ -210,7 +210,7 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
           <Button
             size="sm"
             onClick={handleSend}
-            className="rounded-xl gap-1.5 bg-[#0C3B2E] hover:bg-[#155E49] text-white shadow-md text-xs font-semibold cursor-pointer"
+            className="rounded-xl gap-1.5 bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-md text-xs font-semibold cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
             Send Audio

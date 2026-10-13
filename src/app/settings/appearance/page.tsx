@@ -88,7 +88,7 @@ export default function AppearanceSettingsPage() {
               onChange={e => setDateInput(e.target.value)}
               className="flex-1 px-3 py-2 rounded-xl text-xs bg-background border border-input focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
-            <Button type="submit" size="sm" className="rounded-xl text-xs font-medium bg-primary text-primary-foreground">
+            <Button type="submit" size="sm" className="rounded-2xl text-xs font-semibold bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-sm px-4">
               Save Date
             </Button>
             {anniversary && (
