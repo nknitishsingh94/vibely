@@ -17,6 +17,7 @@ import {
   Heart,
   Sparkles,
   ChevronDown,
+  Ban,
 } from 'lucide-react';
 import { MessageWithDetails } from '@/types/database';
 import { useAuth } from '@/context/auth-context';
@@ -169,14 +170,12 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     await deleteMessage(message.id, 'for_me');
     setShowDeleteModal(false);
     setShowMobileMenu(false);
-    toast.success('Message deleted for you');
   };
 
   const handleDeleteForEveryone = async () => {
     await deleteMessage(message.id, 'for_everyone');
     setShowDeleteModal(false);
     setShowMobileMenu(false);
-    toast.success('Message deleted for everyone');
   };
 
   const handleReactionClick = (emoji: string, e?: React.MouseEvent) => {
@@ -224,6 +223,36 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     },
     {} as Record<string, string[]>
   );
+
+  // If deleted, display WhatsApp in-place deleted placeholder directly where the message was!
+  if (message.deleted_at) {
+    return (
+      <div
+        id={`msg-${message.id}`}
+        className={cn(
+          'flex flex-col mb-2 px-1 sm:px-2 select-none animate-in fade-in duration-200',
+          isOutgoing ? 'items-end' : 'items-start'
+        )}
+      >
+        <div
+          className={cn(
+            'rounded-2xl px-3.5 py-2 text-xs flex items-center gap-2 border shadow-2xs italic',
+            isOutgoing
+              ? 'bg-muted/40 border-border/50 text-muted-foreground'
+              : 'bg-muted/40 border-border/50 text-muted-foreground'
+          )}
+        >
+          <Ban className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
+          <span>
+            {isOutgoing ? 'You deleted this message' : 'This message was deleted'}
+          </span>
+          <span className="text-[10px] ml-2 not-italic text-muted-foreground/60 font-mono">
+            {formatMessageTime(message.created_at)}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

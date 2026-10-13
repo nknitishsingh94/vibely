@@ -489,7 +489,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           reactions:message_reactions(*)
         `)
         .eq('conversation_id', conversationId)
-        .is('deleted_at', null)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -497,17 +496,31 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         console.warn('Unable to fetch messages from database:', errDetail);
         setMessages([]);
       } else if (data) {
-        // Filter out messages deleted for me on this device
+        // Filter or mark messages deleted for me on this device
         let deletedForMe: string[] = [];
         try {
           if (profile?.id && typeof window !== 'undefined') {
             deletedForMe = JSON.parse(localStorage.getItem(`vibely_deleted_for_me_${profile.id}`) || '[]');
           }
         } catch {}
-        const visibleData = data.filter((m: any) => !deletedForMe.includes(m.id));
+
+        const mappedData = data.map((m: any) => {
+          if (deletedForMe.includes(m.id)) {
+            return { ...m, deleted_at: m.deleted_at || new Date().toISOString() };
+          }
+          return m;
+        });
 
         const enriched: MessageWithDetails[] = await Promise.all(
-          visibleData.map(async (msg: any) => {
+          mappedData.map(async (msg: any) => {
+            if (msg.deleted_at) {
+              return {
+                ...msg,
+                body: null,
+                signedMediaUrl: null,
+                deliveryStatus: 'read',
+              };
+            }
             let signedMediaUrl = null;
             if (msg.storage_path) {
               const { data: signedData } = await supabase.storage
@@ -743,7 +756,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // Broadcast listener for instant message deletion by partner
     channel.on('broadcast', { event: 'message_deleted' }, ({ payload }: { payload: any }) => {
       if (payload?.messageId) {
-        setMessages(prev => prev.filter(m => m.id !== payload.messageId));
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === payload.messageId
+              ? {
+                  ...m,
+                  deleted_at: payload.deletedAt || new Date().toISOString(),
+                  body: null,
+                  storage_path: null,
+                  signedMediaUrl: null,
+                }
+              : m
+          )
+        );
       }
     });
 
@@ -919,8 +944,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         (payload: any) => {
           const updated = payload.new as any;
           if (updated.deleted_at) {
-            // Remove soft-deleted message from view
-            setMessages(prev => prev.filter(m => m.id !== updated.id));
+            // Keep message in place with deleted_at set so UI renders deleted placeholder
+            setMessages(prev =>
+              prev.map(m =>
+                m.id === updated.id
+                  ? {
+                      ...m,
+                      deleted_at: updated.deleted_at,
+                      body: null,
+                      storage_path: null,
+                      signedMediaUrl: null,
+                    }
+                  : m
+              )
+            );
           } else {
             setMessages(prev =>
               prev.map(m =>
@@ -1238,8 +1275,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ error?: string }> => {
     if (!profile) return { error: 'Not authenticated' };
 
-    // 1. Remove from local messages state immediately
-    setMessages(prev => prev.filter(m => m.id !== messageId));
+    const nowIso = new Date().toISOString();
+
+    // 1. Keep message in place and mark deleted_at locally so placeholder renders right in its spot
+    setMessages(prev =>
+      prev.map(m =>
+        m.id === messageId
+          ? {
+              ...m,
+              deleted_at: nowIso,
+              body: null,
+              storage_path: null,
+              signedMediaUrl: null,
+            }
+          : m
+      )
+    );
 
     if (mode === 'for_me') {
       try {
@@ -1265,7 +1316,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase
         .from('messages')
         .update({
-          deleted_at: new Date().toISOString(),
+          deleted_at: nowIso,
         })
         .eq('id', messageId)
         .eq('sender_id', profile.id);
@@ -1274,7 +1325,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'message_deleted',
-          payload: { messageId, conversationId: activeConversationId },
+          payload: { messageId, deletedAt: nowIso, conversationId: activeConversationId },
         });
       }
 
