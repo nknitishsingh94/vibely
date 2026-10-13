@@ -17,6 +17,8 @@ import {
   Copy,
   Check,
   CheckCheck,
+  Clock,
+  AlertCircle,
   X,
   Bell,
   Lock,
