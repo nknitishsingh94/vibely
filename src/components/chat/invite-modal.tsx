@@ -17,7 +17,6 @@ import {
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { generateSecureToken, hashToken } from '@/lib/utils';
-import { formatDuoId } from '@/lib/duo-id';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -49,7 +48,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
   const [isGeneratingLink, setIsGeneratingLink] = React.useState(false);
   const [myInvites, setMyInvites] = React.useState<Invitation[]>([]);
 
-  const myDuoId = formatDuoId(profile);
+  const myUsername = profile?.username ? `@${profile.username}` : '';
 
   const loadInvites = React.useCallback(async () => {
     if (!isConfigured || !profile) return;
@@ -84,8 +83,9 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
     }
   }, [isOpen, defaultTab, loadInvites]);
 
-  const copyMyDuoId = () => {
-    navigator.clipboard.writeText(myDuoId);
+  const copyMyUsername = () => {
+    if (!myUsername) return;
+    navigator.clipboard.writeText(myUsername);
     setCopiedMyId(true);
     setTimeout(() => setCopiedMyId(false), 2500);
   };
@@ -171,7 +171,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
       onClose={onClose}
       size="md"
       title="Connect with Your Partner"
-      description="Connect directly with your favorite person using their unique Vibe ID or a private invite link."
+      description="Connect directly with your favorite person using their @username or a private invite link."
     >
       <div className="space-y-4 pt-1">
         {/* Navigation Tabs */}
@@ -186,7 +186,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
             }`}
           >
             <KeyRound className="w-3.5 h-3.5 text-primary" />
-            <span>Connect with Vibe ID</span>
+            <span>Connect with Username</span>
           </button>
           <button
             type="button"
@@ -202,15 +202,15 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
           </button>
         </div>
 
-        {/* TAB 1: CONNECT VIA DUO ID */}
+        {/* TAB 1: CONNECT VIA USERNAME */}
         {activeTab === 'duoid' && (
           <div className="space-y-4">
-            {/* My Unique Duo ID Card */}
+            {/* My Unique Username Card */}
             <div className="p-3.5 rounded-2xl bg-[#0C3B2E]/5 dark:bg-white/5 border border-[#0C3B2E]/15 dark:border-white/15 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  Your Unique Vibe ID
+                  Your Username
                 </span>
                 <span className="text-[10px] text-muted-foreground">Share this with your partner</span>
               </div>
@@ -218,19 +218,14 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
               <div className="flex items-center justify-between bg-card/80 backdrop-blur-xs p-2 rounded-xl border border-border">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs font-bold tracking-wider text-foreground px-2 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
-                    {myDuoId}
+                    {myUsername || 'No username set'}
                   </span>
-                  {profile?.username && (
-                    <span className="text-[11px] text-muted-foreground font-mono">
-                      @{profile.username}
-                    </span>
-                  )}
                 </div>
 
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={copyMyDuoId}
+                  onClick={copyMyUsername}
                   className="h-7 text-xs gap-1 rounded-lg hover:bg-muted"
                 >
                   {copiedMyId ? (
@@ -241,30 +236,30 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy ID</span>
+                      <span>Copy Username</span>
                     </>
                   )}
                 </Button>
               </div>
             </div>
 
-            {/* Form to enter partner's ID */}
+            {/* Form to enter partner's username */}
             <form onSubmit={handleConnectByDuoId} className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                   <Search className="w-3.5 h-3.5 text-primary" />
-                  <span>Partner&apos;s Vibe ID or Username</span>
+                  <span>Partner&apos;s Username</span>
                 </label>
                 <input
                   type="text"
                   value={targetIdentifier}
                   onChange={e => setTargetIdentifier(e.target.value)}
-                  placeholder="e.g. #VIBE-8A3F1C2B or @username"
+                  placeholder="e.g. alex or @alex"
                   className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-background border border-input focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono placeholder:font-sans placeholder:text-muted-foreground transition-all"
                   autoFocus
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Ask your partner for their unique Vibe ID shown on their profile.
+                  Ask your partner for their @username shown on their profile.
                 </p>
               </div>
 

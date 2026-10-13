@@ -1,9 +1,21 @@
 import { z } from 'zod';
 
-export const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-});
+export const loginSchema = z
+  .object({
+    identifier: z
+      .string()
+      .min(2, 'Please enter your username or email address')
+      .optional(),
+    email: z
+      .string()
+      .min(2, 'Please enter your username or email address')
+      .optional(),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+  })
+  .refine((data) => Boolean((data.identifier && data.identifier.trim().length >= 2) || (data.email && data.email.trim().length >= 2)), {
+    message: 'Please enter your username or email address',
+    path: ['identifier'],
+  });
 
 export type LoginFormData = z.infer<typeof loginSchema>;
 

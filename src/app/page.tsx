@@ -374,9 +374,9 @@ export default function LandingPage() {
                 <div className="w-12 h-12 rounded-2xl bg-[#0C3B2E]/10 dark:bg-white/10 text-[#0C3B2E] dark:text-emerald-300 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <ShieldCheck className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-lg text-[#0C3B2E] dark:text-white">Vibe ID & Zero-Trust Privacy</h3>
+                <h3 className="font-bold text-lg text-[#0C3B2E] dark:text-white">Unique Username & Zero-Trust Privacy</h3>
                 <p className="text-xs sm:text-sm text-stone-600 dark:text-emerald-100/70 leading-relaxed font-normal">
-                  Connect effortlessly with unique <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-[#0C3B2E]/10 text-[#0C3B2E] dark:bg-white/10 dark:text-emerald-200 font-bold">#VIBE-ID</code> tags, single-use invite tokens, and secure tokenized media storage.
+                  Connect effortlessly with your personal <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-[#0C3B2E]/10 text-[#0C3B2E] dark:bg-white/10 dark:text-emerald-200 font-bold">@username</code>, single-use invite tokens, and secure tokenized media storage.
                 </p>
               </div>
             </div>
@@ -402,7 +402,7 @@ export default function LandingPage() {
                 </div>
                 <h3 className="font-bold text-base text-[#0C3B2E] dark:text-white">Create Your Account</h3>
                 <p className="text-xs text-stone-600 dark:text-emerald-100/70 leading-relaxed font-normal">
-                  Sign up with email or 1-click Google sign in to receive your unique Vibe ID.
+                  Sign up with email or 1-click Google sign in to set your personal @username.
                 </p>
               </div>
 
@@ -410,9 +410,9 @@ export default function LandingPage() {
                 <div className="w-10 h-10 rounded-full bg-[#0C3B2E] text-white font-bold text-sm mx-auto flex items-center justify-center shadow-md shadow-[#0C3B2E]/25">
                   2
                 </div>
-                <h3 className="font-bold text-base text-[#0C3B2E] dark:text-white">Connect with Vibe ID</h3>
+                <h3 className="font-bold text-base text-[#0C3B2E] dark:text-white">Connect with Username</h3>
                 <p className="text-xs text-stone-600 dark:text-emerald-100/70 leading-relaxed font-normal">
-                  Share your #VIBE-ID or generate an encrypted 1-time invite link for your partner.
+                  Share your @username or generate an encrypted 1-time invite link for your partner.
                 </p>
               </div>
 

@@ -10,7 +10,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { formatDuoId } from '@/lib/duo-id';
 import { toast } from '@/components/ui/toast';
 
 export default function ProfileSettingsPage() {
@@ -21,7 +20,7 @@ export default function ProfileSettingsPage() {
   const [copiedDuoId, setCopiedDuoId] = React.useState(false);
   const [copiedId, setCopiedId] = React.useState(false);
 
-  const duoId = formatDuoId(profile);
+  const username = profile?.username ? `@${profile.username}` : '';
 
   const {
     register,
@@ -68,10 +67,11 @@ export default function ProfileSettingsPage() {
     }
   };
 
-  const copyDuoId = () => {
-    navigator.clipboard.writeText(duoId);
+  const copyUsername = () => {
+    if (!username) return;
+    navigator.clipboard.writeText(username);
     setCopiedDuoId(true);
-    toast.success('Vibe ID copied to clipboard');
+    toast.success('Username copied to clipboard');
     setTimeout(() => setCopiedDuoId(false), 2000);
   };
 
@@ -187,26 +187,26 @@ export default function ProfileSettingsPage() {
             <Sparkles className="w-4 h-4 text-primary" />
           </div>
 
-          {/* Unique Duo ID Badge */}
+          {/* Unique Username Badge */}
           <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                <Hash className="w-3.5 h-3.5" />
-                Unique Vibe ID
+                <User className="w-3.5 h-3.5" />
+                Your Username
               </span>
               <button
-                onClick={copyDuoId}
+                onClick={copyUsername}
                 className="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 {copiedDuoId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedDuoId ? 'Copied!' : 'Copy Vibe ID'}</span>
+                <span>{copiedDuoId ? 'Copied!' : 'Copy Username'}</span>
               </button>
             </div>
             <div className="font-mono text-base font-bold text-foreground tracking-wide">
-              {duoId}
+              {username || 'No username set'}
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Share this ID with your partner. Anyone with this ID can find and connect with you on Vibely.
+              Share your @username with your partner. They can enter it to find and connect with you directly on Vibely.
             </p>
           </div>
 

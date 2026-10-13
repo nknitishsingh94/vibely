@@ -3,7 +3,7 @@ import { loginSchema, signupSchema } from '@/lib/validations/auth';
 import { validateFileAttachment } from '@/lib/validations/message';
 
 describe('Auth Validation Schemas', () => {
-  it('should validate correct login credentials', () => {
+  it('should validate correct login credentials with email', () => {
     const valid = loginSchema.safeParse({
       email: 'friend@vibely.local',
       password: 'password123',
@@ -11,9 +11,17 @@ describe('Auth Validation Schemas', () => {
     expect(valid.success).toBe(true);
   });
 
-  it('should reject invalid email in login', () => {
+  it('should validate correct login credentials with username', () => {
+    const valid = loginSchema.safeParse({
+      identifier: 'alex_rivera',
+      password: 'password123',
+    });
+    expect(valid.success).toBe(true);
+  });
+
+  it('should reject empty or missing identifier in login', () => {
     const invalid = loginSchema.safeParse({
-      email: 'not-an-email',
+      identifier: '',
       password: 'password123',
     });
     expect(invalid.success).toBe(false);

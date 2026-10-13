@@ -18,7 +18,6 @@ import { useChat } from '@/context/chat-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatLastSeen } from '@/lib/utils';
-import { formatDuoId } from '@/lib/duo-id';
 import { toast } from '@/components/ui/toast';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { Dialog } from '@/components/ui/dialog';
@@ -305,7 +304,7 @@ export function ConversationHeader() {
                 {friend?.display_name || 'Partner'}
               </p>
               <p className="text-xs text-muted-foreground font-mono truncate">
-                {friend ? formatDuoId(friend) : ''}
+                {friend?.username ? `@${friend.username}` : ''}
               </p>
             </div>
           </div>

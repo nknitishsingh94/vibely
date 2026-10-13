@@ -9,18 +9,17 @@ import { ConversationHeader } from '@/components/chat/conversation-header';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageComposer } from '@/components/chat/message-composer';
 import { MediaGalleryDrawer } from '@/components/chat/media-gallery-drawer';
-import { UserPlus, Sparkles, Copy, Check, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
+import { UserPlus, Sparkles, Copy, Check, ArrowRight, Loader2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InviteModal } from '@/components/chat/invite-modal';
 import { TopNotificationBar } from '@/components/chat/notification-bar';
 import { BrandLogo } from '@/components/ui/brand-logo';
-import { formatDuoId } from '@/lib/duo-id';
 import { toast } from '@/components/ui/toast';
 
 export default function ChatPage() {
   const router = useRouter();
-  const { activeConversationId, conversations, connectWithPartner } = useChat();
+  const { activeConversationId, connectWithPartner } = useChat();
   const { user, profile, isLoading } = useAuth();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -45,26 +44,28 @@ export default function ChatPage() {
     return null;
   }
 
-  const duoId = formatDuoId(profile || user?.id);
+  const myUsername = profile?.username ? `@${profile.username}` : '';
 
-  const handleCopyId = async () => {
+  const handleCopyUsername = async () => {
     try {
-      await navigator.clipboard.writeText(duoId);
+      if (!myUsername) return;
+      await navigator.clipboard.writeText(myUsername);
       setCopied(true);
-      toast.success('Vibe ID copied to clipboard!');
+      toast.success('Username copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('Failed to copy Vibe ID');
+      toast.error('Failed to copy username');
     }
   };
 
   const handleQuickConnect = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!partnerInput.trim()) return;
+    const cleanUsername = partnerInput.trim().replace(/^@/, '');
+    if (!cleanUsername) return;
 
     setIsConnecting(true);
     try {
-      const res = await connectWithPartner(partnerInput.trim());
+      const res = await connectWithPartner(cleanUsername);
       if (res.success) {
         if (res.isRequestSent) {
           toast.success(res.message || 'Connection request sent! They will appear in your friend list once they accept.');
@@ -74,7 +75,7 @@ export default function ChatPage() {
           setPartnerInput('');
         }
       } else {
-        toast.error(res.error || 'Could not find user with that Vibe ID or username.');
+        toast.error(res.error || `Could not find any user with username @${cleanUsername}`);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to connect');
@@ -118,38 +119,38 @@ export default function ChatPage() {
                   Where two souls sync.
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                  Connect 1-on-1 with your partner using your unique Vibe ID or enter theirs to start chatting.
+                  Connect 1-on-1 with your partner using their username to start chatting.
                 </p>
               </div>
 
-              {/* Your Vibe ID Card */}
-              <div className="bg-card/85 backdrop-blur-md border border-primary/20 rounded-2xl p-4 shadow-sm text-left space-y-2.5">
+              {/* Your Username Card */}
+              <div className="bg-card/85 backdrop-blur-md border border-[#0C3B2E]/20 dark:border-white/15 rounded-2xl p-4 shadow-sm text-left space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                    Your Unique Vibe ID
+                    <User className="w-3.5 h-3.5 text-[#0C3B2E] dark:text-emerald-400" />
+                    Your Username
                   </span>
                   <button
-                    onClick={handleCopyId}
-                    className="text-[11px] text-primary hover:underline flex items-center gap-1 cursor-pointer font-semibold"
+                    onClick={handleCopyUsername}
+                    className="text-[11px] text-[#0C3B2E] dark:text-emerald-300 hover:underline flex items-center gap-1 cursor-pointer font-semibold"
                   >
                     {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                    {copied ? 'Copied' : 'Copy ID'}
+                    {copied ? 'Copied' : 'Copy Username'}
                   </button>
                 </div>
                 <div
-                  onClick={handleCopyId}
-                  className="bg-background/80 hover:bg-background border border-border/60 hover:border-primary/40 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-colors group"
+                  onClick={handleCopyUsername}
+                  className="bg-background/80 hover:bg-background border border-border/60 hover:border-[#0C3B2E]/40 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-colors group"
                 >
-                  <code className="text-sm font-mono font-bold text-primary tracking-wide">
-                    {duoId}
-                  </code>
+                  <span className="text-sm font-bold font-mono text-[#0C3B2E] dark:text-emerald-300 tracking-wide">
+                    {myUsername || '@user'}
+                  </span>
                   <span className="text-[11px] text-muted-foreground group-hover:text-foreground">
                     Click to copy
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-normal">
-                  Give this ID to your partner so they can connect with you directly on Vibely.
+                  Give your @username to your partner so they can connect with you directly on Vibely.
                 </p>
               </div>
 
@@ -157,16 +158,16 @@ export default function ChatPage() {
               <form onSubmit={handleQuickConnect} className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Input
-                    placeholder="Enter partner's #VIBE-ID or username"
+                    placeholder="Enter partner's username (e.g. alex)"
                     value={partnerInput}
                     onChange={(e) => setPartnerInput(e.target.value)}
-                    className="rounded-xl bg-card/60 backdrop-blur border-border text-xs h-10 font-mono placeholder:font-sans"
+                    className="rounded-xl bg-card/60 backdrop-blur border-border text-xs h-10 placeholder:font-sans"
                     disabled={isConnecting}
                   />
                   <Button
                     type="submit"
                     disabled={isConnecting || !partnerInput.trim()}
-                    className="h-10 px-4 rounded-xl gap-1.5 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-rose-500 text-white hover:opacity-95 shadow-sm text-xs font-semibold cursor-pointer shrink-0"
+                    className="h-10 px-4 rounded-xl gap-1.5 bg-[#0C3B2E] hover:bg-[#155E49] text-white shadow-sm text-xs font-semibold cursor-pointer shrink-0"
                   >
                     {isConnecting ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />

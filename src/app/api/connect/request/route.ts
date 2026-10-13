@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     if (!identifier || typeof identifier !== 'string') {
       return NextResponse.json(
-        { error: 'Please enter a valid Vibe ID or username' },
+        { error: 'Please enter a valid username' },
         { status: 400 }
       );
     }
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
 
     if (!targetProfile) {
       return NextResponse.json(
-        { error: `No user found with Vibe ID or username "${identifier}"` },
+        { error: `No user found with username "${identifier}"` },
         { status: 404 }
       );
     }
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     // Cannot connect with oneself
     if (targetProfile.id === senderId) {
       return NextResponse.json(
-        { error: 'You cannot connect with your own Vibe ID. Share it with your partner!' },
+        { error: 'You cannot connect with your own username. Share it with your partner!' },
         { status: 400 }
       );
     }

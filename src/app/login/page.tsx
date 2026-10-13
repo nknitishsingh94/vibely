@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, UserPlus } from 'lucide-react';
+import { Lock, Eye, EyeOff, ArrowRight, AlertCircle, UserPlus, User } from 'lucide-react';
 import { loginSchema, LoginFormData } from '@/lib/validations/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useAuth } from '@/context/auth-context';
@@ -15,7 +15,6 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/chat';
   const initialEmail = searchParams.get('email') || '';
@@ -52,6 +51,7 @@ function LoginForm() {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
+      identifier: initialEmail,
       email: initialEmail,
       password: '',
     },
@@ -62,31 +62,74 @@ function LoginForm() {
     setAuthError(null);
     setIsNotRegistered(false);
     setIsGoogleAccount(false);
-    const cleanEmail = data.email.trim();
-    setAttemptedEmail(cleanEmail);
+
+    const rawInput = (data.identifier || data.email || attemptedEmail || '').trim();
+    setAttemptedEmail(rawInput);
+
+    let emailToUse = rawInput;
+    let isGoogleUser = false;
+
+    // 1. Resolve identifier (supports both username and email!)
+    try {
+      const resolveRes = await fetch('/api/auth/resolve-identifier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: rawInput }),
+      });
+      const resolveData = await resolveRes.json();
+
+      if (!resolveRes.ok || resolveData.error) {
+        if (resolveRes.status === 404) {
+          setIsNotRegistered(true);
+          setAuthError(
+            resolveData.error || 'No Vibely account found with this username or email. Please sign up first.'
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      if (resolveData?.email) {
+        emailToUse = resolveData.email;
+      }
+      if (resolveData?.isGoogle) {
+        isGoogleUser = true;
+      }
+    } catch (resolveErr) {
+      console.warn('Unable to resolve identifier:', resolveErr);
+    }
+
+    if (isGoogleUser) {
+      setIsGoogleAccount(true);
+      setAuthError(
+        'This account was created with Google. Click "Sign in with Google Now" below to log in instantly.'
+      );
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const supabase = getSupabaseBrowserClient();
       let { error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
+        email: emailToUse,
         password: data.password,
       });
 
       if (error) {
         const lowerMsg = (error.message || '').toLowerCase();
 
-        // 1. If unconfirmed email, automatically confirm it via server admin API and retry!
+        // 2. If unconfirmed email, automatically confirm it via server admin API and retry!
         if (lowerMsg.includes('email not confirmed')) {
           try {
             const confirmRes = await fetch('/api/auth/check-user', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
+              body: JSON.stringify({ email: emailToUse, autoConfirm: true }),
             });
             const confirmData = await confirmRes.json();
             if (confirmData?.confirmed) {
               const retryRes = await supabase.auth.signInWithPassword({
-                email: cleanEmail,
+                email: emailToUse,
                 password: data.password,
               });
               if (!retryRes.error) {
@@ -98,36 +141,6 @@ function LoginForm() {
           } catch (autoErr) {
             console.warn('Auto-confirm attempt error:', autoErr);
           }
-        }
-
-        // 2. Check user details from server (Google OAuth check, existence check)
-        try {
-          const checkRes = await fetch('/api/auth/check-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
-          });
-          const checkData = await checkRes.json();
-
-          if (checkData.exists === false) {
-            setIsNotRegistered(true);
-            setAuthError(
-              'No Vibely account found with this email. Please create an account first before logging in.'
-            );
-            setIsLoading(false);
-            return;
-          }
-
-          if (checkData.isGoogle) {
-            setIsGoogleAccount(true);
-            setAuthError(
-              'This account was created with Google. Click "Sign in with Google" below to log in instantly.'
-            );
-            setIsLoading(false);
-            return;
-          }
-        } catch (checkErr) {
-          console.warn('Unable to verify user registration status:', checkErr);
         }
 
         const finalLower = (error.message || '').toLowerCase();
@@ -153,6 +166,7 @@ function LoginForm() {
     setAuthError(null);
     setIsNotRegistered(false);
     setIsGoogleAccount(false);
+    setValue('identifier', 'demo@vibely.app');
     setValue('email', 'demo@vibely.app');
     setValue('password', 'Password123!');
 
@@ -273,7 +287,7 @@ function LoginForm() {
                   <div className="w-full border-t border-stone-200/80 dark:border-stone-800" />
                 </div>
                 <div className="relative px-3 bg-white dark:bg-[#09241B] text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400">
-                  or sign in with email
+                  or sign in with username / email
                 </div>
               </div>
             </div>
@@ -281,15 +295,15 @@ function LoginForm() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-foreground">
-                  Email Address
+                  Username or Email
                 </label>
                 <Input
-                  type="email"
-                  placeholder="name@example.com"
-                  leftIcon={<Mail className="w-4 h-4 text-muted-foreground" />}
-                  error={errors.email?.message}
+                  type="text"
+                  placeholder="Enter your username or email"
+                  leftIcon={<User className="w-4 h-4 text-muted-foreground" />}
+                  error={errors.identifier?.message || errors.email?.message}
                   className="rounded-xl"
-                  {...register('email')}
+                  {...register('identifier')}
                 />
               </div>
 

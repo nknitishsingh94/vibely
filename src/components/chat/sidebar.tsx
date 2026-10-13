@@ -29,7 +29,6 @@ import { InviteModal } from './invite-modal';
 import { NotificationBell } from './notification-bar';
 import { formatMessageTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
-import { formatDuoId } from '@/lib/duo-id';
 
 export function Sidebar() {
   const { profile, signOut, isConfigured } = useAuth();
@@ -49,12 +48,13 @@ export function Sidebar() {
   const [filterText, setFilterText] = React.useState('');
   const [copiedId, setCopiedId] = React.useState(false);
 
-  const duoId = formatDuoId(profile);
+  const myUsername = profile?.username ? `@${profile.username}` : '';
 
-  const handleCopyDuoId = (e: React.MouseEvent) => {
+  const handleCopyUsername = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText(duoId);
+    if (!myUsername) return;
+    navigator.clipboard.writeText(myUsername);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
   };
@@ -162,7 +162,7 @@ export function Sidebar() {
               </div>
 
               {incomingRequests.map(req => {
-                const duoIdText = formatDuoId(req.sender as any);
+                const usernameText = req.sender.username ? `@${req.sender.username}` : '';
                 return (
                   <div
                     key={req.id}
@@ -179,7 +179,7 @@ export function Sidebar() {
                           {req.sender.display_name}
                         </p>
                         <p className="text-[10px] text-muted-foreground font-mono truncate">
-                          {duoIdText}
+                          {usernameText}
                         </p>
                       </div>
                     </div>
@@ -216,7 +216,7 @@ export function Sidebar() {
               </div>
               <p className="text-xs font-medium text-foreground">No conversations yet</p>
               <p className="text-[11px] text-muted-foreground max-w-[200px] mx-auto">
-                Share your unique Vibe ID or enter your partner&apos;s ID to start chatting.
+                Share your username or enter your partner&apos;s username to start chatting.
               </p>
               <Button
                 variant="default"
@@ -312,18 +312,18 @@ export function Sidebar() {
               <p className="text-xs font-semibold truncate text-foreground leading-tight">
                 {profile?.display_name || 'My Profile'}
               </p>
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-mono truncate">
-                <span className="text-primary font-medium">{duoId}</span>
+              <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono truncate">
+                <span className="text-[#0C3B2E] dark:text-emerald-400 font-semibold">{myUsername || '@user'}</span>
               </div>
             </div>
           </Link>
 
           <button
             type="button"
-            onClick={handleCopyDuoId}
+            onClick={handleCopyUsername}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 cursor-pointer"
-            title="Copy your Vibe ID"
-            aria-label="Copy Vibe ID"
+            title="Copy your @username"
+            aria-label="Copy Username"
           >
             {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
