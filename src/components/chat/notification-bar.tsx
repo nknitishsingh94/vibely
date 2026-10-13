@@ -203,7 +203,7 @@ export function NotificationBell({ onOpenConnect, className }: NotificationBellP
     const text = formatDuoId(profile);
     navigator.clipboard.writeText(text);
     setCopiedMyId(true);
-    toast.success('Duo ID copied to clipboard!');
+    toast.success('Vibe ID copied to clipboard!');
     setTimeout(() => setCopiedMyId(false), 2000);
   };
 
@@ -437,7 +437,7 @@ export function NotificationBell({ onOpenConnect, className }: NotificationBellP
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-foreground">No pending requests</p>
                         <p className="text-[11px] text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
-                          When someone sends a connection request using your Duo ID, it will appear right here in real time.
+                          When someone sends a connection request using your Vibe ID, it will appear right here in real time.
                         </p>
                       </div>
                     </div>
@@ -454,7 +454,7 @@ export function NotificationBell({ onOpenConnect, className }: NotificationBellP
                         return (
                           <div
                             key={req.id}
-                            className="p-3 rounded-xl bg-gradient-to-r from-rose-500/5 via-primary/5 to-pink-500/5 border border-primary/25 space-y-2.5 shadow-xs transition-all hover:border-primary/40"
+                            className="p-3 rounded-xl bg-[#0C3B2E]/5 dark:bg-white/5 border border-primary/25 space-y-2.5 shadow-xs transition-all hover:border-primary/40"
                           >
                             <div className="flex items-center gap-3">
                               <Avatar
@@ -522,14 +522,14 @@ export function NotificationBell({ onOpenConnect, className }: NotificationBellP
             {profile && (
               <div className="p-2.5 bg-muted/40 border-t border-border/60 flex items-center justify-between gap-2 text-[11px]">
                 <div className="truncate">
-                  <span className="text-muted-foreground">Your Duo ID: </span>
+                  <span className="text-muted-foreground">Your Vibe ID: </span>
                   <span className="font-mono font-semibold text-primary">{formatDuoId(profile)}</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleCopyMyDuoId}
                   className="px-2 py-1 rounded-lg bg-background hover:bg-primary/10 border border-border/60 text-muted-foreground hover:text-primary transition-all flex items-center gap-1 cursor-pointer shrink-0 font-medium"
-                  title="Copy your Duo ID to share with friends"
+                  title="Copy your Vibe ID to share with friends"
                 >
                   {copiedMyId ? (
                     <>
@@ -640,9 +640,9 @@ export function TopNotificationBar() {
   };
 
   return (
-    <div className="w-full bg-gradient-to-r from-rose-500/15 via-primary/10 to-purple-500/15 border-b border-primary/20 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs backdrop-blur-md animate-in slide-in-from-top duration-200 select-none">
+    <div className="w-full bg-[#0C3B2E]/10 dark:bg-white/10 border-b border-primary/20 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs backdrop-blur-md animate-in slide-in-from-top duration-200 select-none">
       <div className="flex items-center gap-2.5 min-w-0">
-        <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-ping shrink-0" />
+        <span className="flex h-2 w-2 rounded-full bg-primary animate-ping shrink-0" />
         <Avatar
           src={current.sender.avatar_path || undefined}
           name={current.sender.display_name}

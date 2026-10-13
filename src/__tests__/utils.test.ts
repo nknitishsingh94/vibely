@@ -30,7 +30,7 @@ describe('Utility Functions', () => {
   });
 
   it('should produce consistent SHA-256 hashes', async () => {
-    const testString = 'duochat_secure_invitation_token';
+    const testString = 'vibely_secure_invitation_token';
     const hash1 = await hashToken(testString);
     const hash2 = await hashToken(testString);
 

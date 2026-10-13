@@ -36,7 +36,7 @@ export function VideoPlayer({ src, filename, fileSize, mimeType }: VideoPlayerPr
 
         <a
           href={src}
-          download={filename || 'duochat-video.mp4'}
+          download={filename || 'vibely-video.mp4'}
           target="_blank"
           rel="noopener noreferrer"
           className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0"

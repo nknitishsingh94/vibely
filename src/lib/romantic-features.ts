@@ -2,12 +2,14 @@
 
 import * as React from 'react';
 
-const ANNIVERSARY_KEY = 'duochat_anniversary_date';
-const FAVORITES_KEY = 'duochat_favorite_messages';
+const ANNIVERSARY_KEY = 'vibely_anniversary_date';
+const LEGACY_ANNIVERSARY_KEY = 'duochat_anniversary_date';
+const FAVORITES_KEY = 'vibely_favorite_messages';
+const LEGACY_FAVORITES_KEY = 'duochat_favorite_messages';
 
 export function getAnniversaryDate(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(ANNIVERSARY_KEY);
+  return localStorage.getItem(ANNIVERSARY_KEY) || localStorage.getItem(LEGACY_ANNIVERSARY_KEY);
 }
 
 export function setAnniversaryDate(dateString: string | null): void {
@@ -31,7 +33,7 @@ export function calculateDaysTogether(dateString: string | null): number | null 
 export function getFavoriteMessageIds(): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
+    const raw = localStorage.getItem(FAVORITES_KEY) || localStorage.getItem(LEGACY_FAVORITES_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];

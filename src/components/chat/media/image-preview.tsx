@@ -54,7 +54,7 @@ export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps
             </span>
             <a
               href={src}
-              download={filename || 'duochat-image.jpg'}
+              download={filename || 'vibely-image.jpg'}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"

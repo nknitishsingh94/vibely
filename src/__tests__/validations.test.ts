@@ -5,7 +5,7 @@ import { validateFileAttachment } from '@/lib/validations/message';
 describe('Auth Validation Schemas', () => {
   it('should validate correct login credentials', () => {
     const valid = loginSchema.safeParse({
-      email: 'friend@duochat.local',
+      email: 'friend@vibely.local',
       password: 'password123',
     });
     expect(valid.success).toBe(true);

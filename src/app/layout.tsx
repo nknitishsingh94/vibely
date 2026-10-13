@@ -24,8 +24,8 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: 'DuoChat — Just us, in our own little world.',
-  description: 'An intimate, luxurious private messaging sanctuary created especially for two. Share your daily thoughts, photos, songs, voice notes, and treasured memories.',
+  title: 'Vibely — Where two souls sync. Pure private connection.',
+  description: 'An intimate, modern private messaging sanctuary created especially for two. Share daily thoughts, photos, songs, voice notes, and treasured memories with zero noise.',
   icons: {
     icon: '/favicon.ico',
   },
@@ -42,11 +42,12 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground selection:bg-rose-500/20">
+      <body className="min-h-full flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
+          forcedTheme="light"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <AuthProvider>

@@ -22,21 +22,29 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isSupabaseConfigured } from '@/lib/env';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
+import { useAuth } from '@/context/auth-context';
 
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialEmail = searchParams.get('email') || '';
   const initialError = searchParams.get('error_description') || searchParams.get('error') || null;
+  const { user } = useAuth();
 
   const [showPassword, setShowPassword] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(initialError);
   const [isAlreadyRegistered, setIsAlreadyRegistered] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [signupSuccess, setSignupSuccess] = React.useState(false);
+
+  // Auto-redirect if already logged in
+  React.useEffect(() => {
+    if (user) {
+      router.push('/chat');
+    }
+  }, [user, router]);
 
   const {
     register,
@@ -69,31 +77,102 @@ function SignupForm() {
     try {
       const cleanEmail = data.email.trim();
 
-      // 1. Server-side registration (verifies email & username existence, bypasses confirmation emails, auto-confirms)
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // 1. Server-side registration attempt (bypasses confirmation emails if service role key is present)
+      let usedServerSignup = false;
+      try {
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password: data.password,
+            displayName: data.displayName.trim(),
+            username: data.username.toLowerCase().trim(),
+          }),
+        });
+
+        const resData = await res.json().catch(() => null);
+
+        if (res.ok && resData?.success) {
+          usedServerSignup = true;
+        } else {
+          const errorType = resData?.error;
+          const msg = resData?.message || resData?.error;
+
+          if (errorType === 'both_exist' || errorType === 'email_exists') {
+            setIsAlreadyRegistered(true);
+            setAuthError(msg || 'An account with this email already exists. Please sign in instead.');
+            setIsLoading(false);
+            return;
+          }
+
+          if (errorType === 'username_exists') {
+            setIsAlreadyRegistered(false);
+            setAuthError(msg || 'This username is already taken. Please choose another username.');
+            setIsLoading(false);
+            return;
+          }
+
+          // Fallback to direct client-side Supabase signup
+          const supabase = getSupabaseBrowserClient();
+          const { data: directData, error: directError } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: data.password,
+            options: {
+              data: {
+                display_name: data.displayName.trim(),
+                username: data.username.toLowerCase().trim(),
+              },
+            },
+          });
+
+          if (directError) {
+            const lower = (directError.message || '').toLowerCase();
+            if (lower.includes('already registered') || lower.includes('user already exists')) {
+              setIsAlreadyRegistered(true);
+              setAuthError('An account with this email already exists. Please sign in instead.');
+            } else {
+              setAuthError(directError.message || 'Registration failed');
+            }
+            setIsLoading(false);
+            return;
+          }
+
+          if (directData?.session) {
+            router.push('/chat');
+            return;
+          }
+
+          setSignupSuccess(true);
+          setIsLoading(false);
+          return;
+        }
+      } catch (err) {
+        // Fallback to client-side signup on network or server error
+        const supabase = getSupabaseBrowserClient();
+        const { data: directData, error: directError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: data.password,
-          displayName: data.displayName.trim(),
-          username: data.username.toLowerCase().trim(),
-        }),
-      });
+          options: {
+            data: {
+              display_name: data.displayName.trim(),
+              username: data.username.toLowerCase().trim(),
+            },
+          },
+        });
 
-      const resData = await res.json();
-
-      if (!res.ok || !resData.success) {
-        const errorType = resData.error;
-        const msg = resData.message || resData.error || 'Registration failed';
-
-        if (errorType === 'both_exist' || errorType === 'email_exists') {
-          setIsAlreadyRegistered(true);
-        } else {
-          setIsAlreadyRegistered(false);
+        if (directError) {
+          setAuthError(directError.message || 'Registration failed');
+          setIsLoading(false);
+          return;
         }
 
-        setAuthError(msg);
+        if (directData?.session) {
+          router.push('/chat');
+          return;
+        }
+
+        setSignupSuccess(true);
         setIsLoading(false);
         return;
       }
@@ -120,38 +199,37 @@ function SignupForm() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-rose-500/20">
-      {/* Top Bar */}
-      <header className="p-4 flex items-center justify-between border-b border-border/40">
-        <BrandLogo size="md" href="/" />
-        <ThemeToggle />
+    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
+      {/* Sleek Top Bar */}
+      <header className="px-4 sm:px-6 h-12 flex items-center justify-between border-b border-[#0C3B2E]/10 bg-white/90 backdrop-blur-xl">
+        <BrandLogo size="sm" href="/" />
       </header>
 
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
         {/* Soft Ambient Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[380px] bg-rose-500/10 dark:bg-rose-950/20 blur-[130px] rounded-full pointer-events-none -z-10" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[380px] bg-gradient-to-tr from-[#0C3B2E]/15 via-emerald-600/10 to-[#0C3B2E]/15 dark:from-[#0C3B2E]/30 dark:via-emerald-950/40 dark:to-[#0C3B2E]/20 blur-[130px] rounded-full pointer-events-none -z-10" />
 
         <div className="w-full max-w-md space-y-6">
-          <div className="text-center space-y-2">
-            <h1 className="text-3xl font-serif font-bold tracking-tight text-foreground">
-              Your own little world starts here.
+          <div className="text-center space-y-1.5">
+            <h1 className="text-2xl sm:text-3xl font-sans font-black tracking-tight text-[#0C3B2E] dark:text-white">
+              Sync your world on Vibely.
             </h1>
-            <p className="text-xs text-muted-foreground font-sans">
-              A private space for the messages, memories, and moments you share.
+            <p className="text-xs text-stone-600 dark:text-emerald-100/70 font-sans">
+              A private space for the notes, memories, and moments you share.
             </p>
           </div>
 
-          <div className="p-6 sm:p-7 rounded-3xl bg-card/90 border border-border/80 shadow-2xl space-y-5 backdrop-blur-md">
+          <div className="p-6 sm:p-7 rounded-3xl bg-white/95 dark:bg-[#09241B]/95 border border-[#0C3B2E]/15 dark:border-white/15 shadow-2xl space-y-5 backdrop-blur-xl">
             {signupSuccess ? (
               <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-                <h3 className="text-base font-semibold text-foreground">Account Created!</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">Account Created!</h3>
+                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
                   Your account is registered. You can now sign in to connect with your partner.
                 </p>
                 <Link href="/login" className="inline-block mt-2">
-                  <Button size="sm" className="rounded-xl">
+                  <Button size="sm" className="rounded-xl font-bold bg-[#0C3B2E] hover:bg-[#155E49] text-white">
                     Go to Sign In
                   </Button>
                 </Link>
@@ -194,7 +272,7 @@ function SignupForm() {
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-border/60" />
                     </div>
-                    <div className="relative px-3 bg-card text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                    <div className="relative px-3 bg-white dark:bg-[#09241B] text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
                       or register with email
                     </div>
                   </div>
@@ -302,16 +380,16 @@ function SignupForm() {
                   <Button
                     type="submit"
                     isLoading={isLoading}
-                    className="w-full rounded-2xl font-semibold shadow-md mt-4 bg-gradient-to-tr from-[#702C45] to-[#C96B83] text-white hover:opacity-95 cursor-pointer"
+                    className="w-full rounded-2xl font-bold shadow-md shadow-[#0C3B2E]/25 mt-4 bg-[#0C3B2E] text-white hover:bg-[#155E49] cursor-pointer"
                   >
-                    Create Our Account
+                    Create My Vibely Space
                     <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
                 </form>
 
-                <div className="text-center pt-2 border-t border-border/50 text-xs text-muted-foreground">
+                <div className="text-center pt-2 border-t border-stone-200/80 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">
                   Already have an account?{' '}
-                  <Link href="/login" className="font-semibold text-primary hover:underline">
+                  <Link href="/login" className="font-semibold text-[#0C3B2E] dark:text-emerald-300 hover:underline">
                     Sign in here
                   </Link>
                 </div>

@@ -5,7 +5,9 @@ import { useTheme } from 'next-themes';
 import { Moon, Sun, Laptop } from 'lucide-react';
 import { Button } from './ui/button';
 
-export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
+import { cn } from '@/lib/utils';
+
+export function ThemeToggle({ showLabel = false, className }: { showLabel?: boolean; className?: string }) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -15,7 +17,7 @@ export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size={showLabel ? 'sm' : 'icon'} className="w-9 h-9 opacity-50">
+      <Button variant="ghost" size={showLabel ? 'sm' : 'icon'} className={cn("w-8 h-8 opacity-50", className)}>
         <Sun className="w-4 h-4" />
       </Button>
     );
@@ -28,8 +30,8 @@ export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
   };
 
   const getIcon = () => {
-    if (theme === 'dark') return <Moon className="w-4 h-4 text-violet-400" />;
-    if (theme === 'light') return <Sun className="w-4 h-4 text-amber-500" />;
+    if (theme === 'dark') return <Moon className="w-4 h-4 text-emerald-300" />;
+    if (theme === 'light') return <Sun className="w-4 h-4 text-[#0C3B2E]" />;
     return <Laptop className="w-4 h-4 text-muted-foreground" />;
   };
 
@@ -38,7 +40,7 @@ export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
       variant="ghost"
       size={showLabel ? 'sm' : 'icon'}
       onClick={cycleTheme}
-      className="rounded-xl hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all"
+      className={cn("w-8 h-8 rounded-lg hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all", className)}
       title={`Current: ${theme} (click to cycle)`}
       aria-label="Toggle theme"
     >

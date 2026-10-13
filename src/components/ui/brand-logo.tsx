@@ -16,23 +16,29 @@ export function BrandLogo({
   href = '/',
 }: BrandLogoProps) {
   const iconSizes = {
-    sm: 'w-7 h-7 text-xs',
-    md: 'w-9 h-9 text-sm',
-    lg: 'w-12 h-12 text-base',
+    sm: 'w-7 h-7 rounded-xl',
+    md: 'w-9 h-9 rounded-2xl',
+    lg: 'w-12 h-12 rounded-[18px]',
+  };
+
+  const svgSizes = {
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-7 h-7',
   };
 
   const titleSizes = {
-    sm: 'text-sm',
-    md: 'text-base',
+    sm: 'text-[15px]',
+    md: 'text-lg',
     lg: 'text-2xl',
   };
 
   const content = (
     <div className={cn('flex items-center gap-2.5 select-none group', className)}>
-      {/* Intertwined Connected Hearts / Double-Orbit Emblem */}
+      {/* Radiant Vibely Emblem */}
       <div
         className={cn(
-          'relative rounded-2xl bg-gradient-to-tr from-[#702C45] via-[#A84B69] to-[#C96B83] text-white flex items-center justify-center shadow-xs transition-transform duration-200 group-hover:scale-105 shrink-0',
+          'relative bg-[#0C3B2E] text-white flex items-center justify-center shadow-md shadow-[#0C3B2E]/25 transition-all duration-300 group-hover:scale-105 group-hover:bg-[#155E49] group-hover:shadow-lg group-hover:shadow-[#0C3B2E]/35 shrink-0 ring-1 ring-white/20',
           iconSizes[size]
         )}
       >
@@ -40,42 +46,49 @@ export function BrandLogo({
           viewBox="0 0 24 24"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-5 h-5 text-rose-100"
+          className={cn('text-white drop-shadow-sm', svgSizes[size])}
         >
-          {/* Intersecting dual hearts motif */}
+          {/* Modern Geometric 'V' with integrated Heartbeat / Wave Resonance */}
           <path
-            d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-            fill="currentColor"
-            fillOpacity="0.88"
-          />
-          <path
-            d="M12 7c-1-1.3-2.5-2-4.2-2C5 5 3 7 3 9.8c0 3 2.8 5.6 7 9.5l2 1.8 2-1.8c4.2-3.9 7-6.5 7-9.5 0-2.8-2-4.8-4.8-4.8-1.7 0-3.2.7-4.2 2z"
-            stroke="white"
-            strokeWidth="0.75"
+            d="M4.5 4.5L12 18.5L19.5 4.5"
+            stroke="currentColor"
+            strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          {/* Inner heartbeat pulse wave inside the V */}
+          <path
+            d="M8.5 9.5L10.5 13L12 10.5L13.5 13L15.5 9.5"
+            stroke="rgba(255,255,255,0.9)"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {/* Soft central love aura dot */}
+          <circle cx="12" cy="7" r="1.5" fill="white" />
         </svg>
 
-        {/* Small sparkling glow dot */}
-        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-300 ring-2 ring-background animate-pulse" />
+        {/* Dynamic pulse indicator */}
+        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-background animate-pulse" />
       </div>
 
       <div className="flex flex-col text-left">
         <span
           className={cn(
-            'font-serif font-bold tracking-tight text-foreground leading-tight group-hover:text-primary transition-colors flex items-center gap-1',
+            'font-sans font-extrabold tracking-tight text-[#0C3B2E] dark:text-white leading-none flex items-center gap-1.5 transition-colors',
             titleSizes[size]
           )}
         >
-          DuoChat
-          <span className="text-primary text-[10px] font-sans font-normal opacity-80 italic">
+          <span className="group-hover:text-[#155E49] dark:group-hover:text-emerald-300 transition-colors duration-200">
+            Vibely
+          </span>
+          <span className="text-[10px] font-sans font-semibold tracking-normal px-1.5 py-0.5 rounded-full bg-[#0C3B2E]/10 dark:bg-white/10 text-[#0C3B2E] dark:text-emerald-200 border border-[#0C3B2E]/20 dark:border-white/20">
             for two
           </span>
         </span>
         {showTagline && (
-          <span className="text-[11px] text-muted-foreground font-sans font-medium tracking-tight">
-            Just us, in our own little world.
+          <span className="text-[11px] text-stone-500 dark:text-emerald-100/70 font-sans font-medium tracking-tight mt-0.5">
+            Where two souls sync.
           </span>
         )}
       </div>
@@ -88,3 +101,4 @@ export function BrandLogo({
 
   return content;
 }
+

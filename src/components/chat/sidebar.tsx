@@ -25,7 +25,6 @@ import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
 import { NotificationBell } from './notification-bar';
@@ -171,7 +170,7 @@ export function Sidebar() {
                 return (
                   <div
                     key={req.id}
-                    className="p-2.5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-primary/10 to-pink-500/10 border border-primary/25 space-y-2 shadow-xs"
+                    className="p-2.5 rounded-2xl bg-[#0C3B2E]/5 dark:bg-white/5 border border-primary/25 space-y-2 shadow-xs"
                   >
                     <div className="flex items-center gap-2.5">
                       <Avatar
@@ -221,7 +220,7 @@ export function Sidebar() {
               </div>
               <p className="text-xs font-medium text-foreground">No conversations yet</p>
               <p className="text-[11px] text-muted-foreground max-w-[200px] mx-auto">
-                Share your unique Duo ID or enter your partner's ID to start chatting.
+                Share your unique Vibe ID or enter your partner&apos;s ID to start chatting.
               </p>
               <Button
                 variant="default"
@@ -327,14 +326,13 @@ export function Sidebar() {
             type="button"
             onClick={handleCopyDuoId}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 cursor-pointer"
-            title="Copy your Duo ID"
-            aria-label="Copy Duo ID"
+            title="Copy your Vibe ID"
+            aria-label="Copy Vibe ID"
           >
             {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
 
           <div className="flex items-center gap-0.5 shrink-0">
-            <ThemeToggle />
             <Link
               href="/settings/profile"
               className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

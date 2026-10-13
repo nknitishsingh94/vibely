@@ -38,13 +38,15 @@ export async function GET(request: NextRequest) {
       // Synchronize profile and preferences using Service Role client
       try {
         const serviceKey = env.supabaseServiceRoleKey;
-        if (serviceKey && env.supabaseUrl) {
-          const adminClient = createServiceClient(env.supabaseUrl, serviceKey, {
-            auth: { persistSession: false },
-          });
+        const clientToUse =
+          serviceKey && env.supabaseUrl
+            ? createServiceClient(env.supabaseUrl, serviceKey, {
+                auth: { persistSession: false },
+              })
+            : supabase;
 
           // Check if profile exists
-          const { data: existingProfile } = await adminClient
+          const { data: existingProfile } = await clientToUse
             .from('profiles')
             .select('id, username, display_name, avatar_path')
             .eq('id', user.id)
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest) {
             meta.full_name ||
             meta.name ||
             meta.display_name ||
-            (user.email ? user.email.split('@')[0] : 'Duo User');
+            (user.email ? user.email.split('@')[0] : 'Vibely User');
           const avatarUrl = meta.avatar_url || meta.picture || null;
 
           if (!existingProfile) {
@@ -75,7 +77,7 @@ export async function GET(request: NextRequest) {
 
             // Check if username taken
             let finalUsername = baseUsername;
-            const { data: taken } = await adminClient
+            const { data: taken } = await clientToUse
               .from('profiles')
               .select('id')
               .eq('username', finalUsername)
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
               finalUsername = `${baseUsername.slice(0, 13)}_${Math.floor(1000 + Math.random() * 9000)}`;
             }
 
-            await adminClient.from('profiles').upsert(
+            await clientToUse.from('profiles').upsert(
               {
                 id: user.id,
                 display_name: fullName,
@@ -95,7 +97,7 @@ export async function GET(request: NextRequest) {
               { onConflict: 'id' }
             );
 
-            await adminClient.from('user_preferences').upsert(
+            await clientToUse.from('user_preferences').upsert(
               { user_id: user.id },
               { onConflict: 'user_id' }
             );
@@ -109,10 +111,9 @@ export async function GET(request: NextRequest) {
               updates.display_name = fullName;
             }
             if (Object.keys(updates).length > 0) {
-              await adminClient.from('profiles').update(updates).eq('id', user.id);
+              await clientToUse.from('profiles').update(updates).eq('id', user.id);
             }
           }
-        }
       } catch (profileErr) {
         console.error('Error synchronizing Google user profile:', profileErr);
       }

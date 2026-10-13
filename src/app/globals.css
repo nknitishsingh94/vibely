@@ -1,81 +1,93 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-serif: var(--font-serif), Georgia, Cambria, serif;
+}
+
 @layer base {
   :root {
-    /* Romantic Light Palette */
-    --background: 20 100% 98%;          /* Warm ivory #FFF9F6 */
-    --foreground: 327 13% 17%;          /* Main text #30252B */
-    --card: 0 0% 100%;                  /* Pure white card */
-    --card-foreground: 327 13% 17%;
+    /* Vibely Emerald Luxe Palette: #0C3B2E & Pure White */
+    --background: 0 0% 100%;           /* Crisp Pure White #FFFFFF */
+    --foreground: 163 66% 14%;         /* Deep Emerald Green #0C3B2E */
+    --card: 0 0% 100%;                 /* Clean Pure White card */
+    --card-foreground: 163 66% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 327 13% 17%;
-    --primary: 345 48% 60%;             /* Romantic rose #C96B83 */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 344 48% 94%;           /* Soft blush #F7E8EC */
-    --secondary-foreground: 338 43% 31%;/* Deep wine #702C45 */
-    --muted: 340 30% 95%;               /* Delicate blush muted */
-    --muted-foreground: 330 6% 48%;     /* Secondary text #82747B */
-    --accent: 338 43% 31%;              /* Deep wine #702C45 */
+    --popover-foreground: 163 66% 14%;
+    --primary: 163 66% 14%;            /* Deep Emerald #0C3B2E */
+    --primary-foreground: 0 0% 100%;   /* Crisp Pure White */
+    --secondary: 160 30% 96%;          /* Soft clean mint-white */
+    --secondary-foreground: 163 66% 14%;
+    --muted: 160 20% 96%;              /* Light soft surface */
+    --muted-foreground: 163 30% 32%;   /* Muted deep emerald slate */
+    --accent: 163 66% 14%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 74% 52%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 338 22% 91%;              /* Subtle borders #EDE1E5 */
-    --input: 338 22% 91%;
-    --ring: 345 48% 60%;
+    --border: 163 25% 88%;             /* Crisp soft emerald border */
+    --input: 163 25% 88%;
+    --ring: 163 66% 14%;
     --radius: 1rem;
 
-    /* Couple Specific Design Tokens */
-    --wine: 338 43% 31%;                /* #702C45 */
-    --rose: 345 48% 60%;                /* #C96B83 */
-    --blush: 344 48% 94%;               /* #F7E8EC */
-    --champagne: 30 45% 83%;            /* #E8D4C1 */
-    --mauve: 333 14% 60%;               /* #A68A96 */
+    /* Vibely Specific Identity Tokens */
+    --emerald-dark: 163 66% 14%;       /* #0C3B2E */
+    --emerald-mid: 163 55% 24%;        /* #155E49 */
+    --emerald-light: 160 84% 39%;      /* #10B981 */
+    --wine: 163 66% 14%;
+    --rose: 163 66% 14%;
+    --blush: 160 30% 96%;
+    --champagne: 160 25% 90%;
+    --mauve: 163 30% 40%;
 
-    --chat-outgoing: 345 48% 60%;       /* Romantic rose */
-    --chat-outgoing-fg: 0 0% 100%;
-    --chat-incoming: 0 0% 100%;         /* Warm elevated white */
-    --chat-incoming-fg: 327 13% 17%;
-    --chat-incoming-border: 338 22% 92%;
-    --sidebar-bg: 340 35% 97%;          /* Warm blushing sidebar */
-    --online-indicator: 142 71% 45%;
+    --chat-outgoing: 163 66% 14%;      /* #0C3B2E */
+    --chat-outgoing-fg: 0 0% 100%;     /* Pure White */
+    --chat-incoming: 0 0% 100%;        /* Pure White */
+    --chat-incoming-fg: 163 66% 14%;
+    --chat-incoming-border: 163 25% 88%;
+    --sidebar-bg: 160 30% 98%;         /* Pristine White-Mint */
+    --online-indicator: 160 84% 39%;
   }
 
   .dark {
-    /* Romantic Dark Mode */
-    --background: 280 14% 9%;           /* Dark surface #171319 */
-    --foreground: 338 45% 95%;          /* Main light text #F8EDF1 */
-    --card: 283 15% 12%;                /* Secondary surface #211B24 */
-    --card-foreground: 338 45% 95%;
-    --popover: 283 15% 12%;
-    --popover-foreground: 338 45% 95%;
-    --primary: 344 61% 75%;             /* Primary accent rose #E59AAF */
-    --primary-foreground: 280 14% 9%;
-    --secondary: 285 14% 15%;           /* Elevated surface #2A222D */
-    --secondary-foreground: 338 45% 95%;
-    --muted: 285 14% 15%;
-    --muted-foreground: 320 10% 69%;    /* Secondary text #B7A7B2 */
-    --accent: 345 48% 60%;              /* Romantic rose */
+    /* Vibely Midnight Emerald & White Dark Palette */
+    --background: 163 65% 5%;          /* Deep midnight forest #051812 */
+    --foreground: 0 0% 100%;           /* Crisp Pure White #FFFFFF */
+    --card: 163 50% 9%;                /* Elevated dark emerald card #09241B */
+    --card-foreground: 0 0% 100%;
+    --popover: 163 50% 9%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;              /* Pure White button on dark mode */
+    --primary-foreground: 163 66% 14%; /* #0C3B2E text on white button */
+    --secondary: 163 40% 14%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 163 40% 12%;
+    --muted-foreground: 160 20% 72%;   /* Soft mint-white text */
+    --accent: 160 84% 39%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 63% 50%;
+    --destructive: 0 72% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 280 15% 20%;              /* Subtle borders #352B3A */
-    --input: 280 15% 20%;
-    --ring: 344 61% 75%;
+    --border: 163 35% 18%;             /* Deep emerald border */
+    --input: 163 35% 18%;
+    --ring: 160 84% 39%;
 
-    /* Couple Specific Design Tokens */
-    --wine: 338 43% 40%;
-    --rose: 344 61% 75%;
-    --blush: 285 14% 16%;
-    --champagne: 30 35% 70%;
-    --mauve: 320 10% 69%;
+    /* Vibely Specific Identity Tokens */
+    --emerald-dark: 163 66% 14%;
+    --emerald-mid: 163 55% 24%;
+    --emerald-light: 160 84% 39%;
+    --wine: 160 84% 39%;
+    --rose: 160 84% 39%;
+    --blush: 163 40% 14%;
+    --champagne: 160 30% 30%;
+    --mauve: 163 25% 65%;
 
-    --chat-outgoing: 338 43% 36%;       /* Rich velvety wine in dark mode */
+    --chat-outgoing: 163 55% 20%;
     --chat-outgoing-fg: 0 0% 100%;
-    --chat-incoming: 283 15% 13%;       /* Soft elevated dark */
-    --chat-incoming-fg: 338 45% 95%;
-    --chat-incoming-border: 280 15% 20%;
-    --sidebar-bg: 282 16% 8%;           /* Deepest velvet sidebar */
-    --online-indicator: 142 71% 48%;
+    --chat-incoming: 163 45% 10%;
+    --chat-incoming-fg: 0 0% 100%;
+    --chat-incoming-border: 163 35% 18%;
+    --sidebar-bg: 163 70% 4%;
+    --online-indicator: 160 84% 45%;
   }
 }
 
@@ -84,9 +96,12 @@
 }
 
 body {
+  font-family: var(--font-sans);
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-serif {
@@ -146,27 +161,43 @@ body {
   animation: heartFloat 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
-/* Subtle couple wallpaper pattern */
+/* Modern wallpaper pattern */
 .romantic-wallpaper {
-  background-image: radial-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-image: radial-gradient(hsl(var(--primary) / 0.08) 1.2px, transparent 1.2px);
+  background-size: 26px 26px;
 }
 
 .dark .romantic-wallpaper {
-  background-image: radial-gradient(hsl(var(--primary) / 0.07) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-image: radial-gradient(hsl(var(--primary) / 0.12) 1.2px, transparent 1.2px);
+  background-size: 26px 26px;
 }
 
 /* Little note card aesthetic */
 .little-note-card {
   position: relative;
-  background: linear-gradient(135deg, hsl(350 100% 99%), hsl(340 50% 97%));
-  border: 1px solid hsl(345 40% 88%);
-  box-shadow: 0 4px 14px -2px rgba(112, 44, 69, 0.08);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F0FDF4 100%);
+  border: 1px solid rgba(12, 59, 46, 0.2);
+  box-shadow: 0 4px 18px -2px rgba(12, 59, 46, 0.12);
 }
 
 .dark .little-note-card {
-  background: linear-gradient(135deg, hsl(285 16% 15%), hsl(338 25% 15%));
-  border: 1px solid hsl(344 30% 28%);
-  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #09241B 0%, #0C3B2E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.5);
 }
+
+/* Vibely Branding Utilities - #0C3B2E Deep Emerald & Pure White */
+.vibe-gradient-bg {
+  background: linear-gradient(135deg, #0C3B2E 0%, #155E49 50%, #059669 100%);
+}
+
+.vibe-gradient-text {
+  background: linear-gradient(135deg, #0C3B2E 0%, #155E49 50%, #059669 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.vibe-glow {
+  box-shadow: 0 0 35px -5px rgba(12, 59, 46, 0.35);
+}
+

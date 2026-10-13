@@ -17,7 +17,6 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isSupabaseConfigured } from '@/lib/env';
 import { hashToken } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { BrandLogo } from '@/components/ui/brand-logo';
 
 export default function InviteAcceptClient({ token }: { token: string }) {
@@ -63,10 +62,9 @@ export default function InviteAcceptClient({ token }: { token: string }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-rose-500/20">
-      <header className="p-4 flex items-center justify-between border-b border-border/40">
+    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
+      <header className="p-4 flex items-center justify-between border-b border-[#0C3B2E]/10 bg-white/90 backdrop-blur-xl">
         <BrandLogo size="md" href="/" />
-        <ThemeToggle />
       </header>
 
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
@@ -76,16 +74,16 @@ export default function InviteAcceptClient({ token }: { token: string }) {
         <div className="w-full max-w-md space-y-6">
           <div className="text-center space-y-2">
             {/* Animated Connecting Double-Heart Motif */}
-            <div className="relative w-16 h-16 rounded-3xl bg-gradient-to-tr from-[#702C45] via-[#A84B69] to-[#C96B83] text-white flex items-center justify-center mx-auto mb-4 shadow-lg animate-pulse">
-              <Heart className="w-8 h-8 fill-current text-rose-100" />
-              <Sparkles className="w-4 h-4 text-rose-300 absolute -top-1 -right-1" />
+            <div className="relative w-16 h-16 rounded-3xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-rose-500 text-white flex items-center justify-center mx-auto mb-4 shadow-xl shadow-fuchsia-500/25 animate-pulse">
+              <Heart className="w-8 h-8 fill-current text-white" />
+              <Sparkles className="w-4 h-4 text-fuchsia-200 absolute -top-1 -right-1" />
             </div>
 
-            <h1 className="text-3xl font-serif font-bold tracking-tight text-foreground">
+            <h1 className="text-3xl font-sans font-bold tracking-tight text-foreground">
               Someone saved a little space for you.
             </h1>
             <p className="text-xs text-muted-foreground font-sans max-w-sm mx-auto leading-relaxed">
-              Your partner has invited you to connect privately on DuoChat — just the two of you, in your own little world.
+              Your partner has invited you to connect privately on Vibely — where two souls sync, in your own little world.
             </p>
           </div>
 

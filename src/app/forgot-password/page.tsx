@@ -10,7 +10,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isSupabaseConfigured } from '@/lib/env';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { BrandLogo } from '@/components/ui/brand-logo';
 
 export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = React.useState(false);
@@ -49,42 +49,40 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="p-4 flex items-center justify-between border-b border-border/40">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
-            <MessageSquare className="w-4 h-4 fill-current" />
-          </div>
-          <span className="font-bold text-base">DuoChat</span>
-        </Link>
-        <ThemeToggle />
+    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
+      {/* Sleek Top Bar */}
+      <header className="px-4 sm:px-6 h-12 flex items-center justify-between border-b border-[#0C3B2E]/10 bg-white/90 backdrop-blur-xl">
+        <BrandLogo size="sm" href="/" />
       </header>
 
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+        {/* Soft Ambient Glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[350px] bg-gradient-to-tr from-[#0C3B2E]/15 via-emerald-600/10 to-[#0C3B2E]/15 dark:from-[#0C3B2E]/30 dark:via-emerald-950/40 dark:to-[#0C3B2E]/20 blur-[130px] rounded-full pointer-events-none -z-10" />
+
         <div className="w-full max-w-md space-y-6">
           <div className="text-center space-y-1.5">
-            <h1 className="text-2xl font-bold tracking-tight">Password Recovery</h1>
-            <p className="text-xs text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-sans font-black tracking-tight text-[#0C3B2E] dark:text-white">Password Recovery</h1>
+            <p className="text-xs text-stone-600 dark:text-emerald-100/70">
               Enter your email address to receive a secure reset link
             </p>
           </div>
 
-          <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-xl space-y-5">
+          <div className="p-6 sm:p-7 rounded-3xl bg-white/95 dark:bg-[#09241B]/95 border border-[#0C3B2E]/15 dark:border-white/15 shadow-2xl space-y-5 backdrop-blur-xl">
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-xs border border-destructive/20">
+              <div className="p-3.5 rounded-xl bg-destructive/10 text-destructive text-xs border border-destructive/20 font-medium">
                 {errorMessage}
               </div>
             )}
 
             {isSent ? (
-              <div className="p-6 rounded-2xl bg-primary/10 border border-primary/20 text-center space-y-3">
-                <CheckCircle2 className="w-10 h-10 text-primary mx-auto" />
-                <h3 className="font-bold text-sm">Check your email</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+              <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                <h3 className="font-bold text-sm text-[#0C3B2E] dark:text-white">Check your email</h3>
+                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
                   We have sent instructions to reset your password. Please check your inbox and spam folder.
                 </p>
                 <Link href="/login">
-                  <Button size="sm" className="mt-2 rounded-xl">
+                  <Button size="sm" className="mt-2 rounded-xl font-bold bg-[#0C3B2E] hover:bg-[#155E49] text-white">
                     Back to Sign In
                   </Button>
                 </Link>
@@ -98,8 +96,9 @@ export default function ForgotPasswordPage() {
                   <Input
                     type="email"
                     placeholder="name@example.com"
-                    leftIcon={<Mail className="w-4 h-4" />}
+                    leftIcon={<Mail className="w-4 h-4 text-muted-foreground" />}
                     error={errors.email?.message}
+                    className="rounded-xl"
                     {...register('email')}
                   />
                 </div>
@@ -107,17 +106,17 @@ export default function ForgotPasswordPage() {
                 <Button
                   type="submit"
                   isLoading={isLoading}
-                  className="w-full rounded-xl font-medium shadow-sm mt-2"
+                  className="w-full rounded-2xl font-bold shadow-md shadow-[#0C3B2E]/25 mt-2 bg-[#0C3B2E] text-white hover:bg-[#155E49] cursor-pointer"
                 >
                   Send Reset Link
                 </Button>
               </form>
             )}
 
-            <div className="text-center pt-2 border-t border-border/50 text-xs text-muted-foreground">
+            <div className="text-center pt-2 border-t border-stone-200/80 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-400">
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 font-medium hover:text-foreground transition-colors"
+                className="inline-flex items-center gap-1.5 font-semibold text-[#0C3B2E] dark:text-emerald-300 hover:underline transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Return to sign in

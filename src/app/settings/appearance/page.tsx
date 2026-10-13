@@ -1,14 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useTheme } from 'next-themes';
-import { Sun, Moon, Laptop, Check, Heart, Sparkles } from 'lucide-react';
+import { Check, Heart, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { Button } from '@/components/ui/button';
 
 export default function AppearanceSettingsPage() {
-  const { theme, setTheme } = useTheme();
   const { anniversary, daysTogether, updateAnniversary } = useRomanticFeatures();
   const [mounted, setMounted] = React.useState(false);
   const [dateInput, setDateInput] = React.useState(anniversary || '');
@@ -19,30 +17,6 @@ export default function AppearanceSettingsPage() {
   }, [anniversary]);
 
   if (!mounted) return null;
-
-  const themes = [
-    {
-      id: 'light',
-      label: 'Warm Blush (Light)',
-      desc: 'Soft ivory & blush surfaces with delicate wine accents',
-      icon: Sun,
-      iconColor: 'text-amber-500',
-    },
-    {
-      id: 'dark',
-      label: 'Midnight Wine (Dark)',
-      desc: 'Deep luxurious dark background with romantic rose highlights',
-      icon: Moon,
-      iconColor: 'text-rose-400',
-    },
-    {
-      id: 'system',
-      label: 'System Sync',
-      desc: 'Automatically matches your device preference',
-      icon: Laptop,
-      iconColor: 'text-muted-foreground',
-    },
-  ];
 
   const handleSaveDate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,39 +36,29 @@ export default function AppearanceSettingsPage() {
 
       <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-xs space-y-6">
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground">Color Palette</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Color Palette</h3>
+            <span className="text-[11px] font-semibold text-[#0C3B2E] bg-[#0C3B2E]/10 px-2.5 py-0.5 rounded-full border border-[#0C3B2E]/20">
+              Permanent Signature Theme
+            </span>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {themes.map(t => {
-              const Icon = t.icon;
-              const isSelected = theme === t.id;
-
-              return (
-                <div
-                  key={t.id}
-                  onClick={() => setTheme(t.id)}
-                  className={cn(
-                    'p-4 rounded-2xl border-2 cursor-pointer transition-all space-y-2 relative select-none',
-                    isSelected
-                      ? 'border-primary bg-primary/5 shadow-xs'
-                      : 'border-border/70 bg-background/50 hover:border-border hover:bg-muted/40'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <Icon className={cn('w-5 h-5', t.iconColor)} />
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                        <Check className="w-3 h-3" />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-semibold text-foreground">{t.label}</h4>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{t.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="p-4 rounded-2xl border-2 border-primary bg-primary/5 shadow-xs space-y-2 select-none max-w-md">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full bg-[#0C3B2E] inline-block ring-2 ring-white shadow-xs" />
+                <span className="w-3.5 h-3.5 rounded-full bg-white inline-block ring-2 ring-[#0C3B2E]/30 shadow-xs" />
+              </div>
+              <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                <Check className="w-3 h-3" />
+              </div>
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-foreground">Deep Emerald & Pure White (#0C3B2E)</h4>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Vibely is exclusively styled in luxury Deep Emerald Green (#0C3B2E) and crisp Pure White.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -111,7 +75,7 @@ export default function AppearanceSettingsPage() {
               </p>
             </div>
             {daysTogether !== null && (
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-600 dark:text-rose-300 border border-rose-500/20 font-serif">
+              <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#0C3B2E]/10 text-[#0C3B2E] dark:bg-white/10 dark:text-emerald-200 border border-[#0C3B2E]/20 dark:border-white/20 font-serif">
                 Day {daysTogether} Together 💕
               </span>
             )}
@@ -170,7 +134,7 @@ export default function AppearanceSettingsPage() {
             </div>
 
             <div className="flex items-end justify-end">
-              <div className="p-3 rounded-2xl rounded-br-xs bg-gradient-to-tr from-[#702C45] to-[#C96B83] text-white text-xs shadow-sm">
+              <div className="p-3 rounded-2xl rounded-br-xs bg-[#0C3B2E] text-white text-xs shadow-sm">
                 Can&apos;t wait to see you tonight! ❤️
               </div>
             </div>

@@ -171,7 +171,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
       onClose={onClose}
       size="md"
       title="Connect with Your Partner"
-      description="Connect directly with your favorite person using their unique Duo ID or a private invite link."
+      description="Connect directly with your favorite person using their unique Vibe ID or a private invite link."
     >
       <div className="space-y-4 pt-1">
         {/* Navigation Tabs */}
@@ -186,7 +186,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
             }`}
           >
             <KeyRound className="w-3.5 h-3.5 text-primary" />
-            <span>Connect with Duo ID</span>
+            <span>Connect with Vibe ID</span>
           </button>
           <button
             type="button"
@@ -197,7 +197,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <LinkIcon className="w-3.5 h-3.5 text-rose-500" />
+            <LinkIcon className="w-3.5 h-3.5 text-primary" />
             <span>Private Invite Link</span>
           </button>
         </div>
@@ -206,11 +206,11 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
         {activeTab === 'duoid' && (
           <div className="space-y-4">
             {/* My Unique Duo ID Card */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-tr from-rose-500/10 via-pink-500/5 to-transparent border border-rose-500/20 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-[#0C3B2E]/5 dark:bg-white/5 border border-[#0C3B2E]/15 dark:border-white/15 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  Your Unique Duo ID
+                  Your Unique Vibe ID
                 </span>
                 <span className="text-[10px] text-muted-foreground">Share this with your partner</span>
               </div>
@@ -253,18 +253,18 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                   <Search className="w-3.5 h-3.5 text-primary" />
-                  <span>Partner&apos;s Duo ID or Username</span>
+                  <span>Partner&apos;s Vibe ID or Username</span>
                 </label>
                 <input
                   type="text"
                   value={targetIdentifier}
                   onChange={e => setTargetIdentifier(e.target.value)}
-                  placeholder="e.g. #DUO-8A3F1C2B or @username"
+                  placeholder="e.g. #VIBE-8A3F1C2B or @username"
                   className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-background border border-input focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono placeholder:font-sans placeholder:text-muted-foreground transition-all"
                   autoFocus
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Ask your partner for their unique Duo ID shown on their profile.
+                  Ask your partner for their unique Vibe ID shown on their profile.
                 </p>
               </div>
 

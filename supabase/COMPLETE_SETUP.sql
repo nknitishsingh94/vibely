@@ -1,6 +1,7 @@
 -- ====================================================================
--- DUOCHAT DATABASE SCHEMA & SECURITY MIGRATION
--- Production-minded PostgreSQL schema for private real-time messaging
+-- VIBELY / DUOCHAT COMPLETE DATABASE SETUP SCRIPT
+-- Run this script in your Supabase Project:
+-- Dashboard -> SQL Editor -> New Query -> Paste & Click Run
 -- ====================================================================
 
 -- 1. EXTENSIONS
@@ -90,12 +91,23 @@ CREATE TABLE IF NOT EXISTS public.message_reactions (
 -- 9. USER PREFERENCES TABLE
 CREATE TABLE IF NOT EXISTS public.user_preferences (
   user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  theme TEXT DEFAULT 'system' CHECK (theme IN ('light', 'dark', 'system')),
+  theme TEXT DEFAULT 'light' CHECK (theme IN ('light', 'dark', 'system')),
   notifications_enabled BOOLEAN DEFAULT true,
   read_receipts_enabled BOOLEAN DEFAULT true,
   typing_indicators_enabled BOOLEAN DEFAULT true,
   sounds_enabled BOOLEAN DEFAULT true,
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 10. CONNECTION REQUESTS TABLE
+CREATE TABLE IF NOT EXISTS public.connection_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  receiver_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(sender_id, receiver_id)
 );
 
 -- ====================================================================
@@ -107,6 +119,8 @@ CREATE INDEX IF NOT EXISTS idx_conversation_members_user_id ON public.conversati
 CREATE INDEX IF NOT EXISTS idx_message_receipts_message_id ON public.message_receipts(message_id);
 CREATE INDEX IF NOT EXISTS idx_message_reactions_message_id ON public.message_reactions(message_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_token_hash ON public.invitations(token_hash);
+CREATE INDEX IF NOT EXISTS idx_connection_requests_receiver ON public.connection_requests (receiver_id, status);
+CREATE INDEX IF NOT EXISTS idx_connection_requests_sender ON public.connection_requests (sender_id, status);
 
 -- ====================================================================
 -- TRIGGERS & FUNCTIONS
@@ -136,21 +150,42 @@ CREATE TRIGGER trigger_messages_updated_at
   BEFORE UPDATE ON public.messages
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
--- Auto create profile & preferences on user signup
+DROP TRIGGER IF EXISTS trigger_connection_requests_updated_at ON public.connection_requests;
+CREATE TRIGGER trigger_connection_requests_updated_at
+  BEFORE UPDATE ON public.connection_requests
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- Auto create profile & preferences on user signup (Handles Email/Password + Google OAuth)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   v_display_name TEXT;
   v_username TEXT;
+  v_avatar TEXT;
 BEGIN
-  v_display_name := COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1));
-  v_username := COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1) || '_' || substr(NEW.id::text, 1, 4));
+  v_display_name := COALESCE(
+    NEW.raw_user_meta_data->>'display_name',
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'name',
+    split_part(NEW.email, '@', 1)
+  );
+  v_username := COALESCE(
+    NEW.raw_user_meta_data->>'username',
+    NEW.raw_user_meta_data->>'preferred_username',
+    split_part(NEW.email, '@', 1) || '_' || substr(NEW.id::text, 1, 4)
+  );
+  v_avatar := COALESCE(
+    NEW.raw_user_meta_data->>'avatar_path',
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.raw_user_meta_data->>'picture'
+  );
 
   INSERT INTO public.profiles (id, display_name, username, avatar_path)
-  VALUES (NEW.id, v_display_name, v_username, NEW.raw_user_meta_data->>'avatar_path')
+  VALUES (NEW.id, v_display_name, v_username, v_avatar)
   ON CONFLICT (id) DO UPDATE
-  SET display_name = EXCLUDED.display_name,
-      username = EXCLUDED.username;
+  SET display_name = COALESCE(EXCLUDED.display_name, public.profiles.display_name),
+      username = COALESCE(EXCLUDED.username, public.profiles.username),
+      avatar_path = COALESCE(EXCLUDED.avatar_path, public.profiles.avatar_path);
 
   INSERT INTO public.user_preferences (user_id)
   VALUES (NEW.id)
@@ -164,6 +199,22 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Helper function without recursion
+CREATE OR REPLACE FUNCTION public.is_conversation_member(conv_id UUID, usr_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.conversation_members
+    WHERE conversation_id = conv_id AND user_id = usr_id
+  );
+END;
+$$;
 
 -- Atomic Invitation Acceptance Function
 CREATE OR REPLACE FUNCTION public.accept_invitation(p_token_hash TEXT)
@@ -179,7 +230,6 @@ BEGIN
     RAISE EXCEPTION 'Authentication required to accept invitation';
   END IF;
 
-  -- Verify invitation
   SELECT created_by INTO v_inviter_id
   FROM public.invitations
   WHERE token_hash = p_token_hash
@@ -195,12 +245,10 @@ BEGIN
     RAISE EXCEPTION 'You cannot accept your own invitation';
   END IF;
 
-  -- Mark invitation as used
   UPDATE public.invitations
   SET used_at = timezone('utc'::text, now())
   WHERE token_hash = p_token_hash;
 
-  -- Check if conversation already exists between the two users
   SELECT c.id INTO v_existing_id
   FROM public.conversations c
   JOIN public.conversation_members cm1 ON cm1.conversation_id = c.id AND cm1.user_id = v_inviter_id
@@ -212,12 +260,10 @@ BEGIN
     RETURN v_existing_id;
   END IF;
 
-  -- Create new direct conversation
   INSERT INTO public.conversations (type)
   VALUES ('direct')
   RETURNING id INTO v_conversation_id;
 
-  -- Add both members
   INSERT INTO public.conversation_members (conversation_id, user_id, role)
   VALUES
     (v_conversation_id, v_inviter_id, 'member'),
@@ -239,13 +285,20 @@ ALTER TABLE public.message_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.connection_requests ENABLE ROW LEVEL SECURITY;
 
--- 1. PROFILES POLICIES
+-- Profiles
 DROP POLICY IF EXISTS "Profiles are readable by authenticated users" ON public.profiles;
 CREATE POLICY "Profiles are readable by authenticated users"
   ON public.profiles FOR SELECT
   TO authenticated
   USING (true);
+
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (id = auth.uid());
 
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile"
@@ -254,132 +307,78 @@ CREATE POLICY "Users can update their own profile"
   USING (id = auth.uid())
   WITH CHECK (id = auth.uid());
 
--- Helper function to check conversation membership without RLS recursion
-CREATE OR REPLACE FUNCTION public.is_conversation_member(conv_id UUID, usr_id UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.conversation_members
-    WHERE conversation_id = conv_id AND user_id = usr_id
-  );
-END;
-$$;
-
--- 2. CONVERSATIONS POLICIES
+-- Conversations
 DROP POLICY IF EXISTS "Users can view conversations they belong to" ON public.conversations;
 CREATE POLICY "Users can view conversations they belong to"
   ON public.conversations FOR SELECT
   TO authenticated
-  USING (
-    public.is_conversation_member(id, auth.uid())
-  );
+  USING (public.is_conversation_member(id, auth.uid()));
 
--- 3. CONVERSATION MEMBERS POLICIES
+DROP POLICY IF EXISTS "Authenticated users can create conversations" ON public.conversations;
+CREATE POLICY "Authenticated users can create conversations"
+  ON public.conversations FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Conversation Members
 DROP POLICY IF EXISTS "Users can view members of their conversations" ON public.conversation_members;
 CREATE POLICY "Users can view members of their conversations"
   ON public.conversation_members FOR SELECT
   TO authenticated
-  USING (
-    user_id = auth.uid() OR public.is_conversation_member(conversation_id, auth.uid())
-  );
+  USING (user_id = auth.uid() OR public.is_conversation_member(conversation_id, auth.uid()));
 
-DROP POLICY IF EXISTS "Users can update their own membership row" ON public.conversation_members;
-CREATE POLICY "Users can update their own membership row"
-  ON public.conversation_members FOR UPDATE
+DROP POLICY IF EXISTS "Users can insert members for their conversations" ON public.conversation_members;
+CREATE POLICY "Users can insert members for their conversations"
+  ON public.conversation_members FOR INSERT
   TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (user_id = auth.uid() OR public.is_conversation_member(conversation_id, auth.uid()));
 
--- 4. MESSAGES POLICIES
+-- Messages
 DROP POLICY IF EXISTS "Users can view messages in their conversations" ON public.messages;
 CREATE POLICY "Users can view messages in their conversations"
   ON public.messages FOR SELECT
   TO authenticated
-  USING (
-    public.is_conversation_member(conversation_id, auth.uid())
-  );
+  USING (public.is_conversation_member(conversation_id, auth.uid()));
 
 DROP POLICY IF EXISTS "Authorized members can send messages" ON public.messages;
 CREATE POLICY "Authorized members can send messages"
   ON public.messages FOR INSERT
   TO authenticated
-  WITH CHECK (
-    sender_id = auth.uid()
-    AND public.is_conversation_member(conversation_id, auth.uid())
-  );
+  WITH CHECK (sender_id = auth.uid() AND public.is_conversation_member(conversation_id, auth.uid()));
 
-DROP POLICY IF EXISTS "Senders can edit their own messages" ON public.messages;
-CREATE POLICY "Senders can edit their own messages"
+DROP POLICY IF EXISTS "Users can edit their own messages" ON public.messages;
+CREATE POLICY "Users can edit their own messages"
   ON public.messages FOR UPDATE
   TO authenticated
   USING (sender_id = auth.uid())
   WITH CHECK (sender_id = auth.uid());
 
-DROP POLICY IF EXISTS "Senders can delete their own messages" ON public.messages;
-CREATE POLICY "Senders can delete their own messages"
-  ON public.messages FOR DELETE
-  TO authenticated
-  USING (sender_id = auth.uid());
-
--- 5. MESSAGE RECEIPTS POLICIES
-DROP POLICY IF EXISTS "Members can view receipts for conversation messages" ON public.message_receipts;
-CREATE POLICY "Members can view receipts for conversation messages"
+-- Message Receipts
+DROP POLICY IF EXISTS "Users can view message receipts" ON public.message_receipts;
+CREATE POLICY "Users can view message receipts"
   ON public.message_receipts FOR SELECT
   TO authenticated
   USING (
+    user_id = auth.uid() OR
     EXISTS (
       SELECT 1 FROM public.messages m
-      JOIN public.conversation_members cm ON cm.conversation_id = m.conversation_id
-      WHERE m.id = message_receipts.message_id
-        AND cm.user_id = auth.uid()
+      WHERE m.id = message_id AND public.is_conversation_member(m.conversation_id, auth.uid())
     )
   );
 
-DROP POLICY IF EXISTS "Users can record and update their own receipts" ON public.message_receipts;
-CREATE POLICY "Users can record and update their own receipts"
+DROP POLICY IF EXISTS "Users can insert message receipts" ON public.message_receipts;
+CREATE POLICY "Users can insert message receipts"
   ON public.message_receipts FOR INSERT
   TO authenticated
   WITH CHECK (user_id = auth.uid());
 
-DROP POLICY IF EXISTS "Users can update their own receipts" ON public.message_receipts;
-CREATE POLICY "Users can update their own receipts"
+DROP POLICY IF EXISTS "Users can update their message receipts" ON public.message_receipts;
+CREATE POLICY "Users can update their message receipts"
   ON public.message_receipts FOR UPDATE
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- 6. MESSAGE REACTIONS POLICIES
-DROP POLICY IF EXISTS "Members can view reactions in their conversations" ON public.message_reactions;
-CREATE POLICY "Members can view reactions in their conversations"
-  ON public.message_reactions FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.messages m
-      JOIN public.conversation_members cm ON cm.conversation_id = m.conversation_id
-      WHERE m.id = message_reactions.message_id
-        AND cm.user_id = auth.uid()
-    )
-  );
-
-DROP POLICY IF EXISTS "Users can insert their own reactions" ON public.message_reactions;
-CREATE POLICY "Users can insert their own reactions"
-  ON public.message_reactions FOR INSERT
-  TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
-DROP POLICY IF EXISTS "Users can delete their own reactions" ON public.message_reactions;
-CREATE POLICY "Users can delete their own reactions"
-  ON public.message_reactions FOR DELETE
   TO authenticated
   USING (user_id = auth.uid());
 
--- 7. INVITATIONS POLICIES
+-- Invitations
 DROP POLICY IF EXISTS "Users can view their own invitations" ON public.invitations;
 CREATE POLICY "Users can view their own invitations"
   ON public.invitations FOR SELECT
@@ -399,7 +398,37 @@ CREATE POLICY "Users can update their own invitations"
   USING (created_by = auth.uid())
   WITH CHECK (created_by = auth.uid());
 
--- 8. USER PREFERENCES POLICIES
+-- Message Reactions
+DROP POLICY IF EXISTS "Users can view message reactions" ON public.message_reactions;
+CREATE POLICY "Users can view message reactions"
+  ON public.message_reactions FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.messages m
+      WHERE m.id = message_id AND public.is_conversation_member(m.conversation_id, auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can add reactions" ON public.message_reactions;
+CREATE POLICY "Users can add reactions"
+  ON public.message_reactions FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    user_id = auth.uid() AND
+    EXISTS (
+      SELECT 1 FROM public.messages m
+      WHERE m.id = message_id AND public.is_conversation_member(m.conversation_id, auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can delete reactions" ON public.message_reactions;
+CREATE POLICY "Users can delete reactions"
+  ON public.message_reactions FOR DELETE
+  TO authenticated
+  USING (user_id = auth.uid());
+
+-- User Preferences
 DROP POLICY IF EXISTS "Users can manage their own preferences" ON public.user_preferences;
 CREATE POLICY "Users can manage their own preferences"
   ON public.user_preferences FOR ALL
@@ -407,25 +436,72 @@ CREATE POLICY "Users can manage their own preferences"
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
+-- Connection Requests
+DROP POLICY IF EXISTS "Users can view their connection requests" ON public.connection_requests;
+CREATE POLICY "Users can view their connection requests"
+  ON public.connection_requests FOR SELECT
+  USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+DROP POLICY IF EXISTS "Users can insert connection requests" ON public.connection_requests;
+CREATE POLICY "Users can insert connection requests"
+  ON public.connection_requests FOR INSERT
+  WITH CHECK (auth.uid() = sender_id);
+
+DROP POLICY IF EXISTS "Users can update their connection requests" ON public.connection_requests;
+CREATE POLICY "Users can update their connection requests"
+  ON public.connection_requests FOR UPDATE
+  USING (auth.uid() = receiver_id OR auth.uid() = sender_id);
+
 -- ====================================================================
 -- REALTIME SUBSCRIPTIONS SETUP
 -- ====================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.message_receipts;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.message_reactions;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_members;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+  END IF;
+  
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'message_receipts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.message_receipts;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'message_reactions'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.message_reactions;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'conversation_members'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_members;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'profiles'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+  END IF;
+END $$;
 
 -- ====================================================================
--- STORAGE BUCKET INITIALIZATION & SECURITY POLICIES
+-- STORAGE BUCKET & POLICIES
 -- ====================================================================
--- Create the private chat-media bucket if it doesn't exist
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'chat-media',
   'chat-media',
   false,
-  104857600, -- 100MB max video size
+  104857600, -- 100MB limit
   ARRAY[
     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
     'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/ogg', 'audio/webm',
@@ -441,7 +517,6 @@ ON CONFLICT (id) DO UPDATE
 SET public = false,
     file_size_limit = 104857600;
 
--- Storage object policies for private chat-media
 DROP POLICY IF EXISTS "Allow conversation members to view storage files" ON storage.objects;
 CREATE POLICY "Allow conversation members to view storage files"
   ON storage.objects FOR SELECT

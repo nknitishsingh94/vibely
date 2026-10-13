@@ -11,7 +11,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isSupabaseConfigured } from '@/lib/env';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { BrandLogo } from '@/components/ui/brand-logo';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -52,42 +52,40 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="p-4 flex items-center justify-between border-b border-border/40">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
-            <MessageSquare className="w-4 h-4 fill-current" />
-          </div>
-          <span className="font-bold text-base">DuoChat</span>
-        </Link>
-        <ThemeToggle />
+    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
+      {/* Sleek Top Bar */}
+      <header className="px-4 sm:px-6 h-12 flex items-center justify-between border-b border-[#0C3B2E]/10 bg-white/90 backdrop-blur-xl">
+        <BrandLogo size="sm" href="/" />
       </header>
 
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+        {/* Soft Ambient Glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[350px] bg-gradient-to-tr from-[#0C3B2E]/15 via-emerald-600/10 to-[#0C3B2E]/15 dark:from-[#0C3B2E]/30 dark:via-emerald-950/40 dark:to-[#0C3B2E]/20 blur-[130px] rounded-full pointer-events-none -z-10" />
+
         <div className="w-full max-w-md space-y-6">
           <div className="text-center space-y-1.5">
-            <h1 className="text-2xl font-bold tracking-tight">Set New Password</h1>
-            <p className="text-xs text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-sans font-black tracking-tight text-[#0C3B2E] dark:text-white">Set New Password</h1>
+            <p className="text-xs text-stone-600 dark:text-emerald-100/70">
               Choose a strong new password for your account
             </p>
           </div>
 
-          <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-xl space-y-5">
+          <div className="p-6 sm:p-7 rounded-3xl bg-white/95 dark:bg-[#09241B]/95 border border-[#0C3B2E]/15 dark:border-white/15 shadow-2xl space-y-5 backdrop-blur-xl">
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-xs border border-destructive/20">
+              <div className="p-3.5 rounded-xl bg-destructive/10 text-destructive text-xs border border-destructive/20 font-medium">
                 {errorMessage}
               </div>
             )}
 
             {isSuccess ? (
-              <div className="p-6 rounded-2xl bg-primary/10 border border-primary/20 text-center space-y-3">
-                <CheckCircle2 className="w-10 h-10 text-primary mx-auto" />
-                <h3 className="font-bold text-sm">Password updated!</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+              <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                <h3 className="font-bold text-sm text-[#0C3B2E] dark:text-white">Password updated!</h3>
+                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
                   Your password has been changed successfully. You can now sign in with your new credentials.
                 </p>
                 <Link href="/login">
-                  <Button size="sm" className="mt-2 rounded-xl">
+                  <Button size="sm" className="mt-2 rounded-xl font-bold bg-[#0C3B2E] hover:bg-[#155E49] text-white">
                     Go to Sign In
                   </Button>
                 </Link>
@@ -101,7 +99,7 @@ export default function ResetPasswordPage() {
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="At least 8 characters"
-                    leftIcon={<Lock className="w-4 h-4" />}
+                    leftIcon={<Lock className="w-4 h-4 text-muted-foreground" />}
                     rightIcon={
                       <button
                         type="button"
@@ -113,6 +111,7 @@ export default function ResetPasswordPage() {
                       </button>
                     }
                     error={errors.password?.message}
+                    className="rounded-xl"
                     {...register('password')}
                   />
                 </div>
@@ -124,8 +123,9 @@ export default function ResetPasswordPage() {
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Re-enter new password"
-                    leftIcon={<Lock className="w-4 h-4" />}
+                    leftIcon={<Lock className="w-4 h-4 text-muted-foreground" />}
                     error={errors.confirmPassword?.message}
+                    className="rounded-xl"
                     {...register('confirmPassword')}
                   />
                 </div>
@@ -133,7 +133,7 @@ export default function ResetPasswordPage() {
                 <Button
                   type="submit"
                   isLoading={isLoading}
-                  className="w-full rounded-xl font-medium shadow-sm mt-2"
+                  className="w-full rounded-2xl font-bold shadow-md shadow-[#0C3B2E]/25 mt-2 bg-[#0C3B2E] text-white hover:bg-[#155E49] cursor-pointer"
                 >
                   Update Password
                 </Button>

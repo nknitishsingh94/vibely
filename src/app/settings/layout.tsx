@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft, User, Palette, Shield } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { cn } from '@/lib/utils';
 
@@ -58,8 +57,6 @@ export default function SettingsLayout({
               Settings & Preferences
             </span>
           </div>
-
-          <ThemeToggle />
         </div>
       </header>
 

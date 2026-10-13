@@ -51,10 +51,10 @@ export default function ChatPage() {
     try {
       await navigator.clipboard.writeText(duoId);
       setCopied(true);
-      toast.success('Duo ID copied to clipboard!');
+      toast.success('Vibe ID copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('Failed to copy ID');
+      toast.error('Failed to copy Vibe ID');
     }
   };
 
@@ -74,7 +74,7 @@ export default function ChatPage() {
           setPartnerInput('');
         }
       } else {
-        toast.error(res.error || 'Could not find user with that Duo ID or username.');
+        toast.error(res.error || 'Could not find user with that Vibe ID or username.');
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to connect');
@@ -114,24 +114,24 @@ export default function ChatPage() {
               <BrandLogo size="lg" className="justify-center mb-2" />
 
               <div className="space-y-2">
-                <h3 className="text-2xl font-serif font-bold text-foreground">
-                  Just us, in our own little world.
+                <h3 className="text-2xl font-sans font-bold text-foreground">
+                  Where two souls sync.
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                  Connect 1-on-1 with your partner using your unique Duo ID or enter theirs to start chatting.
+                  Connect 1-on-1 with your partner using your unique Vibe ID or enter theirs to start chatting.
                 </p>
               </div>
 
-              {/* Your Duo ID Card */}
-              <div className="bg-card/70 backdrop-blur-md border border-primary/20 rounded-2xl p-4 shadow-sm text-left space-y-2.5">
+              {/* Your Vibe ID Card */}
+              <div className="bg-card/85 backdrop-blur-md border border-primary/20 rounded-2xl p-4 shadow-sm text-left space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                    Your Unique Duo ID
+                    Your Unique Vibe ID
                   </span>
                   <button
                     onClick={handleCopyId}
-                    className="text-[11px] text-primary hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                    className="text-[11px] text-primary hover:underline flex items-center gap-1 cursor-pointer font-semibold"
                   >
                     {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                     {copied ? 'Copied' : 'Copy ID'}
@@ -141,7 +141,7 @@ export default function ChatPage() {
                   onClick={handleCopyId}
                   className="bg-background/80 hover:bg-background border border-border/60 hover:border-primary/40 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-colors group"
                 >
-                  <code className="text-sm font-mono font-semibold text-primary tracking-wide">
+                  <code className="text-sm font-mono font-bold text-primary tracking-wide">
                     {duoId}
                   </code>
                   <span className="text-[11px] text-muted-foreground group-hover:text-foreground">
@@ -149,7 +149,7 @@ export default function ChatPage() {
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-normal">
-                  Give this ID to your partner so they can connect with you directly.
+                  Give this ID to your partner so they can connect with you directly on Vibely.
                 </p>
               </div>
 
@@ -157,7 +157,7 @@ export default function ChatPage() {
               <form onSubmit={handleQuickConnect} className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Input
-                    placeholder="Enter partner's #DUO-ID or username"
+                    placeholder="Enter partner's #VIBE-ID or username"
                     value={partnerInput}
                     onChange={(e) => setPartnerInput(e.target.value)}
                     className="rounded-xl bg-card/60 backdrop-blur border-border text-xs h-10 font-mono placeholder:font-sans"
@@ -166,7 +166,7 @@ export default function ChatPage() {
                   <Button
                     type="submit"
                     disabled={isConnecting || !partnerInput.trim()}
-                    className="h-10 px-4 rounded-xl gap-1.5 bg-gradient-to-tr from-[#702C45] to-[#C96B83] text-white hover:opacity-95 shadow-sm text-xs font-medium cursor-pointer shrink-0"
+                    className="h-10 px-4 rounded-xl gap-1.5 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-rose-500 text-white hover:opacity-95 shadow-sm text-xs font-semibold cursor-pointer shrink-0"
                   >
                     {isConnecting ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
