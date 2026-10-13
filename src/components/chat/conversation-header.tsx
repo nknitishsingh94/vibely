@@ -71,7 +71,7 @@ export function ConversationHeader() {
 
   return (
     <>
-      <div className="flex flex-col border-b border-border/70 bg-card/70 backdrop-blur-md z-10 select-none">
+      <div className="shrink-0 flex flex-col border-b border-border/70 bg-card/90 backdrop-blur-md z-10 select-none pt-[max(env(safe-area-inset-top),0.375rem)]">
         <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
           <div className="flex items-center gap-3 min-w-0">
             {/* Mobile Back Button */}

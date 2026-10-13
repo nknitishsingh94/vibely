@@ -110,7 +110,7 @@ export function MessageList() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 romantic-wallpaper"
+      className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-3 sm:p-5 space-y-4 romantic-wallpaper"
     >
       {groupedMessages.map(group => (
         <div key={group.date} className="space-y-2">

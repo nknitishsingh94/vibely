@@ -44,6 +44,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     toggleReaction,
     editMessage,
     deleteMessage,
+    friendPresence,
   } = useChat();
 
   const { isFavorite, toggleFav } = useRomanticFeatures();
@@ -63,23 +64,52 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     ? message.body?.replace(/^\[💌 Note\]\s*/, '')
     : message.body;
 
-  // Status icon for outgoing messages
+  // Status icon for outgoing messages (WhatsApp-style ticks)
   const renderStatus = () => {
     if (!isOutgoing) return null;
-    switch (message.deliveryStatus) {
-      case 'sending':
-        return <Clock className="w-3 h-3 text-white/70 animate-spin" />;
-      case 'sent':
-        return <Check className="w-3.5 h-3.5 text-white/70" />;
-      case 'delivered':
-        return <CheckCheck className="w-3.5 h-3.5 text-white/70" />;
-      case 'read':
-        return <CheckCheck className="w-3.5 h-3.5 text-rose-200 font-bold" />;
-      case 'failed':
-        return <AlertCircle className="w-3.5 h-3.5 text-rose-200" />;
-      default:
-        return <Check className="w-3.5 h-3.5 text-white/70" />;
+
+    // 1. Clock icon if sending/pending
+    if (message.deliveryStatus === 'sending' || message.isOptimistic) {
+      return (
+        <span title="Sending..." className="inline-flex items-center text-white/70">
+          <Clock className="w-3 h-3 animate-pulse" />
+        </span>
+      );
     }
+
+    // 2. Error / Failed
+    if (message.deliveryStatus === 'failed') {
+      return (
+        <span title="Failed to send" className="inline-flex items-center text-rose-300">
+          <AlertCircle className="w-3.5 h-3.5" />
+        </span>
+      );
+    }
+
+    // 3. Seen / Read -> Double check with color change (WhatsApp Sky Blue!)
+    if (message.deliveryStatus === 'read') {
+      return (
+        <span title="Read" className="inline-flex items-center text-[#38BDF8] dark:text-[#53BDEB]">
+          <CheckCheck className="w-3.5 h-3.5 stroke-[2.5]" />
+        </span>
+      );
+    }
+
+    // 4. Delivered (partner is online) -> Double check
+    if (message.deliveryStatus === 'delivered' || friendPresence.online) {
+      return (
+        <span title="Delivered (Partner is online)" className="inline-flex items-center text-white/75">
+          <CheckCheck className="w-3.5 h-3.5 stroke-[2]" />
+        </span>
+      );
+    }
+
+    // 5. Sent (partner is offline) -> Single check
+    return (
+      <span title="Sent (Partner is offline)" className="inline-flex items-center text-white/70">
+        <Check className="w-3.5 h-3.5 stroke-[2]" />
+      </span>
+    );
   };
 
   const handleCopy = () => {
@@ -272,8 +302,8 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           isLittleNote
             ? 'little-note-card rounded-2xl'
             : isOutgoing
-            ? 'bg-gradient-to-tr from-[#702C45] via-[#8B3755] to-[#A84B69] text-white rounded-br-xs shadow-rose-900/10'
-            : 'bg-card/95 dark:bg-[#211B24] text-card-foreground border border-[#EDE1E5]/80 dark:border-[#382B36] rounded-bl-xs'
+            ? 'bg-[#0C3B2E] text-white rounded-br-xs shadow-sm shadow-[#0C3B2E]/15'
+            : 'bg-white dark:bg-[#0D281E] text-foreground border border-border/70 rounded-bl-xs shadow-2xs'
         )}
       >
         {/* Little Note Header Badge */}

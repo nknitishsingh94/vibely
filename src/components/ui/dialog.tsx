@@ -51,7 +51,7 @@ export function Dialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-stone-950/70 dark:bg-black/85 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -61,7 +61,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'relative w-full rounded-2xl bg-card border border-border/80 p-6 text-card-foreground shadow-2xl z-10 transition-all duration-200 animate-in zoom-in-95 max-h-[90vh] flex flex-col overflow-hidden',
+          'relative w-full rounded-3xl bg-white dark:bg-[#071F17] border border-stone-200/90 dark:border-white/10 p-6 sm:p-7 text-foreground shadow-2xl z-10 transition-all duration-200 animate-in zoom-in-95 max-h-[90vh] flex flex-col overflow-hidden',
           sizeClasses[size],
           className
         )}

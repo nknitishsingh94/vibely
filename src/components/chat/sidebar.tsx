@@ -18,7 +18,7 @@ import {
   Copy,
   Check,
   X,
-  Bell,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -85,9 +85,9 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="w-full md:w-80 lg:w-88 flex flex-col h-full bg-sidebar-bg border-r border-border/70 select-none transition-colors">
+      <aside className="w-full md:w-80 lg:w-88 flex flex-col h-full max-h-[100dvh] bg-sidebar-bg border-r border-border/70 select-none overflow-hidden overscroll-none">
         {/* Brand Header */}
-        <div className="p-4 border-b border-border/50 flex flex-col gap-2">
+        <div className="shrink-0 p-3.5 sm:p-4 border-b border-border/50 flex flex-col gap-2 pt-[max(env(safe-area-inset-top),0.875rem)]">
           <div className="flex items-center justify-between">
             <BrandLogo size="md" />
 
@@ -124,7 +124,7 @@ export function Sidebar() {
         </div>
 
         {/* Search Conversations Input */}
-        <div className="px-3 pt-3 pb-1">
+        <div className="shrink-0 px-3 pt-2.5 pb-1">
           <div className="relative flex items-center">
             <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 pointer-events-none" />
             <input
@@ -138,7 +138,7 @@ export function Sidebar() {
         </div>
 
         {/* Quick Couple Shortcuts: Our Moments */}
-        <div className="px-3 py-1.5 flex items-center gap-1.5">
+        <div className="shrink-0 px-3 py-1 flex items-center gap-1.5">
           <button
             onClick={() => setIsMediaDrawerOpen(true)}
             className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 border border-transparent hover:border-border/50 transition-all cursor-pointer"
@@ -150,7 +150,7 @@ export function Sidebar() {
         </div>
 
         {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-2 space-y-1.5">
           {/* Pending Connection Requests Banner in Sidebar */}
           {incomingRequests.length > 0 && (
             <div className="space-y-1.5 mb-2">
@@ -298,7 +298,7 @@ export function Sidebar() {
         </div>
 
         {/* User Footer Profile & Controls */}
-        <div className="p-3 border-t border-border/60 bg-card/40 flex items-center justify-between gap-1">
+        <div className="shrink-0 p-3 border-t border-border/60 bg-card/60 flex items-center justify-between gap-1 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
           <Link
             href="/settings/profile"
             className="flex items-center gap-2.5 min-w-0 p-1.5 rounded-xl hover:bg-muted/70 transition-colors flex-1"

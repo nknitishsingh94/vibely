@@ -104,6 +104,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* WhatsApp-style mobile touch lock & smooth internal scrolling */
+.mobile-app-lock {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+.scroll-touch-contain {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
 .font-serif {
   font-family: var(--font-serif), Georgia, serif;
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -22,6 +22,15 @@ const playfair = Playfair_Display({
   subsets: ['latin'],
   style: ['normal', 'italic'],
 });
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#0C3B2E',
+};
 
 export const metadata: Metadata = {
   title: 'Vibely — Where two souls sync. Pure private connection.',

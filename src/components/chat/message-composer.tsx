@@ -158,7 +158,7 @@ export function MessageComposer() {
   }
 
   return (
-    <div className="relative border-t border-border/70 bg-card/75 backdrop-blur-md p-2.5 sm:p-3.5 select-none transition-all">
+    <div className="shrink-0 relative border-t border-border/70 bg-card/90 backdrop-blur-md p-2 sm:p-3 select-none transition-all pb-[max(env(safe-area-inset-bottom),0.625rem)]">
       {/* Hidden File Input */}
       <input
         type="file"
@@ -410,7 +410,7 @@ export function MessageComposer() {
             onClick={handleSend}
             isLoading={isSending}
             size="icon"
-            className="rounded-2xl shrink-0 bg-gradient-to-tr from-[#702C45] to-[#C96B83] text-white shadow-sm hover:opacity-95 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            className="rounded-2xl shrink-0 bg-[#0C3B2E] hover:bg-[#155E49] text-white shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer"
             aria-label="Send message"
           >
             <Send className="w-4 h-4" />

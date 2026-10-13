@@ -97,10 +97,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Sync friend presence from active conversation's partner
   useEffect(() => {
     if (activeConversation?.otherUser) {
+      const lastSeen = activeConversation.otherUser.last_seen_at;
+      const isRecentlyActive = lastSeen
+        ? Date.now() - new Date(lastSeen).getTime() < 120000
+        : false;
       setFriendPresence({
         userId: activeConversation.otherUser.id,
-        online: true,
-        lastSeen: activeConversation.otherUser.last_seen_at || new Date().toISOString(),
+        online: isRecentlyActive,
+        lastSeen: lastSeen || new Date().toISOString(),
       });
     } else {
       setFriendPresence({
@@ -464,6 +468,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           })
         );
         setMessages(enriched);
+
+        // Mark conversation read in database & notify partner for blue ticks
+        if (profile?.id && conversationId) {
+          supabase
+            .from('conversation_members')
+            .update({ last_read_at: new Date().toISOString() })
+            .eq('conversation_id', conversationId)
+            .eq('user_id', profile.id)
+            .then(() => {
+              if (channelRef.current) {
+                channelRef.current.send({
+                  type: 'broadcast',
+                  event: 'read_receipt',
+                  payload: {
+                    conversationId,
+                    readByUserId: profile.id,
+                    readAt: new Date().toISOString(),
+                  },
+                });
+              }
+            });
+        }
       }
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -478,6 +504,42 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       refreshConversations();
     }
   }, [profile, refreshConversations]);
+
+  // When partner comes online, upgrade pending 'sent' messages to 'delivered'
+  useEffect(() => {
+    if (friendPresence.online && profile?.id) {
+      setMessages(prev =>
+        prev.map(m =>
+          m.sender_id === profile.id && m.deliveryStatus === 'sent'
+            ? { ...m, deliveryStatus: 'delivered' }
+            : m
+        )
+      );
+    }
+  }, [friendPresence.online, profile?.id]);
+
+  // Periodically update current user's last_seen_at in profiles table
+  useEffect(() => {
+    if (!profile?.id || !isConfigured) return;
+    const supabase = getSupabaseBrowserClient();
+
+    const updateHeartbeat = () => {
+      supabase
+        .from('profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', profile.id)
+        .then(() => {});
+    };
+
+    updateHeartbeat();
+    const timer = setInterval(updateHeartbeat, 60000);
+    window.addEventListener('focus', updateHeartbeat);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', updateHeartbeat);
+    };
+  }, [profile?.id, isConfigured]);
 
   // Realtime subscription for incoming connections and messages across all conversations
   useEffect(() => {
@@ -547,12 +609,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const otherUserId = activeConversation?.otherUser?.id;
-        if (otherUserId && state[otherUserId]) {
-          setFriendPresence({
+        if (otherUserId) {
+          const isPresent = Boolean(state[otherUserId] && (state[otherUserId] as any).length > 0);
+          setFriendPresence(prev => ({
             userId: otherUserId,
-            online: true,
-            lastSeen: new Date().toISOString(),
-          });
+            online: isPresent,
+            lastSeen: isPresent ? new Date().toISOString() : (activeConversation?.otherUser?.last_seen_at || prev.lastSeen),
+          }));
         }
       })
       .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
@@ -573,6 +636,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }));
         }
       });
+
+    // Realtime Read Receipt Broadcast Listener (Instant WhatsApp Blue Ticks!)
+    channel.on('broadcast', { event: 'read_receipt' }, ({ payload }: { payload: any }) => {
+      if (payload.readByUserId !== profile.id) {
+        setMessages(prev =>
+          prev.map(m =>
+            m.sender_id === profile.id && (!payload.messageId || m.id === payload.messageId || m.created_at <= payload.readAt)
+              ? { ...m, deliveryStatus: 'read' }
+              : m
+          )
+        );
+      }
+    });
 
     // Broadcast typing indicator
     channel.on('broadcast', { event: 'typing' }, ({ payload }: { payload: any }) => {
@@ -643,6 +719,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               },
               { onConflict: 'message_id,user_id' }
             );
+
+            // Broadcast read receipt so sender's double tick turns blue immediately
+            channel.send({
+              type: 'broadcast',
+              event: 'read_receipt',
+              payload: {
+                conversationId: activeConversationId,
+                readByUserId: profile.id,
+                messageId: newMsg.id,
+                readAt: new Date().toISOString(),
+              },
+            });
           }
         }
       )
@@ -831,11 +919,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         throw new Error(insertErr?.message || 'Failed to send message');
       }
 
-      // Update optimistic message with real ID and sent status
+      // Update optimistic message with real ID and sent/delivered status
+      const initialDeliveryStatus: MessageWithDetails['deliveryStatus'] =
+        friendPresence.online ? 'delivered' : 'sent';
+
       setMessages(prev =>
         prev.map(m =>
           m.id === optimisticId
-            ? { ...m, ...insertedMsg, isOptimistic: false, deliveryStatus: 'sent' }
+            ? { ...m, ...insertedMsg, isOptimistic: false, deliveryStatus: initialDeliveryStatus }
             : m
         )
       );

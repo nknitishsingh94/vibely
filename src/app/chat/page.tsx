@@ -85,11 +85,11 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* Left Sidebar: hidden on mobile if an active conversation is open */}
+    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-background flex select-none overscroll-none touch-manipulation">
+      {/* Left Sidebar: on mobile takes full screen 100dvh, hidden if conversation open */}
       <div
-        className={`h-full ${
-          activeConversationId ? 'hidden md:flex' : 'flex w-full md:w-auto'
+        className={`h-full max-h-[100dvh] overflow-hidden ${
+          activeConversationId ? 'hidden md:flex' : 'flex w-full md:w-80 lg:w-88'
         }`}
       >
         <Sidebar />
@@ -97,7 +97,7 @@ export default function ChatPage() {
 
       {/* Main Conversation Area: full screen on mobile when conversation selected */}
       <div
-        className={`flex-1 flex flex-col h-full overflow-hidden bg-background ${
+        className={`flex-1 flex flex-col h-full max-h-[100dvh] overflow-hidden bg-background ${
           !activeConversationId ? 'hidden md:flex' : 'flex'
         }`}
       >
