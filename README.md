@@ -57,18 +57,14 @@ Create a `.env.local` file in the root directory:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=https://vibely-sigma-roan.vercel.app
 ```
 
 ### 4. Database Setup
 Run the SQL script located at `supabase/COMPLETE_SETUP.sql` inside your **Supabase Dashboard -> SQL Editor**.
 
-### 5. Run Development Server
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+### 5. Production App
+The production app is live at: [https://vibely-sigma-roan.vercel.app](https://vibely-sigma-roan.vercel.app)
 
 ---
 

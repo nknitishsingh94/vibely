@@ -135,7 +135,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'duoid' }: InviteMod
         await loadInvites();
       }
 
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://vibely-sigma-roan.vercel.app';
       const inviteUrl = `${baseUrl}/invite/${rawToken}`;
       setGeneratedUrl(inviteUrl);
     } catch (err) {

@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 
 describe('OAuth Callback & Redirect Logic', () => {
   it('correctly builds OAuth callback URL with destination parameter', () => {
-    const origin = 'http://localhost:3000';
+    const origin = 'https://vibely-sigma-roan.vercel.app';
     const destination = '/chat';
     const callbackUrl = `${origin}/auth/callback?redirectTo=${encodeURIComponent(destination)}`;
 
-    expect(callbackUrl).toBe('http://localhost:3000/auth/callback?redirectTo=%2Fchat');
+    expect(callbackUrl).toBe('https://vibely-sigma-roan.vercel.app/auth/callback?redirectTo=%2Fchat');
   });
 
   it('safely handles relative vs absolute redirect paths', () => {
@@ -25,10 +25,10 @@ describe('OAuth Callback & Redirect Logic', () => {
   });
 
   it('correctly constructs error redirect URL when OAuth fails', () => {
-    const baseUrl = 'http://localhost:3000';
+    const baseUrl = 'https://vibely-sigma-roan.vercel.app';
     const errorMessage = 'User denied consent';
     const redirectUrl = `${baseUrl}/login?error=${encodeURIComponent(errorMessage)}`;
 
-    expect(redirectUrl).toBe('http://localhost:3000/login?error=User%20denied%20consent');
+    expect(redirectUrl).toBe('https://vibely-sigma-roan.vercel.app/login?error=User%20denied%20consent');
   });
 });
