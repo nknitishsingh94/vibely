@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import {
   UserPlus,
   Settings,
-  LogOut,
   Search,
   Image as ImageIcon,
   Music,
@@ -67,10 +66,7 @@ export function Sidebar() {
     return name.includes(filterText.toLowerCase()) || user.includes(filterText.toLowerCase());
   });
 
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
-  };
+
 
   const getMediaPreviewIcon = (type?: string) => {
     switch (type) {
@@ -332,7 +328,7 @@ export function Sidebar() {
             {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
 
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center shrink-0">
             <Link
               href="/settings/profile"
               className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -341,14 +337,6 @@ export function Sidebar() {
             >
               <Settings className="w-4 h-4" />
             </Link>
-            <button
-              onClick={handleSignOut}
-              className="p-1.5 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </aside>
