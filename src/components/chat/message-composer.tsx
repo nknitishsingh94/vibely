@@ -150,10 +150,12 @@ export function MessageComposer() {
 
   if (isRecordingVoice) {
     return (
-      <VoiceRecorderBar
-        onSendVoice={handleSendVoice}
-        onCancel={() => setIsRecordingVoice(false)}
-      />
+      <div className="shrink-0 relative border-t border-border/70 bg-card/90 backdrop-blur-md p-2 sm:p-3 select-none transition-all pb-[max(env(safe-area-inset-bottom),0.625rem)]">
+        <VoiceRecorderBar
+          onSendVoice={handleSendVoice}
+          onCancel={() => setIsRecordingVoice(false)}
+        />
+      </div>
     );
   }
 

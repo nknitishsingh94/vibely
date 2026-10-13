@@ -11,6 +11,7 @@ import {
   UserPresence,
   MessageReaction,
 } from '@/types/database';
+import { encryptMessage, decryptMessage } from '@/lib/e2ee';
 
 export interface ChatContextType {
   conversations: ConversationWithDetails[];
@@ -460,8 +461,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               status = 'delivered';
             }
 
+            // Decrypt message body with E2EE
+            const decryptedBody = await decryptMessage(msg.body, conversationId);
+
             return {
               ...msg,
+              body: decryptedBody,
               deliveryStatus: status,
               signedMediaUrl,
             };
@@ -690,8 +695,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             signedUrl = signedData?.signedUrl ?? null;
           }
 
+          // Decrypt body with E2EE
+          const decryptedBody = await decryptMessage(newMsg.body, activeConversationId);
+
           const completeMessage: MessageWithDetails = {
             ...newMsg,
+            body: decryptedBody,
             sender: senderProfile,
             reactions: [],
             receipts: [],
@@ -898,13 +907,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         storagePath = filePath;
       }
 
+      // Encrypt body using AES-GCM 256-bit E2EE before storing in Supabase!
+      const encryptedBody = payload.body
+        ? await encryptMessage(payload.body, activeConversationId)
+        : null;
+
       const { data: insertedMsg, error: insertErr } = await supabase
         .from('messages')
         .insert({
           conversation_id: activeConversationId,
           sender_id: profile.id,
           message_type: payload.messageType,
-          body: payload.body || null,
+          body: encryptedBody,
           storage_path: storagePath,
           original_filename: payload.file?.name || null,
           mime_type: payload.file?.type || null,
@@ -919,14 +933,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         throw new Error(insertErr?.message || 'Failed to send message');
       }
 
-      // Update optimistic message with real ID and sent/delivered status
+      // Update optimistic message with real ID and sent/delivered status (preserve local plaintext body)
       const initialDeliveryStatus: MessageWithDetails['deliveryStatus'] =
         friendPresence.online ? 'delivered' : 'sent';
 
       setMessages(prev =>
         prev.map(m =>
           m.id === optimisticId
-            ? { ...m, ...insertedMsg, isOptimistic: false, deliveryStatus: initialDeliveryStatus }
+            ? { ...m, ...insertedMsg, body: payload.body || null, isOptimistic: false, deliveryStatus: initialDeliveryStatus }
             : m
         )
       );
@@ -957,10 +971,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const supabase = getSupabaseBrowserClient();
+      const encrypted = activeConversationId ? await encryptMessage(newBody, activeConversationId) : newBody;
       const { error } = await supabase
         .from('messages')
         .update({
-          body: newBody,
+          body: encrypted,
           edited_at: new Date().toISOString(),
         })
         .eq('id', messageId)

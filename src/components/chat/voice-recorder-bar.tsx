@@ -134,7 +134,7 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-card border border-border/80 shadow-md animate-in slide-in-from-bottom-2 duration-150">
+    <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-[#071F17] border border-[#0C3B2E]/20 dark:border-white/10 shadow-lg animate-in slide-in-from-bottom-2 duration-150">
       {audioUrl && (
         <audio
           ref={audioPreviewRef}
@@ -148,32 +148,32 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
         {isRecording ? (
           <div className="flex items-center gap-2">
             <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
             </span>
-            <span className="text-xs font-semibold text-rose-500">Recording</span>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Recording</span>
           </div>
         ) : (
           <button
             onClick={togglePreviewPlay}
-            className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#0C3B2E] text-white flex items-center justify-center cursor-pointer shadow-xs hover:bg-[#155E49] transition-colors"
             aria-label="Play audio preview"
           >
             {isPlayingPreview ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 ml-0.5 fill-current" />}
           </button>
         )}
 
-        <span className="font-mono text-xs font-semibold">
+        <span className="font-mono text-xs font-bold text-foreground">
           {formatDuration(elapsedSeconds)}
         </span>
 
-        {/* Pulsing bars */}
+        {/* Pulsing audio bars */}
         {isRecording && (
           <div className="flex items-center gap-1 h-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="w-1 bg-rose-500/70 rounded-full animate-pulse"
+                className="w-1 bg-emerald-500 rounded-full animate-pulse"
                 style={{
                   height: `${Math.max(4, ((i * 5) % 16) + 4)}px`,
                   animationDelay: `${i * 0.1}s`,
@@ -190,7 +190,7 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
           variant="ghost"
           size="icon"
           onClick={onCancel}
-          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer rounded-xl"
           title="Discard recording"
         >
           <Trash2 className="w-4 h-4" />
@@ -200,8 +200,8 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
           <Button
             size="sm"
             onClick={handleStopRecording}
-            variant="secondary"
-            className="rounded-xl gap-1.5"
+            variant="outline"
+            className="rounded-xl gap-1.5 border-rose-500/30 text-rose-600 hover:bg-rose-500/10 cursor-pointer text-xs font-semibold"
           >
             <Square className="w-3.5 h-3.5 fill-current" />
             Stop
@@ -210,10 +210,10 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
           <Button
             size="sm"
             onClick={handleSend}
-            className="rounded-xl gap-1.5 bg-primary text-primary-foreground"
+            className="rounded-xl gap-1.5 bg-[#0C3B2E] hover:bg-[#155E49] text-white shadow-md text-xs font-semibold cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
-            Send
+            Send Audio
           </Button>
         )}
       </div>
