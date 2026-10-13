@@ -68,6 +68,8 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     ? message.body?.replace(/^\[💌 Note\]\s*/, '')
     : message.body;
 
+  const isImageOnly = message.message_type === 'image' && !displayBody;
+
   // 1. Eligible for editing: Outgoing text message AND within 15 minutes of sending
   const isEditAvailable = React.useMemo(() => {
     if (!isOutgoing || message.message_type !== 'text') return false;
@@ -364,7 +366,8 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         className={cn(
-          'relative max-w-[85%] sm:max-w-md rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all pr-7 sm:pr-8',
+          'relative max-w-[85%] sm:max-w-md rounded-2xl shadow-xs transition-all overflow-hidden',
+          isImageOnly ? 'p-1 sm:p-1.5' : 'p-3 sm:p-3.5 pr-7 sm:pr-8',
           isLittleNote
             ? 'little-note-card rounded-2xl'
             : isOutgoing
@@ -498,12 +501,19 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
 
         {/* Media Attachments */}
         {message.message_type === 'image' && message.signedMediaUrl && (
-          <div className="mb-2">
+          <div className={cn('relative', !isImageOnly && 'mb-2')}>
             <ImagePreview
               src={message.signedMediaUrl}
               filename={message.original_filename}
               fileSize={message.file_size}
             />
+            {/* WhatsApp floating timestamp on image when no caption */}
+            {isImageOnly && (
+              <div className="absolute bottom-2 right-2 z-10 bg-black/60 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1 shadow-md pointer-events-none select-none">
+                <span>{formatMessageTime(message.created_at)}</span>
+                {renderStatus()}
+              </div>
+            )}
           </div>
         )}
 
@@ -587,26 +597,28 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           )
         )}
 
-        {/* Timestamp & Status Metadata */}
-        <div
-          className={cn(
-            'flex items-center gap-1.5 mt-1.5 text-[10px] select-none',
-            isLittleNote
-              ? 'justify-end text-muted-foreground'
-              : isOutgoing
-              ? 'justify-end text-white/75'
-              : 'justify-end text-muted-foreground'
-          )}
-        >
-          {isBookmarked && (
-            <span title="Saved in Our Moments" className="text-amber-400 mr-0.5">
-              <Bookmark className="w-2.5 h-2.5 fill-current" />
-            </span>
-          )}
-          {message.edited_at && <span className="italic opacity-80">(edited)</span>}
-          <span>{formatMessageTime(message.created_at)}</span>
-          {renderStatus()}
-        </div>
+        {/* Timestamp & Status Metadata (shown if not image-only) */}
+        {!isImageOnly && (
+          <div
+            className={cn(
+              'flex items-center gap-1.5 mt-1.5 text-[10px] select-none',
+              isLittleNote
+                ? 'justify-end text-muted-foreground'
+                : isOutgoing
+                ? 'justify-end text-white/75'
+                : 'justify-end text-muted-foreground'
+            )}
+          >
+            {isBookmarked && (
+              <span title="Saved in Our Moments" className="text-amber-400 mr-0.5">
+                <Bookmark className="w-2.5 h-2.5 fill-current" />
+              </span>
+            )}
+            {message.edited_at && <span className="italic opacity-80">(edited)</span>}
+            <span>{formatMessageTime(message.created_at)}</span>
+            {renderStatus()}
+          </div>
+        )}
       </div>
 
       {/* Emoji Reactions Badges */}

@@ -113,3 +113,14 @@ export interface UserPresence {
   isTyping?: boolean;
   typingInConversationId?: string | null;
 }
+
+export type PartnerActivityType = 'idle' | 'in_chat' | 'typing' | 'viewing_image';
+
+export interface PartnerActivity {
+  userId: string;
+  activity: PartnerActivityType;
+  conversationId?: string;
+  displayName?: string;
+  timestamp: number;
+}
+

@@ -12,6 +12,8 @@ import {
   MessageReaction,
   DeliveryStatus,
   Message,
+  PartnerActivity,
+  PartnerActivityType,
 } from '@/types/database';
 import { encryptMessage, decryptMessage } from '@/lib/e2ee';
 
@@ -43,6 +45,8 @@ export interface ChatContextType {
   deleteMessage: (messageId: string, mode?: 'for_me' | 'for_everyone') => Promise<{ error?: string }>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   broadcastTyping: (isTyping: boolean) => void;
+  partnerActivity: PartnerActivity | null;
+  broadcastActivity: (activity: PartnerActivityType) => void;
   markConversationAsRead: (conversationId: string) => Promise<void>;
   refreshConversations: () => Promise<void>;
   incomingRequests: ConnectionRequestItem[];
@@ -85,6 +89,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [isMediaDrawerOpen, setIsMediaDrawerOpen] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<ConnectionRequestItem[]>([]);
+  const [partnerActivity, setPartnerActivity] = useState<PartnerActivity | null>(null);
+  const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [friendPresence, setFriendPresence] = useState<UserPresence>({
     userId: '',
     online: false,
@@ -680,6 +686,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       markConversationAsRead(activeConversationId);
     } else {
       setMessages([]);
+      setPartnerActivity(null);
     }
   }, [activeConversationId, loadMessages]);
 
@@ -737,6 +744,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     channel.on('broadcast', { event: 'message_deleted' }, ({ payload }: { payload: any }) => {
       if (payload?.messageId) {
         setMessages(prev => prev.filter(m => m.id !== payload.messageId));
+      }
+    });
+
+    // Realtime Snapchat-Style Partner Activity Listener
+    channel.on('broadcast', { event: 'partner_activity' }, ({ payload }: { payload: any }) => {
+      if (payload.userId !== profile.id && payload.conversationId === activeConversationId) {
+        setPartnerActivity({
+          userId: payload.userId,
+          displayName: payload.displayName,
+          activity: payload.activity,
+          conversationId: payload.conversationId,
+          timestamp: payload.timestamp || Date.now(),
+        });
+
+        if (activityTimeoutRef.current) clearTimeout(activityTimeoutRef.current);
+
+        // If typing, auto-revert to 'in_chat' after 3.5 seconds
+        if (payload.activity === 'typing') {
+          activityTimeoutRef.current = setTimeout(() => {
+            setPartnerActivity(prev => (prev?.activity === 'typing' ? { ...prev, activity: 'in_chat' } : prev));
+          }, 3500);
+        }
       }
     });
 
@@ -924,21 +953,65 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           online_at: new Date().toISOString(),
           user_id: profile.id,
         });
+        if (channelRef.current && activeConversationIdRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'partner_activity',
+            payload: {
+              userId: profile.id,
+              displayName: profile.display_name,
+              activity: 'in_chat',
+              conversationId: activeConversationIdRef.current,
+              timestamp: Date.now(),
+            },
+          });
+        }
       }
     });
 
     return () => {
+      if (channelRef.current && activeConversationIdRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'partner_activity',
+          payload: {
+            userId: profile.id,
+            displayName: profile.display_name,
+            activity: 'idle',
+            conversationId: activeConversationIdRef.current,
+            timestamp: Date.now(),
+          },
+        });
+      }
       channel.unsubscribe();
       channelRef.current = null;
     };
   }, [isConfigured, activeConversationId, profile, activeConversation?.otherUser?.id, loadMessages]);
 
+  // Broadcast partner activity (Snapchat-style)
+  const broadcastActivity = useCallback(
+    (activity: PartnerActivityType) => {
+      if (!profile || !isConfigured || !channelRef.current || !activeConversationIdRef.current) return;
+
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'partner_activity',
+        payload: {
+          userId: profile.id,
+          displayName: profile.display_name,
+          activity,
+          conversationId: activeConversationIdRef.current,
+          timestamp: Date.now(),
+        },
+      });
+    },
+    [profile, isConfigured]
+  );
+
   // Broadcast typing
   const broadcastTyping = useCallback(
     (isTyping: boolean) => {
-      if (!profile) return;
-
-      if (!isConfigured) return;
+      if (!profile || !isConfigured) return;
 
       if (channelRef.current) {
         channelRef.current.send({
@@ -951,8 +1024,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           },
         });
       }
+      broadcastActivity(isTyping ? 'typing' : 'in_chat');
     },
-    [profile, isConfigured]
+    [profile, isConfigured, broadcastActivity]
   );
 
   // Send message
@@ -1318,6 +1392,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         deleteMessage,
         toggleReaction,
         broadcastTyping,
+        partnerActivity,
+        broadcastActivity,
         markConversationAsRead,
         refreshConversations,
         incomingRequests,

@@ -14,6 +14,7 @@ export function MessageList() {
     searchQuery,
     typingUsers,
     activeConversation,
+    partnerActivity,
   } = useChat();
 
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
@@ -141,27 +142,51 @@ export function MessageList() {
         </div>
       ))}
 
-      {/* Typing Indicator Bubble */}
-      {typingUsers.length > 0 && (
+      {/* Snapchat-Style Live Activity Indicators */}
+      {partnerActivity?.activity === 'typing' || typingUsers.length > 0 ? (
         <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200">
           <Avatar
-            name={typingUsers[0]}
+            name={activeConversation?.otherUser?.display_name || 'Partner'}
             size="xs"
             src={activeConversation?.otherUser?.avatar_path}
           />
           <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-card border border-border/70 shadow-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" />
             <span
-              className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+              className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"
               style={{ animationDelay: '0.15s' }}
             />
             <span
-              className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+              className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"
               style={{ animationDelay: '0.3s' }}
             />
           </div>
         </div>
-      )}
+      ) : partnerActivity?.activity === 'viewing_image' ? (
+        <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200 select-none">
+          <Avatar
+            name={activeConversation?.otherUser?.display_name || 'Partner'}
+            size="xs"
+            src={activeConversation?.otherUser?.avatar_path}
+          />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-600 dark:text-purple-300 text-xs font-medium shadow-xs">
+            <span>📸</span>
+            <span>{activeConversation?.otherUser?.display_name || 'Partner'} is viewing photo</span>
+          </div>
+        </div>
+      ) : partnerActivity?.activity === 'in_chat' ? (
+        <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200 select-none">
+          <Avatar
+            name={activeConversation?.otherUser?.display_name || 'Partner'}
+            size="xs"
+            src={activeConversation?.otherUser?.avatar_path}
+          />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-medium shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{activeConversation?.otherUser?.display_name || 'Partner'} is in the chat</span>
+          </div>
+        </div>
+      ) : null}
 
       <div ref={bottomRef} className="h-1" />
     </div>

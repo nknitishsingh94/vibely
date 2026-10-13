@@ -13,6 +13,8 @@ import {
   UserMinus,
   Trash2,
   Loader2,
+  Phone,
+  Video,
 } from 'lucide-react';
 import { useChat } from '@/context/chat-context';
 import { Avatar } from '@/components/ui/avatar';
@@ -23,6 +25,7 @@ import { useRomanticFeatures } from '@/lib/romantic-features';
 import { Dialog } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { CallModal } from './call-modal';
 
 export function ConversationHeader() {
   const {
@@ -37,6 +40,7 @@ export function ConversationHeader() {
     setIsMediaDrawerOpen,
     typingUsers,
     deleteFriend,
+    partnerActivity,
   } = useChat();
 
   const { anniversary, daysTogether, updateAnniversary } = useRomanticFeatures();
@@ -45,6 +49,13 @@ export function ConversationHeader() {
   const [selectedDate, setSelectedDate] = React.useState(anniversary || '');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isDeletingFriend, setIsDeletingFriend] = React.useState(false);
+  const [isCallModalOpen, setIsCallModalOpen] = React.useState(false);
+  const [callType, setCallType] = React.useState<'voice' | 'video'>('voice');
+
+  const handleStartCall = (type: 'voice' | 'video') => {
+    setCallType(type);
+    setIsCallModalOpen(true);
+  };
 
   const handleMobileBack = () => {
     setActiveConversationId(null);
@@ -121,14 +132,30 @@ export function ConversationHeader() {
               </div>
 
               <div className="flex items-center gap-2 text-xs truncate">
-                {typingUsers.length > 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 animate-pulse">
-                    typing...
+                {/* Snapchat-Style Live Activity Status */}
+                {partnerActivity?.activity === 'typing' || typingUsers.length > 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 animate-pulse">
+                    <span className="flex items-center gap-0.5">
+                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce" />
+                    </span>
+                    <span>typing...</span>
+                  </span>
+                ) : partnerActivity?.activity === 'viewing_image' ? (
+                  <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-pulse">
+                    <span>📸</span>
+                    <span>viewing photo...</span>
+                  </span>
+                ) : partnerActivity?.activity === 'in_chat' ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-0.5" />
+                    <span>👀 In chat</span>
                   </span>
                 ) : friendPresence.online ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                    online
+                    <span>online</span>
                   </span>
                 ) : (
                   <span className="text-muted-foreground text-[11px]">
@@ -154,8 +181,29 @@ export function ConversationHeader() {
             </div>
           </div>
 
-          {/* Action Controls - Hidden on mobile for clean screen matching photo */}
-          <div className="hidden sm:flex items-center gap-1">
+          {/* Action Controls: Call & Video Buttons on mobile and desktop */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleStartCall('video')}
+              className="p-2 rounded-xl text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+              title="Video Call"
+              aria-label="Video Call"
+            >
+              <Video className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStartCall('voice')}
+              className="p-2 rounded-xl text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+              title="Voice Call"
+              aria-label="Voice Call"
+            >
+              <Phone className="w-4 h-4" />
+            </button>
+
+            {/* Desktop Additional Buttons */}
+            <div className="hidden sm:flex items-center gap-1">
             {/* Optional Relationship Day Counter Button if not set */}
             {daysTogether === null && (
               <Button
@@ -211,6 +259,7 @@ export function ConversationHeader() {
             </Button>
           </div>
         </div>
+      </div>
 
         {/* In-conversation Search Bar when toggled */}
         {isSearching && (
@@ -354,6 +403,16 @@ export function ConversationHeader() {
           </div>
         </div>
       </Dialog>
+
+      {/* WhatsApp Voice & Video Call Modal */}
+      <CallModal
+        isOpen={isCallModalOpen}
+        onClose={() => setIsCallModalOpen(false)}
+        partnerName={friend?.display_name || 'Partner'}
+        partnerAvatar={friend?.avatar_path}
+        partnerUsername={friend?.username}
+        initialCallType={callType}
+      />
     </>
   );
 }

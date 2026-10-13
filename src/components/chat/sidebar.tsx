@@ -17,11 +17,10 @@ import {
   Copy,
   Check,
   CheckCheck,
-  Clock,
-  AlertCircle,
   X,
   Bell,
   Lock,
+  Phone,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -29,6 +28,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
+import { CallModal } from './call-modal';
 import { NotificationBell } from './notification-bar';
 import { formatConversationTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
@@ -45,6 +45,7 @@ export function Sidebar() {
     respondToRequest,
     typingUsers,
     markConversationAsRead,
+    partnerActivity,
   } = useChat();
   const router = useRouter();
 
@@ -53,6 +54,8 @@ export function Sidebar() {
   const [filterText, setFilterText] = React.useState('');
   const [filterTab, setFilterTab] = React.useState<'all' | 'unread' | 'favorites'>('all');
   const [copiedId, setCopiedId] = React.useState(false);
+  const [isCallModalOpen, setIsCallModalOpen] = React.useState(false);
+  const [selectedCallPartner, setSelectedCallPartner] = React.useState<any>(null);
 
   const myUsername = profile?.username ? `@${profile.username}` : '';
 
@@ -211,6 +214,24 @@ export function Sidebar() {
               )}
             >
               Favourites
+            </button>
+
+            {/* Calls Button beside Unread & Favourites */}
+            <button
+              onClick={() => {
+                const targetConv = conversations.find(c => c.id === activeConversationId) || conversations[0];
+                if (targetConv?.otherUser) {
+                  setSelectedCallPartner(targetConv.otherUser);
+                  setIsCallModalOpen(true);
+                } else {
+                  setIsInviteOpen(true);
+                }
+              }}
+              className="px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1 shrink-0 bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/25"
+              title="Start a Call"
+            >
+              <Phone className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>Calls</span>
             </button>
 
             <button
@@ -373,9 +394,17 @@ export function Sidebar() {
                     {/* Bottom Row: Status Tick + Last Message / Typing... + Unread Badge */}
                     <div className="flex items-center justify-between gap-1.5 text-xs">
                       <div className="truncate flex items-center min-w-0 max-w-[190px] sm:max-w-[210px]">
-                        {isPartnerTyping ? (
+                        {isPartnerTyping || (isActive && partnerActivity?.activity === 'typing') ? (
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1 animate-pulse">
                             typing...
+                          </span>
+                        ) : isActive && partnerActivity?.activity === 'viewing_image' ? (
+                          <span className="text-purple-600 dark:text-purple-400 font-medium text-xs flex items-center gap-1 animate-pulse">
+                            📸 viewing photo...
+                          </span>
+                        ) : isActive && partnerActivity?.activity === 'in_chat' ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1">
+                            👀 in chat
                           </span>
                         ) : (
                           <span
@@ -477,6 +506,15 @@ export function Sidebar() {
       <InviteModal
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}
+      />
+
+      <CallModal
+        isOpen={isCallModalOpen}
+        onClose={() => setIsCallModalOpen(false)}
+        partnerName={selectedCallPartner?.display_name || 'Partner'}
+        partnerAvatar={selectedCallPartner?.avatar_path}
+        partnerUsername={selectedCallPartner?.username}
+        initialCallType="voice"
       />
     </>
   );
