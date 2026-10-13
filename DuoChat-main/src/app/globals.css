@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Romantic Light Palette */
+    --background: 20 100% 98%;          /* Warm ivory #FFF9F6 */
+    --foreground: 327 13% 17%;          /* Main text #30252B */
+    --card: 0 0% 100%;                  /* Pure white card */
+    --card-foreground: 327 13% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 327 13% 17%;
+    --primary: 345 48% 60%;             /* Romantic rose #C96B83 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 344 48% 94%;           /* Soft blush #F7E8EC */
+    --secondary-foreground: 338 43% 31%;/* Deep wine #702C45 */
+    --muted: 340 30% 95%;               /* Delicate blush muted */
+    --muted-foreground: 330 6% 48%;     /* Secondary text #82747B */
+    --accent: 338 43% 31%;              /* Deep wine #702C45 */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 74% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 338 22% 91%;              /* Subtle borders #EDE1E5 */
+    --input: 338 22% 91%;
+    --ring: 345 48% 60%;
+    --radius: 1rem;
+
+    /* Couple Specific Design Tokens */
+    --wine: 338 43% 31%;                /* #702C45 */
+    --rose: 345 48% 60%;                /* #C96B83 */
+    --blush: 344 48% 94%;               /* #F7E8EC */
+    --champagne: 30 45% 83%;            /* #E8D4C1 */
+    --mauve: 333 14% 60%;               /* #A68A96 */
+
+    --chat-outgoing: 345 48% 60%;       /* Romantic rose */
+    --chat-outgoing-fg: 0 0% 100%;
+    --chat-incoming: 0 0% 100%;         /* Warm elevated white */
+    --chat-incoming-fg: 327 13% 17%;
+    --chat-incoming-border: 338 22% 92%;
+    --sidebar-bg: 340 35% 97%;          /* Warm blushing sidebar */
+    --online-indicator: 142 71% 45%;
+  }
+
+  .dark {
+    /* Romantic Dark Mode */
+    --background: 280 14% 9%;           /* Dark surface #171319 */
+    --foreground: 338 45% 95%;          /* Main light text #F8EDF1 */
+    --card: 283 15% 12%;                /* Secondary surface #211B24 */
+    --card-foreground: 338 45% 95%;
+    --popover: 283 15% 12%;
+    --popover-foreground: 338 45% 95%;
+    --primary: 344 61% 75%;             /* Primary accent rose #E59AAF */
+    --primary-foreground: 280 14% 9%;
+    --secondary: 285 14% 15%;           /* Elevated surface #2A222D */
+    --secondary-foreground: 338 45% 95%;
+    --muted: 285 14% 15%;
+    --muted-foreground: 320 10% 69%;    /* Secondary text #B7A7B2 */
+    --accent: 345 48% 60%;              /* Romantic rose */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 280 15% 20%;              /* Subtle borders #352B3A */
+    --input: 280 15% 20%;
+    --ring: 344 61% 75%;
+
+    /* Couple Specific Design Tokens */
+    --wine: 338 43% 40%;
+    --rose: 344 61% 75%;
+    --blush: 285 14% 16%;
+    --champagne: 30 35% 70%;
+    --mauve: 320 10% 69%;
+
+    --chat-outgoing: 338 43% 36%;       /* Rich velvety wine in dark mode */
+    --chat-outgoing-fg: 0 0% 100%;
+    --chat-incoming: 283 15% 13%;       /* Soft elevated dark */
+    --chat-incoming-fg: 338 45% 95%;
+    --chat-incoming-border: 280 15% 20%;
+    --sidebar-bg: 282 16% 8%;           /* Deepest velvet sidebar */
+    --online-indicator: 142 71% 48%;
+  }
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+.font-serif {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.22);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
+
+/* Audio waveform animation */
+@keyframes wave-bounce {
+  0%, 100% {
+    height: 4px;
+  }
+  50% {
+    height: 18px;
+  }
+}
+
+.wave-bar {
+  animation: wave-bounce 1.2s ease-in-out infinite;
+}
+
+/* Floating heart animation */
+@keyframes heartFloat {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(0.8) rotate(0deg);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-24px) scale(1.25) rotate(-6deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.1) rotate(10deg);
+  }
+}
+
+.animate-floating-heart {
+  animation: heartFloat 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Subtle couple wallpaper pattern */
+.romantic-wallpaper {
+  background-image: radial-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.dark .romantic-wallpaper {
+  background-image: radial-gradient(hsl(var(--primary) / 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Little note card aesthetic */
+.little-note-card {
+  position: relative;
+  background: linear-gradient(135deg, hsl(350 100% 99%), hsl(340 50% 97%));
+  border: 1px solid hsl(345 40% 88%);
+  box-shadow: 0 4px 14px -2px rgba(112, 44, 69, 0.08);
+}
+
+.dark .little-note-card {
+  background: linear-gradient(135deg, hsl(285 16% 15%), hsl(338 25% 15%));
+  border: 1px solid hsl(344 30% 28%);
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.3);
+}

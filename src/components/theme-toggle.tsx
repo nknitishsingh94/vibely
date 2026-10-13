@@ -1,0 +1,49 @@
+'use client';
+
+import * as React from 'react';
+import { useTheme } from 'next-themes';
+import { Moon, Sun, Laptop } from 'lucide-react';
+import { Button } from './ui/button';
+
+export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size={showLabel ? 'sm' : 'icon'} className="w-9 h-9 opacity-50">
+        <Sun className="w-4 h-4" />
+      </Button>
+    );
+  }
+
+  const cycleTheme = () => {
+    if (theme === 'light') setTheme('dark');
+    else if (theme === 'dark') setTheme('system');
+    else setTheme('light');
+  };
+
+  const getIcon = () => {
+    if (theme === 'dark') return <Moon className="w-4 h-4 text-violet-400" />;
+    if (theme === 'light') return <Sun className="w-4 h-4 text-amber-500" />;
+    return <Laptop className="w-4 h-4 text-muted-foreground" />;
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size={showLabel ? 'sm' : 'icon'}
+      onClick={cycleTheme}
+      className="rounded-xl hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all"
+      title={`Current: ${theme} (click to cycle)`}
+      aria-label="Toggle theme"
+    >
+      {getIcon()}
+      {showLabel && <span className="ml-2 capitalize text-xs">{theme || 'System'}</span>}
+    </Button>
+  );
+}
