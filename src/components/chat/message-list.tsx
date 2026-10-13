@@ -72,33 +72,34 @@ export function MessageList() {
   }
 
   if (filteredMessages.length === 0) {
+    const partnerUsername = activeConversation?.otherUser?.username
+      ? `@${activeConversation.otherUser.username}`
+      : activeConversation?.otherUser?.display_name || 'your partner';
+
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted-foreground romantic-wallpaper select-none">
+      <div className="flex-1 flex flex-col justify-between p-4 text-center text-muted-foreground select-none">
+        {/* Centered Date at the top like in user's photo */}
+        <div className="flex items-center justify-center pt-2 select-none">
+          <span className="text-[11px] font-sans font-semibold tracking-wider text-muted-foreground/80 uppercase">
+            TODAY
+          </span>
+        </div>
+
         {searchQuery ? (
-          <>
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-              <Search className="w-6 h-6 opacity-60" />
-            </div>
-            <p className="text-sm font-medium text-foreground">No matching moments found</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              No messages found matching &quot;{searchQuery}&quot;. Try another word.
-            </p>
-          </>
+          <div className="my-auto space-y-2">
+            <p className="text-sm font-semibold text-foreground">No matching messages</p>
+            <p className="text-xs text-muted-foreground">No messages found matching &quot;{searchQuery}&quot;</p>
+          </div>
         ) : (
-          <div className="space-y-3 max-w-sm animate-in fade-in duration-300">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto shadow-xs border border-emerald-500/20">
-              <Heart className="w-8 h-8 fill-emerald-500/20 stroke-emerald-600" />
-            </div>
-            <h3 className="text-base font-bold text-foreground">
-              Your story starts with a hello.
-            </h3>
+          /* Subtle clean notice at bottom like in user's photo */
+          <div className="max-w-md mx-auto w-full p-4 rounded-2xl bg-card/60 dark:bg-[#182229] border border-border/60 text-center space-y-2 mb-2 animate-in fade-in shadow-2xs">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Every little moment matters. Send a message, a voice note, a photo, or say what&apos;s on your mind.
+              <span className="font-semibold text-foreground">{partnerUsername}</span> is connected with you. Messages and voice notes are end-to-end encrypted.
             </p>
-            <div className="pt-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/15">
+            <div className="flex items-center justify-center gap-2 pt-0.5">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
                 <Lock className="w-3 h-3 text-emerald-600" />
-                End-to-end encrypted connection.
+                End-to-End Encrypted
               </span>
             </div>
           </div>

@@ -93,6 +93,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
+  const activeConversationIdRef = useRef<string | null>(activeConversationId);
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
 
   // Active conversation object
   const activeConversation = conversations.find(c => c.id === activeConversationId) || null;
@@ -215,13 +220,30 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Count unread
-        const { count: unreadCount } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('conversation_id', conv.id)
-          .gt('created_at', row.last_read_at)
-          .neq('sender_id', profile.id)
-          .is('deleted_at', null);
+        let unreadCount = 0;
+        const isCurrentActive = conv.id === activeConversationIdRef.current;
+        if (isCurrentActive) {
+          // If user is currently looking at this conversation, unread count is always 0
+          unreadCount = 0;
+        } else if (row.last_read_at) {
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conv.id)
+            .gt('created_at', row.last_read_at)
+            .neq('sender_id', profile.id)
+            .is('deleted_at', null);
+          unreadCount = count || 0;
+        } else {
+          // If last_read_at is null, count messages sent by others
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conv.id)
+            .neq('sender_id', profile.id)
+            .is('deleted_at', null);
+          unreadCount = count || 0;
+        }
 
         convList.push({
           id: conv.id,
@@ -231,18 +253,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           members: mappedMembers,
           otherUser: otherMember?.profile,
           lastMessage: lastMsg,
-          unreadCount: unreadCount || 0,
+          unreadCount,
         });
       }
 
       setConversations(convList);
-      if (!activeConversationId && convList.length > 0) {
-        setActiveConversationId(convList[0].id);
-      }
     } catch (err) {
       console.error('Failed to load conversations:', err);
     }
-  }, [profile, isConfigured, activeConversationId]);
+  }, [profile, isConfigured]);
 
   // Connect with a partner via Duo ID or username (sends connection request)
   const connectWithPartner = useCallback(
@@ -504,26 +523,47 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         );
         setMessages(enriched);
 
+        // Immediately reset unread count in conversations state for this conversation
+        setConversations(prev =>
+          prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
+        );
+
         // Mark conversation read in database & notify partner for blue ticks
         if (profile?.id && conversationId) {
+          const nowIso = new Date().toISOString();
           supabase
             .from('conversation_members')
-            .update({ last_read_at: new Date().toISOString() })
+            .update({ last_read_at: nowIso })
             .eq('conversation_id', conversationId)
             .eq('user_id', profile.id)
-            .then(() => {
-              if (channelRef.current) {
-                channelRef.current.send({
-                  type: 'broadcast',
-                  event: 'read_receipt',
-                  payload: {
-                    conversationId,
-                    readByUserId: profile.id,
-                    readAt: new Date().toISOString(),
-                  },
-                });
-              }
+            .then(() => {});
+
+          // Upsert message_receipts for partner messages
+          const partnerMessages = data.filter((m: any) => m.sender_id !== profile.id);
+          if (partnerMessages.length > 0) {
+            const receiptRows = partnerMessages.map((m: any) => ({
+              message_id: m.id,
+              user_id: profile.id,
+              delivered_at: nowIso,
+              read_at: nowIso,
+            }));
+            supabase
+              .from('message_receipts')
+              .upsert(receiptRows, { onConflict: 'message_id,user_id' })
+              .then(() => {});
+          }
+
+          if (channelRef.current) {
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'read_receipt',
+              payload: {
+                conversationId,
+                readByUserId: profile.id,
+                readAt: nowIso,
+              },
             });
+          }
         }
       }
     } catch (err) {
@@ -602,7 +642,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           schema: 'public',
           table: 'messages',
         },
-        () => {
+        async (payload: any) => {
+          const newMsg = payload.new as any;
+          const currentActive = activeConversationIdRef.current;
+          // If this message belongs to the currently active conversation and is from partner,
+          // update last_read_at in DB before refreshing conversations so unreadCount won't spike
+          if (currentActive && newMsg?.conversation_id === currentActive && newMsg.sender_id !== profile.id) {
+            await supabase
+              .from('conversation_members')
+              .update({ last_read_at: new Date().toISOString() })
+              .eq('conversation_id', currentActive)
+              .eq('user_id', profile.id);
+          }
           refreshConversations();
         }
       )
@@ -617,6 +668,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (activeConversationId) {
       loadMessages(activeConversationId);
+      markConversationAsRead(activeConversationId);
     } else {
       setMessages([]);
     }
@@ -762,14 +814,39 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
           // If incoming message from other user, record receipt
           if (newMsg.sender_id !== profile.id) {
+            const nowIso = new Date().toISOString();
             await supabase.from('message_receipts').upsert(
               {
                 message_id: newMsg.id,
                 user_id: profile.id,
-                delivered_at: new Date().toISOString(),
-                read_at: new Date().toISOString(),
+                delivered_at: nowIso,
+                read_at: nowIso,
               },
               { onConflict: 'message_id,user_id' }
+            );
+
+            // Also update last_read_at in conversation_members so DB stays in sync
+            await supabase
+              .from('conversation_members')
+              .update({ last_read_at: nowIso })
+              .eq('conversation_id', activeConversationId)
+              .eq('user_id', profile.id);
+
+            // Keep local unread count at 0 for active conversation
+            setConversations(prev =>
+              prev.map(c =>
+                c.id === activeConversationId
+                  ? {
+                      ...c,
+                      unreadCount: 0,
+                      lastMessage: {
+                        ...completeMessage,
+                        deliveryStatus: 'read',
+                      },
+                      updated_at: newMsg.created_at,
+                    }
+                  : c
+              )
             );
 
             // Broadcast read receipt so sender's double tick turns blue immediately
@@ -780,7 +857,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 conversationId: activeConversationId,
                 readByUserId: profile.id,
                 messageId: newMsg.id,
-                readAt: new Date().toISOString(),
+                readAt: nowIso,
               },
             });
           }

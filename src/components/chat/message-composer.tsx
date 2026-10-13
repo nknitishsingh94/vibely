@@ -256,184 +256,127 @@ export function MessageComposer() {
         </div>
       )}
 
-      {/* Main WhatsApp Composer Bar */}
-      <div className="flex items-end gap-2">
-        {/* WhatsApp Signature Input Pill */}
+      {/* Main Composer Row matching user photo */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* 1. Black circular Camera button on left */}
+        <button
+          type="button"
+          onClick={() => {
+            if (fileInputRef.current) {
+              fileInputRef.current.accept = 'image/*';
+              fileInputRef.current.capture = 'environment';
+              fileInputRef.current.click();
+            }
+          }}
+          className="w-10 h-10 rounded-full bg-black dark:bg-[#202C33] text-white flex items-center justify-center shrink-0 cursor-pointer shadow-xs hover:scale-105 active:scale-95 transition-all"
+          title="Open camera"
+          aria-label="Camera"
+        >
+          <Camera className="w-5 h-5" />
+        </button>
+
+        {/* 2. Middle input pill */}
         <div
           className={cn(
-            'flex-1 flex items-end gap-1 px-2 py-1 rounded-[24px] bg-card dark:bg-[#202C33] border border-border/70 dark:border-white/10 shadow-xs transition-all relative focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15',
+            'flex-1 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-card dark:bg-[#202C33] border border-border/80 dark:border-white/10 shadow-xs transition-all relative focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15',
             isLittleNoteMode && 'ring-2 ring-amber-500/30 border-amber-500/40 bg-amber-50/20 dark:bg-amber-950/20'
           )}
         >
-          {/* 1. Emoji Picker Button */}
-          <div className="relative shrink-0 pb-0.5">
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(prev => !prev)}
-              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer"
-              title="Insert emoji"
-              aria-label="Insert emoji"
-            >
-              <Smile className="w-5 h-5" />
-            </button>
-
-            {/* Quick Emoji Popover */}
-            {showEmojiPicker && (
-              <div className="absolute bottom-full mb-2.5 left-0 flex items-center gap-1 p-2 rounded-2xl bg-card dark:bg-[#202C33] border border-border/80 shadow-xl z-30 animate-in zoom-in-95 backdrop-blur-md">
-                {QUICK_EMOJIS.map(emoji => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => {
-                      setText(prev => prev + emoji);
-                      setShowEmojiPicker(false);
-                      textareaRef.current?.focus();
-                      if (emoji === '❤️' || emoji === '💕') {
-                        spawnFloatingHearts(window.innerWidth / 2, window.innerHeight - 100, 4);
-                      }
-                    }}
-                    className="p-1 text-base hover:scale-130 transition-transform cursor-pointer"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 2. Attachment Paperclip Button */}
-          <div className="relative shrink-0 pb-0.5">
-            <button
-              type="button"
-              onClick={() => setShowAttachMenu(prev => !prev)}
-              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer"
-              title="Attach media or document"
-              aria-label="Attach file"
-            >
-              <Paperclip className="w-5 h-5" />
-            </button>
-
-            {/* WhatsApp Attachment Popover Menu */}
-            {showAttachMenu && (
-              <div className="absolute bottom-full mb-3 left-0 w-56 rounded-3xl bg-card dark:bg-[#233138] border border-border/80 dark:border-white/10 p-2 shadow-2xl z-30 animate-in zoom-in-95 space-y-1 backdrop-blur-md">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.accept = 'image/*';
-                      fileInputRef.current.click();
-                    }
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer"
-                >
-                  <div className="w-8 h-8 rounded-full bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-                    <ImageIcon className="w-4 h-4" />
-                  </div>
-                  <span>Photos & Videos</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.accept = 'audio/*';
-                      fileInputRef.current.click();
-                    }
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer"
-                >
-                  <div className="w-8 h-8 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                    <Music className="w-4 h-4" />
-                  </div>
-                  <span>Audio & Songs</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.accept = '*/*';
-                      fileInputRef.current.click();
-                    }
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer"
-                >
-                  <div className="w-8 h-8 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <span>Document / File</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLittleNoteMode(prev => !prev);
-                    setShowAttachMenu(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold hover:bg-muted/70 text-foreground transition-colors cursor-pointer border-t border-border/40"
-                >
-                  <div className="w-8 h-8 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <span>💌 Little Note</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 3. Text Input (Auto-Expanding) */}
           <textarea
             ref={textareaRef}
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder={
-              isLittleNoteMode
-                ? 'Write your heartfelt Little Note...'
-                : 'Type a message'
-            }
+            placeholder={isLittleNoteMode ? 'Write your Little Note...' : 'Send chat'}
             rows={1}
             className={cn(
-              'flex-1 min-h-[36px] max-h-32 px-1.5 py-1.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none placeholder:text-muted-foreground leading-normal',
+              'flex-1 min-h-[36px] max-h-28 px-1 py-1.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none placeholder:text-muted-foreground leading-normal',
               isLittleNoteMode && 'font-serif italic text-amber-900 dark:text-amber-100'
             )}
           />
 
-          {/* 4. Little Note Quick Shortcut */}
-          <div className="shrink-0 pb-0.5">
-            <button
-              type="button"
-              onClick={() => setIsLittleNoteMode(prev => !prev)}
-              className={cn(
-                'p-1.5 rounded-full transition-transform cursor-pointer text-sm',
-                isLittleNoteMode
-                  ? 'bg-amber-500/20 ring-1 ring-amber-500/40 scale-110'
-                  : 'hover:bg-muted/70 opacity-70 hover:opacity-100'
-              )}
-              title={isLittleNoteMode ? 'Little Note active' : 'Send as Little Note'}
-            >
-              💌
-            </button>
-          </div>
+          {/* Voice note / audio waveform button inside the pill on right */}
+          <button
+            type="button"
+            onClick={() => setIsRecordingVoice(true)}
+            className="p-1 rounded-full text-muted-foreground hover:text-emerald-500 transition-colors cursor-pointer shrink-0"
+            title="Record voice note"
+            aria-label="Record voice note"
+          >
+            <Mic className="w-4.5 h-4.5" />
+          </button>
         </div>
 
-        {/* WhatsApp Circular Action Button (Emerald Circle) */}
+        {/* 3. Sticker / Emoji icon button */}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(prev => !prev)}
+            className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            title="Insert emoji"
+            aria-label="Insert emoji"
+          >
+            <Smile className="w-5 h-5" />
+          </button>
+
+          {/* Quick Emoji Popover */}
+          {showEmojiPicker && (
+            <div className="absolute bottom-full mb-2.5 right-0 flex items-center gap-1 p-2 rounded-2xl bg-card dark:bg-[#202C33] border border-border/80 shadow-xl z-30 animate-in zoom-in-95 backdrop-blur-md">
+              {QUICK_EMOJIS.map(emoji => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    setText(prev => prev + emoji);
+                    setShowEmojiPicker(false);
+                    textareaRef.current?.focus();
+                    if (emoji === '❤️' || emoji === '💕') {
+                      spawnFloatingHearts(window.innerWidth / 2, window.innerHeight - 100, 4);
+                    }
+                  }}
+                  className="p-1 text-base hover:scale-130 transition-transform cursor-pointer"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 4. Gallery Photos button */}
         <button
           type="button"
-          onClick={text.trim() || selectedFile ? handleSend : () => setIsRecordingVoice(true)}
-          disabled={isSending}
-          className="w-11 h-11 rounded-full shrink-0 flex items-center justify-center bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-md active:scale-90 transition-all cursor-pointer"
-          title={text.trim() || selectedFile ? 'Send message' : 'Record voice note'}
-          aria-label={text.trim() || selectedFile ? 'Send' : 'Record Voice'}
+          onClick={() => {
+            if (fileInputRef.current) {
+              fileInputRef.current.accept = 'image/*,video/*,audio/*';
+              fileInputRef.current.removeAttribute('capture');
+              fileInputRef.current.click();
+            }
+          }}
+          className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+          title="Attach photos & media"
+          aria-label="Attach photos"
         >
-          {isSending ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : text.trim() || selectedFile ? (
-            <Send className="w-5 h-5 ml-0.5" />
-          ) : (
-            <Mic className="w-5 h-5" />
-          )}
+          <ImageIcon className="w-5 h-5" />
         </button>
+
+        {/* 5. Circular Send Button (shown when text or file is present) */}
+        {(text.trim() || selectedFile) && (
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={isSending}
+            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-[#1D9BF0] hover:bg-[#1A8CD8] dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white shadow-md active:scale-90 hover:scale-105 transition-all cursor-pointer animate-in zoom-in-75"
+            title="Send chat"
+            aria-label="Send"
+          >
+            {isSending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4 ml-0.5 fill-current" />
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

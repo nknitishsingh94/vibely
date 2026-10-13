@@ -153,21 +153,6 @@ export function Sidebar() {
               </Button>
             </div>
           </div>
-
-          {/* Intimate Subtitle Ribbon */}
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground/90 px-0.5">
-            <span className="flex items-center gap-1.5 italic font-serif">
-              <Sparkles className="w-3 h-3 text-primary/70 animate-pulse" />
-              Your little corner of the world
-            </span>
-
-            {daysTogether !== null && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-300 font-medium text-[10px] border border-rose-500/20">
-                <Heart className="w-2.5 h-2.5 fill-current" />
-                Day {daysTogether}
-              </span>
-            )}
-          </div>
         </div>
 
         {/* WhatsApp-Style Search Input */}

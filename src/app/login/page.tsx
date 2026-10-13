@@ -161,34 +161,6 @@ function LoginForm() {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setIsLoading(true);
-    setAuthError(null);
-    setIsNotRegistered(false);
-    setIsGoogleAccount(false);
-    setValue('identifier', 'demo@vibely.app');
-    setValue('email', 'demo@vibely.app');
-    setValue('password', 'Password123!');
-
-    try {
-      const supabase = getSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email: 'demo@vibely.app',
-        password: 'Password123!',
-      });
-
-      if (error) {
-        setAuthError(error.message);
-        setIsLoading(false);
-      } else {
-        window.location.href = redirectTo;
-      }
-    } catch (err: unknown) {
-      setAuthError((err as Error)?.message || 'Demo sign in failed.');
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
       {/* Sleek Top Bar */}
@@ -212,24 +184,6 @@ function LoginForm() {
           </div>
 
           <div className="p-6 sm:p-7 rounded-3xl bg-white/95 dark:bg-[#09241B]/95 border border-[#0C3B2E]/15 dark:border-white/15 shadow-2xl space-y-5 backdrop-blur-xl">
-            {/* Quick 1-Click Demo Login */}
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={isLoading}
-              className="w-full flex items-center justify-between p-3 rounded-2xl bg-[#0C3B2E]/5 hover:bg-[#0C3B2E]/10 dark:bg-white/5 dark:hover:bg-white/10 border border-[#0C3B2E]/20 dark:border-white/20 text-[#0C3B2E] dark:text-white transition-all text-xs font-semibold cursor-pointer group shadow-2xs"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="w-7 h-7 rounded-xl bg-[#0C3B2E] text-white flex items-center justify-center text-xs shadow-xs font-bold">
-                  ⚡
-                </span>
-                <div className="text-left">
-                  <p className="font-bold text-xs text-[#0C3B2E] dark:text-white">1-Click Instant Demo Login</p>
-                  <p className="text-[11px] text-stone-500 dark:text-emerald-100/70 font-normal">Jump straight into demo sanctuary</p>
-                </div>
-              </div>
-              <ArrowRight className="w-4 h-4 text-[#0C3B2E] dark:text-emerald-300 group-hover:translate-x-1 transition-transform" />
-            </button>
 
             {authError && (
               <div

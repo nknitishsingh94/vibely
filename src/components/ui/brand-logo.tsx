@@ -75,22 +75,14 @@ export function BrandLogo({
       <div className="flex flex-col text-left">
         <span
           className={cn(
-            'font-sans font-extrabold tracking-tight text-[#0C3B2E] dark:text-white leading-none flex items-center gap-1.5 transition-colors',
+            'font-sans font-extrabold tracking-tight text-[#0C3B2E] dark:text-white leading-none flex items-center transition-colors',
             titleSizes[size]
           )}
         >
           <span className="group-hover:text-[#155E49] dark:group-hover:text-emerald-300 transition-colors duration-200">
             Vibely
           </span>
-          <span className="text-[10px] font-sans font-semibold tracking-normal px-1.5 py-0.5 rounded-full bg-[#0C3B2E]/10 dark:bg-white/10 text-[#0C3B2E] dark:text-emerald-200 border border-[#0C3B2E]/20 dark:border-white/20">
-            for two
-          </span>
         </span>
-        {showTagline && (
-          <span className="text-[11px] text-stone-500 dark:text-emerald-100/70 font-sans font-medium tracking-tight mt-0.5">
-            Where two souls sync.
-          </span>
-        )}
       </div>
     </div>
   );
