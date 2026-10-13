@@ -27,6 +27,17 @@ export default function LandingPage() {
   const { user } = useAuth();
   const [activeReaction, setActiveReaction] = React.useState<string | null>('💜');
 
+  // If OAuth code landed on the landing page, forward immediately to /auth/callback
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (code) {
+        window.location.href = `/auth/callback?${params.toString()}`;
+      }
+    }
+  }, []);
+
   const reactions = ['💜', '✨', '💖', '🔥', '🎵', '💌'];
 
   return (

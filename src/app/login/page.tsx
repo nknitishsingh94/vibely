@@ -36,6 +36,14 @@ function LoginForm() {
     }
   }, [user, redirectTo]);
 
+  // If OAuth code landed on /login, forward immediately to /auth/callback
+  React.useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) {
+      window.location.href = `/auth/callback?${searchParams.toString()}`;
+    }
+  }, [searchParams]);
+
   const {
     register,
     handleSubmit,

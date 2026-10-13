@@ -24,7 +24,10 @@ export function GoogleSignInButton({
     setIsLoading(true);
     try {
       const supabase = getSupabaseBrowserClient();
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const origin =
+        typeof window !== 'undefined' && !window.location.origin.includes('localhost')
+          ? window.location.origin
+          : 'https://vibely-sigma-roan.vercel.app';
       const safeRedirect = redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`;
       const callbackUrl = `${origin}/auth/callback?redirectTo=${encodeURIComponent(safeRedirect)}`;
 
@@ -80,7 +83,7 @@ export function GoogleSignInButton({
           aria-hidden="true"
         >
           <path
-            fill="#4285F4"
+            fill="#4a8bf3ff"
             d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
           />
           <path

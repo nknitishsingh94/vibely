@@ -3,6 +3,17 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { env, isSupabaseConfigured } from '@/lib/env';
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const code = request.nextUrl.searchParams.get('code');
+
+  // If OAuth code landed on root or any non-callback path (e.g. /?code=... from Supabase default redirect),
+  // immediately forward to /auth/callback with all parameters preserved so session is exchanged seamlessly!
+  if (code && !pathname.startsWith('/auth/callback')) {
+    const callbackUrl = request.nextUrl.clone();
+    callbackUrl.pathname = '/auth/callback';
+    return NextResponse.redirect(callbackUrl);
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -41,7 +52,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
   const isProtectedPath = pathname.startsWith('/chat') || pathname.startsWith('/settings');
   const isAuthPath = pathname === '/login' || pathname === '/signup';
 
