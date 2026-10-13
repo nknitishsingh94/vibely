@@ -133,6 +133,29 @@ export async function POST(req: Request) {
       );
     }
 
+    if (newUser.user?.id) {
+      try {
+        await adminClient.from('profiles').upsert(
+          {
+            id: newUser.user.id,
+            display_name: cleanDisplayName,
+            username: cleanUsername,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+
+        await adminClient.from('user_preferences').upsert(
+          {
+            user_id: newUser.user.id,
+          },
+          { onConflict: 'user_id' }
+        );
+      } catch (profileErr) {
+        console.warn('Initial profile upsert warning:', profileErr);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,

@@ -20,20 +20,21 @@ function LoginForm() {
   const redirectTo = searchParams.get('redirectTo') || '/chat';
   const initialEmail = searchParams.get('email') || '';
   const initialError = searchParams.get('error_description') || searchParams.get('error') || null;
-  const { user, isConfigured } = useAuth();
+  const { user } = useAuth();
 
   const [showPassword, setShowPassword] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(initialError);
   const [isNotRegistered, setIsNotRegistered] = React.useState(false);
+  const [isGoogleAccount, setIsGoogleAccount] = React.useState(false);
   const [attemptedEmail, setAttemptedEmail] = React.useState(initialEmail);
   const [isLoading, setIsLoading] = React.useState(false);
 
   // Auto-redirect if already logged in
   React.useEffect(() => {
     if (user) {
-      router.push(redirectTo);
+      window.location.href = redirectTo;
     }
-  }, [user, redirectTo, router]);
+  }, [user, redirectTo]);
 
   const {
     register,
@@ -52,30 +53,67 @@ function LoginForm() {
     setIsLoading(true);
     setAuthError(null);
     setIsNotRegistered(false);
+    setIsGoogleAccount(false);
     const cleanEmail = data.email.trim();
     setAttemptedEmail(cleanEmail);
 
     try {
       const supabase = getSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      let { error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: data.password,
       });
 
       if (error) {
-        // Check if the user exists in database
+        const lowerMsg = (error.message || '').toLowerCase();
+
+        // 1. If unconfirmed email, automatically confirm it via server admin API and retry!
+        if (lowerMsg.includes('email not confirmed')) {
+          try {
+            const confirmRes = await fetch('/api/auth/check-user', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
+            });
+            const confirmData = await confirmRes.json();
+            if (confirmData?.confirmed) {
+              const retryRes = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password: data.password,
+              });
+              if (!retryRes.error) {
+                window.location.href = redirectTo;
+                return;
+              }
+              error = retryRes.error;
+            }
+          } catch (autoErr) {
+            console.warn('Auto-confirm attempt error:', autoErr);
+          }
+        }
+
+        // 2. Check user details from server (Google OAuth check, existence check)
         try {
           const checkRes = await fetch('/api/auth/check-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail }),
+            body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
           });
           const checkData = await checkRes.json();
 
           if (checkData.exists === false) {
             setIsNotRegistered(true);
             setAuthError(
-              'No account found with this email. You are not registered yet. Please create an account first before logging in.'
+              'No Vibely account found with this email. Please create an account first before logging in.'
+            );
+            setIsLoading(false);
+            return;
+          }
+
+          if (checkData.isGoogle) {
+            setIsGoogleAccount(true);
+            setAuthError(
+              'This account was created with Google. Click "Sign in with Google" below to log in instantly.'
             );
             setIsLoading(false);
             return;
@@ -84,18 +122,17 @@ function LoginForm() {
           console.warn('Unable to verify user registration status:', checkErr);
         }
 
-        // User is registered, but credentials failed
-        const lowerMsg = (error.message || '').toLowerCase();
-        if (lowerMsg.includes('invalid login credentials')) {
+        const finalLower = (error.message || '').toLowerCase();
+        if (finalLower.includes('invalid login credentials')) {
           setAuthError('Incorrect password. Please verify your password and try again.');
-        } else if (lowerMsg.includes('email not confirmed')) {
-          setAuthError('Your email address has not been confirmed yet. Please check your inbox.');
+        } else if (finalLower.includes('email not confirmed')) {
+          setAuthError('Your email address was just verified. Please try signing in again.');
         } else {
           setAuthError(error.message);
         }
         setIsLoading(false);
       } else {
-        router.push(redirectTo);
+        window.location.href = redirectTo;
       }
     } catch (err: unknown) {
       setAuthError((err as Error)?.message || 'Sign in failed. Please try again.');
@@ -107,6 +144,7 @@ function LoginForm() {
     setIsLoading(true);
     setAuthError(null);
     setIsNotRegistered(false);
+    setIsGoogleAccount(false);
     setValue('email', 'demo@vibely.app');
     setValue('password', 'Password123!');
 
@@ -121,7 +159,7 @@ function LoginForm() {
         setAuthError(error.message);
         setIsLoading(false);
       } else {
-        router.push(redirectTo);
+        window.location.href = redirectTo;
       }
     } catch (err: unknown) {
       setAuthError((err as Error)?.message || 'Demo sign in failed.');
@@ -176,6 +214,8 @@ function LoginForm() {
                 className={`p-4 rounded-2xl text-xs border space-y-2.5 ${
                   isNotRegistered
                     ? 'bg-amber-500/10 text-amber-900 dark:text-amber-200 border-amber-500/30'
+                    : isGoogleAccount
+                    ? 'bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 border-emerald-500/30'
                     : 'bg-destructive/10 text-destructive border-destructive/20'
                 }`}
               >
@@ -195,6 +235,16 @@ function LoginForm() {
                     </Link>
                   </div>
                 )}
+
+                {isGoogleAccount && (
+                  <div className="pt-1">
+                    <GoogleSignInButton
+                      text="Sign in with Google Now"
+                      redirectTo={redirectTo}
+                      onError={(err) => setAuthError(err)}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -205,6 +255,7 @@ function LoginForm() {
                 redirectTo={redirectTo}
                 onError={(err) => {
                   setIsNotRegistered(false);
+                  setIsGoogleAccount(false);
                   setAuthError(err);
                 }}
               />

@@ -21,8 +21,10 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/ui/brand-logo';
+import { useAuth } from '@/context/auth-context';
 
 export default function LandingPage() {
+  const { user } = useAuth();
   const [activeReaction, setActiveReaction] = React.useState<string | null>('💜');
 
   const reactions = ['💜', '✨', '💖', '🔥', '🎵', '💌'];
@@ -44,23 +46,37 @@ export default function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <Link href="/login">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2.5 sm:px-3 rounded-xl text-xs font-semibold text-[#0C3B2E] hover:bg-[#0C3B2E]/5 cursor-pointer"
-              >
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/signup">
-              <Button
-                size="sm"
-                className="h-8 px-3 sm:px-3.5 rounded-xl text-xs font-bold shadow-xs bg-[#0C3B2E] hover:bg-[#155E49] text-white transition-all cursor-pointer"
-              >
-                Get Started
-              </Button>
-            </Link>
+            {user ? (
+              <Link href="/chat">
+                <Button
+                  size="sm"
+                  className="h-8 px-3 sm:px-3.5 rounded-xl text-xs font-bold shadow-xs bg-[#0C3B2E] hover:bg-[#155E49] text-white transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>Open Chat</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 sm:px-3 rounded-xl text-xs font-semibold text-[#0C3B2E] hover:bg-[#0C3B2E]/5 cursor-pointer"
+                  >
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/signup">
+                  <Button
+                    size="sm"
+                    className="h-8 px-3 sm:px-3.5 rounded-xl text-xs font-bold shadow-xs bg-[#0C3B2E] hover:bg-[#155E49] text-white transition-all cursor-pointer"
+                  >
+                    Get Started
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </header>
       </div>
@@ -93,34 +109,59 @@ export default function LandingPage() {
 
             {/* CTAs */}
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-              <Link href="/signup" className="w-full sm:w-auto">
-                <Button
-                  size="lg"
-                  className="w-full sm:w-auto rounded-2xl gap-2 font-bold shadow-lg shadow-[#0C3B2E]/25 bg-[#0C3B2E] text-white hover:bg-[#155E49] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ring-1 ring-[#0C3B2E]/30"
-                >
-                  Start Vibing Free
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link href="/login" className="w-full sm:w-auto">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full sm:w-auto rounded-2xl border-[#0C3B2E]/30 dark:border-white/30 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/5 dark:hover:bg-white/10 font-semibold cursor-pointer"
-                >
-                  Sign In
-                </Button>
-              </Link>
-              <Link href="/chat" className="w-full sm:w-auto">
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="w-full sm:w-auto rounded-2xl gap-1.5 font-semibold bg-[#0C3B2E]/5 dark:bg-white/10 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/10 dark:hover:bg-white/15 cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4 text-[#0C3B2E] dark:text-emerald-400" />
-                  Live Preview
-                </Button>
-              </Link>
+              {user ? (
+                <>
+                  <Link href="/chat" className="w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      className="w-full sm:w-auto rounded-2xl gap-2 font-bold shadow-lg shadow-[#0C3B2E]/25 bg-[#0C3B2E] text-white hover:bg-[#155E49] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ring-1 ring-[#0C3B2E]/30"
+                    >
+                      <span>Continue to Your Space</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/settings" className="w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="w-full sm:w-auto rounded-2xl border-[#0C3B2E]/30 dark:border-white/30 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/5 dark:hover:bg-white/10 font-semibold cursor-pointer"
+                    >
+                      Settings
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/signup" className="w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      className="w-full sm:w-auto rounded-2xl gap-2 font-bold shadow-lg shadow-[#0C3B2E]/25 bg-[#0C3B2E] text-white hover:bg-[#155E49] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ring-1 ring-[#0C3B2E]/30"
+                    >
+                      Start Vibing Free
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/login" className="w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="w-full sm:w-auto rounded-2xl border-[#0C3B2E]/30 dark:border-white/30 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/5 dark:hover:bg-white/10 font-semibold cursor-pointer"
+                    >
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link href="/chat" className="w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      variant="secondary"
+                      className="w-full sm:w-auto rounded-2xl gap-1.5 font-semibold bg-[#0C3B2E]/5 dark:bg-white/10 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/10 dark:hover:bg-white/15 cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4 text-[#0C3B2E] dark:text-emerald-400" />
+                      Live Preview
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Interactive Preview Mockup - Expansive Full Width */}

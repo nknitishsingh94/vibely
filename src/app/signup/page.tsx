@@ -42,9 +42,9 @@ function SignupForm() {
   // Auto-redirect if already logged in
   React.useEffect(() => {
     if (user) {
-      router.push('/chat');
+      window.location.href = '/chat';
     }
-  }, [user, router]);
+  }, [user]);
 
   const {
     register,
@@ -139,7 +139,7 @@ function SignupForm() {
           }
 
           if (directData?.session) {
-            router.push('/chat');
+            window.location.href = '/chat';
             return;
           }
 
@@ -168,7 +168,7 @@ function SignupForm() {
         }
 
         if (directData?.session) {
-          router.push('/chat');
+          window.location.href = '/chat';
           return;
         }
 
@@ -179,13 +179,34 @@ function SignupForm() {
 
       // 2. Account successfully created & auto-confirmed: log in directly
       const supabase = getSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      let { error: signInError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: data.password,
       });
 
-      if (!signInError) {
-        router.push('/chat');
+      if (signInError) {
+        const lower = (signInError.message || '').toLowerCase();
+        if (lower.includes('email not confirmed')) {
+          try {
+            await fetch('/api/auth/check-user', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
+            });
+            const retryRes = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: data.password,
+            });
+            if (!retryRes.error) {
+              window.location.href = '/chat';
+              return;
+            }
+          } catch (autoErr) {
+            console.warn('Auto-confirm retry error:', autoErr);
+          }
+        }
+      } else {
+        window.location.href = '/chat';
         return;
       }
 
