@@ -22,6 +22,7 @@ import { toast } from '@/components/ui/toast';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { Dialog } from '@/components/ui/dialog';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export function ConversationHeader() {
   const {
@@ -39,10 +40,22 @@ export function ConversationHeader() {
   } = useChat();
 
   const { anniversary, daysTogether, updateAnniversary } = useRomanticFeatures();
+  const router = useRouter();
   const [isDateDialogOpen, setIsDateDialogOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState(anniversary || '');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isDeletingFriend, setIsDeletingFriend] = React.useState(false);
+
+  const handleMobileBack = () => {
+    setActiveConversationId(null);
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/chat/')) {
+        router.push('/chat');
+      } else if (window.location.hash === '#chat') {
+        window.history.back();
+      }
+    }
+  };
 
   const friend = activeConversation?.otherUser;
 
@@ -78,7 +91,7 @@ export function ConversationHeader() {
             {/* Mobile Back Button */}
             <button
               type="button"
-              onClick={() => setActiveConversationId(null)}
+              onClick={handleMobileBack}
               className="md:hidden p-2 -ml-1 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               aria-label="Back to conversations list"
             >

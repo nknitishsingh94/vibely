@@ -44,6 +44,7 @@ export function Sidebar() {
     incomingRequests,
     respondToRequest,
     typingUsers,
+    markConversationAsRead,
   } = useChat();
   const router = useRouter();
 
@@ -317,7 +318,10 @@ export function Sidebar() {
               return (
                 <div
                   key={conv.id}
-                  onClick={() => setActiveConversationId(conv.id)}
+                  onClick={() => {
+                    setActiveConversationId(conv.id);
+                    markConversationAsRead(conv.id);
+                  }}
                   className={cn(
                     'flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150 relative group',
                     isActive

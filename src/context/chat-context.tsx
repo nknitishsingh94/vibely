@@ -40,7 +40,7 @@ export interface ChatContextType {
     durationSeconds?: number;
   }) => Promise<{ error?: string }>;
   editMessage: (messageId: string, newBody: string) => Promise<{ error?: string }>;
-  deleteMessage: (messageId: string) => Promise<{ error?: string }>;
+  deleteMessage: (messageId: string, mode?: 'for_me' | 'for_everyone') => Promise<{ error?: string }>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   broadcastTyping: (isTyping: boolean) => void;
   markConversationAsRead: (conversationId: string) => Promise<void>;
@@ -491,8 +491,17 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         console.warn('Unable to fetch messages from database:', errDetail);
         setMessages([]);
       } else if (data) {
+        // Filter out messages deleted for me on this device
+        let deletedForMe: string[] = [];
+        try {
+          if (profile?.id && typeof window !== 'undefined') {
+            deletedForMe = JSON.parse(localStorage.getItem(`vibely_deleted_for_me_${profile.id}`) || '[]');
+          }
+        } catch {}
+        const visibleData = data.filter((m: any) => !deletedForMe.includes(m.id));
+
         const enriched: MessageWithDetails[] = await Promise.all(
-          data.map(async (msg: any) => {
+          visibleData.map(async (msg: any) => {
             let signedMediaUrl = null;
             if (msg.storage_path) {
               const { data: signedData } = await supabase.storage
@@ -723,6 +732,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }));
         }
       });
+
+    // Broadcast listener for instant message deletion by partner
+    channel.on('broadcast', { event: 'message_deleted' }, ({ payload }: { payload: any }) => {
+      if (payload?.messageId) {
+        setMessages(prev => prev.filter(m => m.id !== payload.messageId));
+      }
+    });
 
     // Realtime Read Receipt Broadcast Listener (Instant WhatsApp Blue Ticks!)
     channel.on('broadcast', { event: 'read_receipt' }, ({ payload }: { payload: any }) => {
@@ -1141,13 +1157,33 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Delete message (soft-delete)
-  const deleteMessage = async (messageId: string): Promise<{ error?: string }> => {
+  // Delete message: support 'for_me' and 'for_everyone'
+  const deleteMessage = async (
+    messageId: string,
+    mode: 'for_me' | 'for_everyone' = 'for_everyone'
+  ): Promise<{ error?: string }> => {
     if (!profile) return { error: 'Not authenticated' };
 
-    // Soft delete locally
+    // 1. Remove from local messages state immediately
     setMessages(prev => prev.filter(m => m.id !== messageId));
 
+    if (mode === 'for_me') {
+      try {
+        if (typeof window !== 'undefined') {
+          const key = `vibely_deleted_for_me_${profile.id}`;
+          const stored: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+          if (!stored.includes(messageId)) {
+            stored.push(messageId);
+            localStorage.setItem(key, JSON.stringify(stored));
+          }
+        }
+      } catch (e) {
+        console.error('Failed to save delete-for-me to storage:', e);
+      }
+      return {};
+    }
+
+    // 2. Delete for everyone: update database and broadcast
     if (!isConfigured) return {};
 
     try {
@@ -1159,6 +1195,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         })
         .eq('id', messageId)
         .eq('sender_id', profile.id);
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'message_deleted',
+          payload: { messageId, conversationId: activeConversationId },
+        });
+      }
 
       if (error) return { error: error.message };
       return {};

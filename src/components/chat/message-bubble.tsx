@@ -16,6 +16,7 @@ import {
   Bookmark,
   Heart,
   Sparkles,
+  ChevronDown,
 } from 'lucide-react';
 import { MessageWithDetails } from '@/types/database';
 import { useAuth } from '@/context/auth-context';
@@ -29,6 +30,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { spawnFloatingHearts } from '@/components/ui/floating-hearts';
 import { useRomanticFeatures } from '@/lib/romantic-features';
+import { toast } from '@/components/ui/toast';
 
 interface MessageBubbleProps {
   message: MessageWithDetails;
@@ -54,7 +56,9 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
   const [editText, setEditText] = React.useState(message.body || '');
   const [showReactionPicker, setShowReactionPicker] = React.useState(false);
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+  const [showMobileMenu, setShowMobileMenu] = React.useState(false);
   const [isCopied, setIsCopied] = React.useState(false);
+  const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const isOutgoing = message.sender_id === profile?.id;
 
@@ -64,11 +68,39 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     ? message.body?.replace(/^\[💌 Note\]\s*/, '')
     : message.body;
 
+  // 1. Eligible for editing: Outgoing text message AND within 15 minutes of sending
+  const isEditAvailable = React.useMemo(() => {
+    if (!isOutgoing || message.message_type !== 'text') return false;
+    const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+    const createdTime = new Date(message.created_at).getTime();
+    return Date.now() - createdTime <= FIFTEEN_MINUTES_MS;
+  }, [isOutgoing, message.message_type, message.created_at]);
+
+  // 2. Eligible for "Delete for everyone":
+  // Must be outgoing AND within 2 hours of being seen (or within 2 hours of sending if not seen yet)
+  const isDeleteForEveryoneAvailable = React.useMemo(() => {
+    if (!isOutgoing) return false;
+    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+
+    const readReceipt = message.receipts?.find((r: any) => r.read_at);
+    if (readReceipt?.read_at) {
+      const readTime = new Date(readReceipt.read_at).getTime();
+      return Date.now() - readTime <= TWO_HOURS_MS;
+    }
+
+    if (message.deliveryStatus === 'read') {
+      const createdTime = new Date(message.created_at).getTime();
+      return Date.now() - createdTime <= TWO_HOURS_MS;
+    }
+
+    const createdTime = new Date(message.created_at).getTime();
+    return Date.now() - createdTime <= TWO_HOURS_MS;
+  }, [isOutgoing, message.receipts, message.deliveryStatus, message.created_at]);
+
   // Status icon for outgoing messages (WhatsApp-style ticks)
   const renderStatus = () => {
     if (!isOutgoing) return null;
 
-    // 1. Clock icon if sending/pending
     if (message.deliveryStatus === 'sending' || message.isOptimistic) {
       return (
         <span title="Sending..." className="inline-flex items-center text-white/70">
@@ -77,7 +109,6 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
       );
     }
 
-    // 2. Error / Failed
     if (message.deliveryStatus === 'failed') {
       return (
         <span title="Failed to send" className="inline-flex items-center text-rose-300">
@@ -86,7 +117,6 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
       );
     }
 
-    // 3. Seen / Read -> Double check with color change (WhatsApp Sky Blue!)
     if (message.deliveryStatus === 'read') {
       return (
         <span title="Read" className="inline-flex items-center text-[#38BDF8] dark:text-[#53BDEB]">
@@ -95,7 +125,6 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
       );
     }
 
-    // 4. Delivered (partner is online) -> Double check
     if (message.deliveryStatus === 'delivered' || friendPresence.online) {
       return (
         <span title="Delivered (Partner is online)" className="inline-flex items-center text-white/75">
@@ -104,7 +133,6 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
       );
     }
 
-    // 5. Sent (partner is offline) -> Single check
     return (
       <span title="Sent (Partner is offline)" className="inline-flex items-center text-white/70">
         <Check className="w-3.5 h-3.5 stroke-[2]" />
@@ -112,25 +140,41 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     );
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (displayBody) {
-      navigator.clipboard.writeText(displayBody);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(displayBody);
+        setIsCopied(true);
+        toast.success('Message copied to clipboard!');
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch {
+        toast.error('Failed to copy text');
+      }
     }
+    setShowMobileMenu(false);
   };
 
   const handleSaveEdit = async () => {
     if (editText.trim() && editText !== displayBody) {
       const updated = isLittleNote ? `[💌 Note] ${editText.trim()}` : editText.trim();
       await editMessage(message.id, updated);
+      toast.success('Message updated');
     }
     setIsEditing(false);
   };
 
-  const handleDelete = async () => {
-    await deleteMessage(message.id);
+  const handleDeleteForMe = async () => {
+    await deleteMessage(message.id, 'for_me');
     setShowDeleteModal(false);
+    setShowMobileMenu(false);
+    toast.success('Message deleted for you');
+  };
+
+  const handleDeleteForEveryone = async () => {
+    await deleteMessage(message.id, 'for_everyone');
+    setShowDeleteModal(false);
+    setShowMobileMenu(false);
+    toast.success('Message deleted for everyone');
   };
 
   const handleReactionClick = (emoji: string, e?: React.MouseEvent) => {
@@ -140,6 +184,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     }
     toggleReaction(message.id, emoji);
     setShowReactionPicker(false);
+    setShowMobileMenu(false);
   };
 
   const handleToggleFavorite = (e: React.MouseEvent) => {
@@ -147,6 +192,24 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     if (isNowFav) {
       const rect = (e?.currentTarget as HTMLElement)?.getBoundingClientRect();
       spawnFloatingHearts(rect?.left ?? window.innerWidth / 2, rect?.top ?? window.innerHeight / 2, 5);
+      toast.success('Saved to Our Moments');
+    } else {
+      toast.info('Removed from Our Moments');
+    }
+    setShowMobileMenu(false);
+  };
+
+  // Touch handlers for mobile long-press
+  const handleTouchStart = () => {
+    longPressTimerRef.current = setTimeout(() => {
+      setShowMobileMenu(true);
+    }, 450);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
     }
   };
 
@@ -168,7 +231,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
         isOutgoing ? 'items-end' : 'items-start'
       )}
     >
-      {/* Quick Action Floating Toolbar on Hover */}
+      {/* Quick Action Floating Toolbar on Desktop Hover */}
       {!isEditing && (
         <div
           className={cn(
@@ -239,41 +302,42 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
             <Reply className="w-3.5 h-3.5" />
           </button>
 
-          {/* Copy */}
+          {/* Copy (only if text body exists) */}
           {displayBody && (
             <button
               onClick={handleCopy}
               aria-label="Copy text"
               className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              title="Copy text"
             >
-              {isCopied ? <CheckIcon className="w-3.5 h-3.5 text-rose-500" /> : <Copy className="w-3.5 h-3.5" />}
+              {isCopied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
           )}
 
-          {/* Edit (only text and only outgoing) */}
-          {isOutgoing && message.message_type === 'text' && (
+          {/* Edit (only text, outgoing, within 15 min limit) */}
+          {isEditAvailable && (
             <button
               onClick={() => {
                 setIsEditing(true);
                 setEditText(displayBody || '');
               }}
-              aria-label="Edit message"
+              aria-label="Edit message (within 15 min)"
               className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              title="Edit message"
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
           )}
 
-          {/* Delete */}
-          {isOutgoing && (
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              aria-label="Delete message"
-              className="p-1.5 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
+          {/* Delete (available for outgoing & incoming with options) */}
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            aria-label="Delete message"
+            className="p-1.5 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+            title="Delete message"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -297,8 +361,10 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
 
       {/* Main Bubble Content */}
       <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className={cn(
-          'relative max-w-[85%] sm:max-w-md rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all',
+          'relative max-w-[85%] sm:max-w-md rounded-2xl p-3 sm:p-3.5 shadow-xs transition-all pr-7 sm:pr-8',
           isLittleNote
             ? 'little-note-card rounded-2xl'
             : isOutgoing
@@ -306,6 +372,120 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
             : 'bg-white dark:bg-[#202C33] text-foreground border border-border/70 rounded-bl-xs shadow-2xs'
         )}
       >
+        {/* Subtle Dropdown Chevron for Mobile & Touch */}
+        {!isEditing && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMobileMenu(prev => !prev);
+            }}
+            className={cn(
+              'absolute top-2 right-2 p-1 rounded-full text-xs transition-all cursor-pointer z-10',
+              isOutgoing
+                ? 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-muted-foreground/70 hover:text-foreground hover:bg-muted',
+              'opacity-70 sm:opacity-0 sm:group-hover:opacity-100'
+            )}
+            title="Message options"
+            aria-label="Message options"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {/* Action Menu Popup (Anchored Dropdown for Mobile / Desktop) */}
+        {showMobileMenu && (
+          <>
+            <div
+              className="fixed inset-0 z-30"
+              onClick={() => setShowMobileMenu(false)}
+            />
+            <div
+              className={cn(
+                'absolute z-40 top-8 w-44 rounded-2xl bg-card border border-border/90 shadow-xl backdrop-blur-md p-1.5 space-y-1 animate-in fade-in zoom-in-95 text-foreground select-none',
+                isOutgoing ? 'right-0' : 'left-0'
+              )}
+            >
+              {/* Quick Emojis Bar */}
+              <div className="flex items-center justify-between px-1.5 py-1 border-b border-border/50 mb-1">
+                {COMMON_EMOJIS.slice(0, 5).map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={e => handleReactionClick(emoji, e)}
+                    className="p-1 hover:scale-125 transition-transform text-sm cursor-pointer"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Reply */}
+              <button
+                onClick={() => {
+                  setReplyingTo(message);
+                  setShowMobileMenu(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+              >
+                <Reply className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Reply</span>
+              </button>
+
+              {/* Copy */}
+              {displayBody && (
+                <button
+                  onClick={handleCopy}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                >
+                  {isCopied ? (
+                    <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                  )}
+                  <span>{isCopied ? 'Copied!' : 'Copy text'}</span>
+                </button>
+              )}
+
+              {/* Save to Moments */}
+              <button
+                onClick={handleToggleFavorite}
+                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+              >
+                <Bookmark className={cn('w-3.5 h-3.5', isBookmarked ? 'text-amber-500 fill-current' : 'text-muted-foreground')} />
+                <span>{isBookmarked ? 'Unsave moment' : 'Save to Moments'}</span>
+              </button>
+
+              {/* Edit (if available) */}
+              {isEditAvailable && (
+                <button
+                  onClick={() => {
+                    setIsEditing(true);
+                    setEditText(displayBody || '');
+                    setShowMobileMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>Edit message</span>
+                </button>
+              )}
+
+              {/* Delete */}
+              <button
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  setShowDeleteModal(true);
+                }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-destructive/10 text-destructive transition-colors cursor-pointer text-left"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete message</span>
+              </button>
+            </div>
+          </>
+        )}
+
         {/* Little Note Header Badge */}
         {isLittleNote && (
           <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-rose-900/15 dark:border-rose-300/15">
@@ -439,7 +619,6 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
         >
           {Object.entries(groupedReactions).map(([emoji, userIds]) => {
             const hasReacted = profile ? userIds.includes(profile.id) : false;
-            const isHeartEmoji = emoji === '❤️' || emoji === '💕' || emoji === '🥰';
 
             return (
               <button
@@ -460,20 +639,53 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* WhatsApp-Style Delete Confirmation Modal */}
       <Dialog
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         size="sm"
-        title="Delete moment?"
-        description="Are you sure you want to delete this message? This action removes it for both of you."
+        title="Delete message?"
+        description={
+          isDeleteForEveryoneAvailable
+            ? 'You can delete this message for everyone or only for yourself.'
+            : isOutgoing
+            ? 'Delete for everyone is no longer available (time limit: 2 hours after message is seen).'
+            : 'Delete this message from your device.'
+        }
       >
-        <div className="flex items-center justify-end gap-2 pt-4">
-          <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(false)}>
-            Cancel
+        <div className="flex flex-col gap-2 pt-3">
+          {/* Delete for everyone (only if within 2 hours of message being seen) */}
+          {isDeleteForEveryoneAvailable && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteForEveryone}
+              className="w-full justify-center text-xs font-semibold h-9 rounded-xl gap-2 cursor-pointer shadow-xs"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete for everyone</span>
+            </Button>
+          )}
+
+          {/* Delete for me (always available) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDeleteForMe}
+            className="w-full justify-center text-xs font-medium h-9 rounded-xl gap-2 hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete for me</span>
           </Button>
-          <Button variant="destructive" size="sm" onClick={handleDelete}>
-            Delete for both of us
+
+          {/* Cancel */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowDeleteModal(false)}
+            className="w-full justify-center text-xs text-muted-foreground h-9 rounded-xl cursor-pointer"
+          >
+            Cancel
           </Button>
         </div>
       </Dialog>

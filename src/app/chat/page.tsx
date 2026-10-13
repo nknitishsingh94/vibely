@@ -19,12 +19,37 @@ import { toast } from '@/components/ui/toast';
 
 export default function ChatPage() {
   const router = useRouter();
-  const { activeConversationId, connectWithPartner } = useChat();
+  const { activeConversationId, setActiveConversationId, connectWithPartner } = useChat();
   const { user, profile, isLoading } = useAuth();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [partnerInput, setPartnerInput] = React.useState('');
   const [isConnecting, setIsConnecting] = React.useState(false);
+
+  // Handle mobile hardware back button / swipe-back gesture so user returns to user list instead of exiting the webapp
+  React.useEffect(() => {
+    if (!activeConversationId) {
+      if (typeof window !== 'undefined' && window.location.hash === '#chat') {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      return;
+    }
+
+    // Push hash to history stack so mobile swipe back or Android hardware back pops the hash instead of leaving /chat
+    if (typeof window !== 'undefined' && window.location.hash !== '#chat') {
+      window.history.pushState({ chatOpen: true }, '', '#chat');
+    }
+
+    const handlePopState = () => {
+      // Hardware back or browser back was triggered: close conversation and reveal user list
+      setActiveConversationId(null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [activeConversationId, setActiveConversationId]);
 
   React.useEffect(() => {
     if (!isLoading && !user) {
