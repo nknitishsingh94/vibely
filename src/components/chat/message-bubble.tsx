@@ -91,24 +91,24 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
   }, [isOutgoing, message.message_type, message.created_at]);
 
   // 2. Eligible for "Delete for everyone":
-  // Must be outgoing AND within 2 hours of being seen (or within 2 hours of sending if not seen yet)
+  // Must be outgoing AND within WhatsApp's standard 60-hour window (2.5 days)
   const isDeleteForEveryoneAvailable = React.useMemo(() => {
     if (!isOutgoing) return false;
-    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+    const SIXTY_HOURS_MS = 60 * 60 * 60 * 1000;
 
     const readReceipt = message.receipts?.find((r: any) => r.read_at);
     if (readReceipt?.read_at) {
       const readTime = new Date(readReceipt.read_at).getTime();
-      return Date.now() - readTime <= TWO_HOURS_MS;
+      return Date.now() - readTime <= SIXTY_HOURS_MS;
     }
 
     if (message.deliveryStatus === 'read') {
       const createdTime = new Date(message.created_at).getTime();
-      return Date.now() - createdTime <= TWO_HOURS_MS;
+      return Date.now() - createdTime <= SIXTY_HOURS_MS;
     }
 
     const createdTime = new Date(message.created_at).getTime();
-    return Date.now() - createdTime <= TWO_HOURS_MS;
+    return Date.now() - createdTime <= SIXTY_HOURS_MS;
   }, [isOutgoing, message.receipts, message.deliveryStatus, message.created_at]);
 
   // Status icon for outgoing messages (WhatsApp-style ticks)
@@ -288,11 +288,17 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           )}
 
           <div
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
             onClick={() => {
-              if (isSelectMode) toggleSelectMessage(message.id);
+              if (isSelectMode) {
+                toggleSelectMessage(message.id);
+              } else {
+                setShowDeleteModal(true);
+              }
             }}
             className={cn(
-              'group/del relative rounded-2xl px-3 py-1.5 text-xs flex items-center gap-2 border shadow-2xs italic transition-all',
+              'group/del relative rounded-2xl px-3 py-1.5 text-xs flex items-center gap-2 border shadow-2xs italic transition-all cursor-pointer',
               isOutgoing
                 ? 'bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/60'
                 : 'bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/60',
@@ -307,16 +313,15 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
               {formatMessageTime(message.created_at)}
             </span>
 
-            {/* Delete button to remove this deleted placeholder box from screen */}
+            {/* Direct Delete button to remove this deleted placeholder box from screen */}
             {!isSelectMode && (
               <button
                 type="button"
                 onClick={async (e) => {
                   e.stopPropagation();
                   await deleteMessage(message.id, 'for_me');
-                  toast.success('Message removed');
                 }}
-                className="ml-1 p-1 rounded-lg text-muted-foreground/50 hover:text-rose-500 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                className="ml-1 p-1 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-500/15 transition-colors cursor-pointer"
                 title="Delete for me"
                 aria-label="Delete for me"
               >
@@ -343,6 +348,35 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
             </div>
           )}
         </div>
+
+        {/* Delete Confirmation Modal for Deleted Placeholder Box */}
+        <Dialog
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          size="sm"
+          title="Delete message?"
+          description="Delete this message from your device."
+        >
+          <div className="flex flex-col gap-2 pt-3">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteForMe}
+              className="w-full justify-center text-xs font-semibold h-9 rounded-xl gap-2 cursor-pointer shadow-xs bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete for me</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDeleteModal(false)}
+              className="w-full justify-center text-xs text-muted-foreground h-9 rounded-xl cursor-pointer"
+            >
+              Cancel
+            </Button>
+          </div>
+        </Dialog>
       </div>
     );
   }
@@ -920,7 +954,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           isDeleteForEveryoneAvailable
             ? 'You can delete this message for everyone or only for yourself.'
             : isOutgoing
-            ? 'Delete for everyone is no longer available (time limit: 2 hours after message is seen).'
+            ? 'Delete for everyone is no longer available (time limit: 60 hours).'
             : 'Delete this message from your device.'
         }
       >
