@@ -26,6 +26,10 @@ import {
   Trash2,
   Loader2,
   RotateCw,
+  ArrowDownLeft,
+  ArrowUpRight,
+  PhoneOff,
+  Plus,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -38,6 +42,7 @@ import { NotificationBell } from './notification-bar';
 import { formatConversationTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { useCall } from '@/context/call-context';
+import { formatCallTime, formatCallDuration } from '@/lib/call-history';
 
 export function Sidebar() {
   const { profile, signOut, isConfigured, refreshProfile } = useAuth();
@@ -60,10 +65,13 @@ export function Sidebar() {
   const router = useRouter();
 
   const { daysTogether, favorites } = useRomanticFeatures();
-  const { startCall } = useCall();
+  const { startCall, callHistory, clearCallHistory, deleteCallLog } = useCall();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [filterText, setFilterText] = React.useState('');
-  const [filterTab, setFilterTab] = React.useState<'all' | 'unread' | 'favorites'>('all');
+  const [filterTab, setFilterTab] = React.useState<'all' | 'unread' | 'favorites' | 'calls'>('all');
+  const [callSubTab, setCallSubTab] = React.useState<'all' | 'missed'>('all');
+  const [isNewCallOpen, setIsNewCallOpen] = React.useState(false);
+  const [isClearHistoryConfirmOpen, setIsClearHistoryConfirmOpen] = React.useState(false);
   const [copiedId, setCopiedId] = React.useState(false);
   const [confirmDeleteChat, setConfirmDeleteChat] = React.useState<{ friend: any; conversationId: string } | null>(null);
   const [isDeletingChat, setIsDeletingChat] = React.useState(false);
@@ -156,6 +164,28 @@ export function Sidebar() {
     const user = c.otherUser?.username?.toLowerCase() || '';
     return name.includes(filterText.toLowerCase()) || user.includes(filterText.toLowerCase());
   });
+
+  const missedCallsCount = React.useMemo(() => {
+    return callHistory.filter(
+      c => c.direction === 'incoming' && (c.status === 'missed' || c.status === 'declined')
+    ).length;
+  }, [callHistory]);
+
+  const filteredCalls = React.useMemo(() => {
+    return callHistory.filter(call => {
+      if (callSubTab === 'missed') {
+        const isMissed = call.direction === 'incoming' && (call.status === 'missed' || call.status === 'declined');
+        if (!isMissed) return false;
+      }
+      if (filterText.trim()) {
+        const q = filterText.toLowerCase();
+        const nameMatch = call.partner?.display_name?.toLowerCase().includes(q);
+        const userMatch = call.partner?.username?.toLowerCase().includes(q);
+        return Boolean(nameMatch || userMatch);
+      }
+      return true;
+    });
+  }, [callHistory, callSubTab, filterText]);
 
   // Outgoing last message status tick (exact WhatsApp style)
   const renderLastMessageStatus = (lastMsg: any, isPartnerOnline: boolean) => {
@@ -312,21 +342,24 @@ export function Sidebar() {
               Favourites
             </button>
 
-            {/* Calls Button beside Unread & Favourites */}
+            {/* Calls Tab Button */}
             <button
-              onClick={() => {
-                const targetConv = conversations.find(c => c.id === activeConversationId) || conversations[0];
-                if (targetConv?.otherUser) {
-                  startCall(targetConv.otherUser, 'voice', targetConv.id);
-                } else {
-                  setIsInviteOpen(true);
-                }
-              }}
-              className="px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1 shrink-0 bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/25"
-              title="Start a Call"
+              onClick={() => setFilterTab('calls')}
+              className={cn(
+                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1 shrink-0',
+                filterTab === 'calls'
+                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-semibold shadow-2xs'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              )}
+              title="Call History"
             >
               <Phone className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               <span>Calls</span>
+              {missedCallsCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                  {missedCallsCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -427,154 +460,366 @@ export function Sidebar() {
             </div>
           )}
 
-          {filteredConversations.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground space-y-2">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
-                <Heart className="w-6 h-6" />
+          {filterTab === 'calls' ? (
+            <div className="flex-1 flex flex-col">
+              {/* Sub-bar for Calls tab: All / Missed tabs + New Call & Clear buttons */}
+              <div className="p-2.5 border-b border-border/40 flex items-center justify-between gap-2 bg-muted/20">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCallSubTab('all')}
+                    className={cn(
+                      'px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                      callSubTab === 'all'
+                        ? 'bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/30'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setCallSubTab('missed')}
+                    className={cn(
+                      'px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1',
+                      callSubTab === 'missed'
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-semibold border border-rose-500/30'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <span>Missed</span>
+                    {missedCallsCount > 0 && (
+                      <span className="w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[8px] font-bold flex items-center justify-center">
+                        {missedCallsCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    onClick={() => setIsNewCallOpen(true)}
+                    className="h-7 px-2.5 rounded-xl text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs gap-1 cursor-pointer"
+                    title="Start a new call"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>New Call</span>
+                  </Button>
+
+                  {callHistory.length > 0 && (
+                    <button
+                      onClick={() => setIsClearHistoryConfirmOpen(true)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                      title="Clear call history"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="text-sm font-semibold text-foreground">No chats found</p>
-              <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
-                Share your username or connect with your partner to start chatting.
-              </p>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setIsInviteOpen(true)}
-                className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-              >
-                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                Connect Partner
-              </Button>
+
+              {/* Calls List */}
+              {filteredCalls.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
+                    <Phone className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      {callSubTab === 'missed' ? 'No missed calls' : 'No call history yet'}
+                    </p>
+                    <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
+                      {callSubTab === 'missed'
+                        ? 'All incoming calls have been answered.'
+                        : 'Calls you make or receive with your partner will be recorded here.'}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setIsNewCallOpen(true)}
+                    className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1.5 cursor-pointer"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>Start a Call</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/30">
+                  {filteredCalls.map(item => {
+                    const isIncoming = item.direction === 'incoming';
+                    const isMissed = item.status === 'missed' || item.status === 'declined';
+                    const isVideo = item.callType === 'video';
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (item.conversationId) {
+                            setActiveConversationId(item.conversationId);
+                          } else {
+                            const targetConv = conversations.find(c => c.otherUser?.id === item.partner?.id);
+                            if (targetConv) setActiveConversationId(targetConv.id);
+                          }
+                        }}
+                        className="flex items-center gap-3 px-3.5 py-3 hover:bg-muted/40 transition-colors cursor-pointer group relative"
+                      >
+                        {/* Partner Avatar */}
+                        <Avatar
+                          src={item.partner?.avatar_path || undefined}
+                          name={item.partner?.display_name || 'User'}
+                          size="md"
+                          isOnline={item.partner?.id ? isUserOnline(item.partner.id) : false}
+                          className="shrink-0"
+                        />
+
+                        {/* Call Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <h4
+                              className={cn(
+                                'text-sm font-semibold truncate',
+                                isMissed ? 'text-rose-500 dark:text-rose-400 font-bold' : 'text-foreground'
+                              )}
+                            >
+                              {item.partner?.display_name || 'User'}
+                            </h4>
+                            <span className="text-[11px] text-muted-foreground shrink-0 font-medium">
+                              {formatCallTime(item.startedAt)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            {/* Direction Arrow */}
+                            {isIncoming ? (
+                              isMissed ? (
+                                <ArrowDownLeft className="w-3.5 h-3.5 text-rose-500 shrink-0 stroke-[2.5]" />
+                              ) : (
+                                <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0 stroke-[2.5]" />
+                              )
+                            ) : (
+                              <ArrowUpRight
+                                className={cn(
+                                  'w-3.5 h-3.5 shrink-0 stroke-[2.5]',
+                                  item.status === 'connected' ? 'text-emerald-500' : 'text-muted-foreground'
+                                )}
+                              />
+                            )}
+
+                            {/* Call Type Icon */}
+                            {isVideo ? (
+                              <Video className="w-3 h-3 text-muted-foreground shrink-0" />
+                            ) : (
+                              <Phone className="w-3 h-3 text-muted-foreground shrink-0" />
+                            )}
+
+                            {/* Status or Duration text */}
+                            <span className={cn('truncate', isMissed && 'text-rose-500 font-medium')}>
+                              {isMissed
+                                ? item.status === 'declined'
+                                  ? 'Declined'
+                                  : 'Missed'
+                                : item.status === 'connected' && item.duration > 0
+                                ? `${isIncoming ? 'Incoming' : 'Outgoing'} (${formatCallDuration(item.duration)})`
+                                : item.status === 'unavailable'
+                                ? 'Unavailable'
+                                : `${isIncoming ? 'Incoming' : 'Outgoing'}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Direct Call & Delete Actions */}
+                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              startCall(item.partner, 'voice', item.conversationId);
+                            }}
+                            className="w-8 h-8 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-all cursor-pointer"
+                            title="Voice Call"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              startCall(item.partner, 'video', item.conversationId);
+                            }}
+                            className="w-8 h-8 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-all cursor-pointer"
+                            title="Video Call"
+                          >
+                            <Video className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              deleteCallLog(item.id);
+                            }}
+                            className="w-7 h-7 rounded-full text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                            title="Delete from call history"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
-            filteredConversations.map(conv => {
-              const other = conv.otherUser;
-              const isActive = conv.id === activeConversationId;
-              const isOtherOnline = other?.id ? isUserOnline(other.id) : (other?.id === friendPresence.userId ? friendPresence.online : false);
-              const isPartnerTyping = typingUsers.some(
-                u => u === other?.display_name || u === other?.username
-              );
+            <>
+              {filteredConversations.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+                    <Heart className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">No chats found</p>
+                  <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
+                    Share your username or connect with your partner to start chatting.
+                  </p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setIsInviteOpen(true)}
+                    className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                    Connect Partner
+                  </Button>
+                </div>
+              ) : (
+                filteredConversations.map(conv => {
+                  const other = conv.otherUser;
+                  const isActive = conv.id === activeConversationId;
+                  const isOtherOnline = other?.id ? isUserOnline(other.id) : (other?.id === friendPresence.userId ? friendPresence.online : false);
+                  const isPartnerTyping = typingUsers.some(
+                    u => u === other?.display_name || u === other?.username
+                  );
 
-              const lastTime = conv.lastMessage?.created_at || conv.updated_at;
-              const hasUnread = conv.unreadCount > 0;
+                  const lastTime = conv.lastMessage?.created_at || conv.updated_at;
+                  const hasUnread = conv.unreadCount > 0;
 
-              return (
-                <div
-                  key={conv.id}
-                  onClick={() => {
-                    setActiveConversationId(conv.id);
-                    markConversationAsRead(conv.id);
-                  }}
-                  className={cn(
-                    'flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150 relative group',
-                    isActive
-                      ? 'bg-muted/80 dark:bg-card/90 shadow-2xs'
-                      : 'hover:bg-muted/40'
-                  )}
-                >
-                  {/* Active Left Indicator Bar */}
-                  {isActive && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600 dark:bg-emerald-500" />
-                  )}
-
-                  {/* Partner Avatar with live green online dot */}
-                  <Avatar
-                    src={other?.avatar_path}
-                    name={other?.display_name || 'Partner'}
-                    size="md"
-                    isOnline={isOtherOnline}
-                    className="shrink-0"
-                  />
-
-                  {/* WhatsApp Content Details */}
-                  <div className="flex-1 min-w-0">
-                    {/* Top Row: Partner Name + WhatsApp Timestamp */}
-                    <div className="flex items-center justify-between mb-1">
-                      <h4
-                        className={cn(
-                          'text-sm font-semibold truncate text-foreground',
-                          hasUnread && 'font-bold'
-                        )}
-                      >
-                        {other?.display_name || 'Partner'}
-                      </h4>
-
-                      {lastTime && (
-                        <span
-                          className={cn(
-                            'text-[11px] shrink-0 font-medium',
-                            hasUnread
-                              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                              : 'text-muted-foreground'
-                          )}
-                        >
-                          {formatConversationTime(lastTime)}
-                        </span>
+                  return (
+                    <div
+                      key={conv.id}
+                      onClick={() => {
+                        setActiveConversationId(conv.id);
+                        markConversationAsRead(conv.id);
+                      }}
+                      className={cn(
+                        'flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150 relative group',
+                        isActive
+                          ? 'bg-muted/80 dark:bg-card/90 shadow-2xs'
+                          : 'hover:bg-muted/40'
                       )}
-                    </div>
+                    >
+                      {/* Active Left Indicator Bar */}
+                      {isActive && (
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600 dark:bg-emerald-500" />
+                      )}
 
-                    {/* Bottom Row: Status Tick + Last Message / Typing... + Unread Badge */}
-                    <div className="flex items-center justify-between gap-1.5 text-xs">
-                      <div className="truncate flex items-center min-w-0 max-w-[190px] sm:max-w-[210px]">
-                        {isOtherOnline && (isPartnerTyping || (isActive && partnerActivity?.activity === 'typing')) ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1 animate-pulse">
-                            typing...
-                          </span>
-                        ) : isOtherOnline && isActive && partnerActivity?.activity === 'viewing_image' ? (
-                          <span className="text-purple-600 dark:text-purple-400 font-medium text-xs flex items-center gap-1 animate-pulse">
-                            📸 viewing photo...
-                          </span>
-                        ) : isOtherOnline && isActive && partnerActivity?.activity === 'in_chat' ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1">
-                            👀 in chat
-                          </span>
-                        ) : (
-                          <span
+                      {/* Partner Avatar with live green online dot */}
+                      <Avatar
+                        src={other?.avatar_path}
+                        name={other?.display_name || 'Partner'}
+                        size="md"
+                        isOnline={isOtherOnline}
+                        className="shrink-0"
+                      />
+
+                      {/* WhatsApp Content Details */}
+                      <div className="flex-1 min-w-0">
+                        {/* Top Row: Partner Name + WhatsApp Timestamp */}
+                        <div className="flex items-center justify-between mb-1">
+                          <h4
                             className={cn(
-                              'truncate text-xs flex items-center',
-                              hasUnread
-                                ? 'text-foreground font-semibold'
-                                : 'text-muted-foreground'
+                              'text-sm font-semibold truncate text-foreground',
+                              hasUnread && 'font-bold'
                             )}
                           >
-                            {/* WhatsApp Status Tick if outgoing */}
-                            {renderLastMessageStatus(conv.lastMessage, isOtherOnline)}
+                            {other?.display_name || 'Partner'}
+                          </h4>
 
-                            {/* Media icon if media */}
-                            {renderMediaPreview(
-                              conv.lastMessage?.message_type,
-                              conv.lastMessage?.original_filename
-                            )}
+                          {lastTime && (
+                            <span
+                              className={cn(
+                                'text-[11px] shrink-0 font-medium',
+                                hasUnread
+                                  ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                                  : 'text-muted-foreground'
+                              )}
+                            >
+                              {formatConversationTime(lastTime)}
+                            </span>
+                          )}
+                        </div>
 
-                            {/* Text preview */}
-                            {!['image', 'audio', 'video', 'file'].includes(
-                              conv.lastMessage?.message_type || ''
-                            ) && (
-                              <span className="truncate">
-                                {conv.lastMessage?.body?.startsWith('[💌 Note]')
-                                  ? '💌 Sent a Little Note'
-                                  : conv.lastMessage?.body ||
-                                    (conv.lastMessage ? 'Sent a message' : 'Say hello!')}
+                        {/* Bottom Row: Status Tick + Last Message / Typing... + Unread Badge */}
+                        <div className="flex items-center justify-between gap-1.5 text-xs">
+                          <div className="truncate flex items-center min-w-0 max-w-[190px] sm:max-w-[210px]">
+                            {isOtherOnline && (isPartnerTyping || (isActive && partnerActivity?.activity === 'typing')) ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1 animate-pulse">
+                                typing...
+                              </span>
+                            ) : isOtherOnline && isActive && partnerActivity?.activity === 'viewing_image' ? (
+                              <span className="text-purple-600 dark:text-purple-400 font-medium text-xs flex items-center gap-1 animate-pulse">
+                                📸 viewing photo...
+                              </span>
+                            ) : isOtherOnline && isActive && partnerActivity?.activity === 'in_chat' ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1">
+                                👀 in chat
+                              </span>
+                            ) : (
+                              <span
+                                className={cn(
+                                  'truncate text-xs flex items-center',
+                                  hasUnread
+                                    ? 'text-foreground font-semibold'
+                                    : 'text-muted-foreground'
+                                )}
+                              >
+                                {/* WhatsApp Status Tick if outgoing */}
+                                {renderLastMessageStatus(conv.lastMessage, isOtherOnline)}
+
+                                {/* Media icon if media */}
+                                {renderMediaPreview(
+                                  conv.lastMessage?.message_type,
+                                  conv.lastMessage?.original_filename
+                                )}
+
+                                {/* Text preview */}
+                                {!['image', 'audio', 'video', 'file'].includes(
+                                  conv.lastMessage?.message_type || ''
+                                ) && (
+                                  <span className="truncate">
+                                    {conv.lastMessage?.body?.startsWith('[💌 Note]')
+                                      ? '💌 Sent a Little Note'
+                                      : conv.lastMessage?.body ||
+                                        (conv.lastMessage ? 'Sent a message' : 'Say hello!')}
+                                  </span>
+                                )}
                               </span>
                             )}
-                          </span>
-                        )}
-                      </div>
+                          </div>
 
-                      {/* Badge and Delete Button */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {/* WhatsApp Unread Counter Badge (Emerald Circle) */}
-                        {hasUnread && (
-                          <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                            {conv.unreadCount}
-                          </span>
-                        )}
+                          {/* Badge and Delete Button */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* WhatsApp Unread Counter Badge (Emerald Circle) */}
+                            {hasUnread && (
+                              <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                {conv.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })
+                  );
+                })
+              )}
+            </>
           )}
         </div>
 
@@ -688,6 +933,136 @@ export function Sidebar() {
                 <Trash2 className="w-3.5 h-3.5" />
               )}
               <span>Delete Chat</span>
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* New Call Dialog */}
+      <Dialog
+        isOpen={isNewCallOpen}
+        onClose={() => setIsNewCallOpen(false)}
+        title="Start a New Call"
+        size="sm"
+      >
+        <div className="space-y-3 pt-1">
+          <p className="text-xs text-muted-foreground">
+            Select a connected partner to start a voice or video call.
+          </p>
+
+          <div className="max-h-64 overflow-y-auto divide-y divide-border/30 rounded-xl border border-border/40">
+            {conversations.length === 0 ? (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                No connected contacts yet. Connect a partner first!
+              </div>
+            ) : (
+              conversations.map(conv => {
+                const partner = conv.otherUser;
+                if (!partner) return null;
+                const isOnline = isUserOnline(partner.id);
+
+                return (
+                  <div
+                    key={conv.id}
+                    className="flex items-center justify-between p-3 hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Avatar
+                        src={partner.avatar_path || undefined}
+                        name={partner.display_name}
+                        size="sm"
+                        isOnline={isOnline}
+                      />
+                      <div className="min-w-0 truncate">
+                        <p className="text-xs font-semibold text-foreground truncate">
+                          {partner.display_name}
+                        </p>
+                        {partner.username && (
+                          <p className="text-[10px] text-muted-foreground font-mono truncate">
+                            @{partner.username}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsNewCallOpen(false);
+                          startCall(partner, 'voice', conv.id);
+                        }}
+                        className="h-8 px-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 gap-1 text-xs cursor-pointer"
+                        title="Voice Call"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Voice</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsNewCallOpen(false);
+                          startCall(partner, 'video', conv.id);
+                        }}
+                        className="h-8 px-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 gap-1 text-xs cursor-pointer"
+                        title="Video Call"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>Video</span>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Clear Call History Confirmation Dialog */}
+      <Dialog
+        isOpen={isClearHistoryConfirmOpen}
+        onClose={() => setIsClearHistoryConfirmOpen(false)}
+        title="Clear Call History"
+        size="sm"
+      >
+        <div className="space-y-4 pt-1">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+            <div className="w-10 h-10 rounded-full bg-destructive/20 text-destructive flex items-center justify-center shrink-0">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                Clear all call logs
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This will delete your entire call history permanently from this device.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsClearHistoryConfirmOpen(false)}
+              className="text-xs rounded-xl cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                clearCallHistory();
+                setIsClearHistoryConfirmOpen(false);
+              }}
+              className="text-xs rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700 text-white cursor-pointer font-medium"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear All</span>
             </Button>
           </div>
         </div>

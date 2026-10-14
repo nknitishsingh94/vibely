@@ -5,6 +5,12 @@ import { useAuth } from './auth-context';
 import { useChat } from './chat-context';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { startOutgoingRing, startIncomingRing, stopAllRingtones } from '@/lib/ringtone';
+import {
+  addCallLog,
+  updateCallLog,
+  useCallHistory,
+  type CallLogItem,
+} from '@/lib/call-history';
 import type { Profile } from '@/types/database';
 
 export interface OutgoingCallState {
@@ -30,6 +36,9 @@ interface CallContextType {
   isMuted: boolean;
   isVideoEnabled: boolean;
   isSpeakerOn: boolean;
+  callHistory: CallLogItem[];
+  clearCallHistory: () => void;
+  deleteCallLog: (id: string) => void;
   startCall: (partner: Profile, type: 'voice' | 'video', conversationId?: string) => Promise<void>;
   acceptCall: () => Promise<void>;
   declineCall: () => void;
@@ -47,6 +56,9 @@ const CallContext = createContext<CallContextType>({
   isMuted: false,
   isVideoEnabled: true,
   isSpeakerOn: true,
+  callHistory: [],
+  clearCallHistory: () => {},
+  deleteCallLog: () => {},
   startCall: async () => {},
   acceptCall: async () => {},
   declineCall: () => {},
@@ -67,6 +79,12 @@ const RTC_CONFIG: RTCConfiguration = {
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
   const { activeConversationId } = useChat();
+
+  const {
+    history: callHistory,
+    clearAll: clearCallHistory,
+    removeLog: deleteCallLog,
+  } = useCallHistory(profile?.id);
 
   const [outgoingCall, setOutgoingCall] = useState<OutgoingCallState | null>(null);
   const [incomingCall, setIncomingCall] = useState<IncomingCallState | null>(null);
@@ -448,6 +466,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       activeCallStatusRef.current = 'ringing';
       activeCallIdRef.current = callId;
 
+      // Log incoming call in history (status 'missed' until answered)
+      if (profile?.id) {
+        addCallLog(profile.id, {
+          callId,
+          partner: payload.caller,
+          direction: 'incoming',
+          callType: payload.callType || 'voice',
+          status: 'missed',
+          duration: 0,
+          startedAt: new Date().toISOString(),
+          conversationId: payload.conversationId,
+        });
+      }
+
       setIncomingCall({
         caller: payload.caller,
         callType: payload.callType || 'voice',
@@ -516,6 +548,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       stopAllRingtones();
       activeCallStatusRef.current = 'connected';
 
+      // Update call log status to connected
+      if (profile?.id && activeCallIdRef.current) {
+        updateCallLog(profile.id, activeCallIdRef.current, {
+          status: 'connected',
+        });
+      }
+
       setOutgoingCall(prev => (prev ? { ...prev, status: 'connected' } : null));
       await setupWebRTCAsCaller(payload.conversationId, payload.callType || 'voice');
     };
@@ -534,6 +573,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       stopAllRingtones();
       activeCallStatusRef.current = 'ended';
+
+      // Update call log status to declined
+      if (profile?.id && activeCallIdRef.current) {
+        updateCallLog(profile.id, activeCallIdRef.current, {
+          status: 'declined',
+          endedAt: new Date().toISOString(),
+        });
+      }
       activeCallIdRef.current = null;
 
       setOutgoingCall(prev => (prev ? { ...prev, status: 'declined' } : null));
@@ -548,6 +595,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       stopAllRingtones();
       activeCallStatusRef.current = 'idle';
+
+      // If incoming call was cancelled by caller, it remains missed
+      if (profile?.id && activeCallIdRef.current) {
+        updateCallLog(profile.id, activeCallIdRef.current, {
+          status: 'missed',
+          endedAt: new Date().toISOString(),
+        });
+      }
       activeCallIdRef.current = null;
       setIncomingCall(null);
     };
@@ -580,7 +635,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (outgoingCall?.status === 'connected') {
       if (!callDurationTimerRef.current) {
         callDurationTimerRef.current = setInterval(() => {
-          setOutgoingCall(prev => (prev ? { ...prev, duration: prev.duration + 1 } : null));
+          setOutgoingCall(prev => {
+            if (!prev) return null;
+            const newDuration = prev.duration + 1;
+            if (profile?.id && activeCallIdRef.current && newDuration % 2 === 0) {
+              updateCallLog(profile.id, activeCallIdRef.current, {
+                status: 'connected',
+                duration: newDuration,
+              });
+            }
+            return { ...prev, duration: newDuration };
+          });
         }, 1000);
       }
     } else {
@@ -589,7 +654,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         callDurationTimerRef.current = null;
       }
     }
-  }, [outgoingCall?.status]);
+  }, [outgoingCall?.status, profile?.id]);
 
   // 1. Start Call (Caller initiates)
   const startCall = async (partner: Profile, type: 'voice' | 'video', convId?: string) => {
@@ -602,6 +667,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     activeCallStatusRef.current = 'calling';
     activeCallIdRef.current = callId;
+
+    // Log outgoing call in history
+    if (profile?.id) {
+      addCallLog(profile.id, {
+        callId,
+        partner,
+        direction: 'outgoing',
+        callType: type,
+        status: 'unavailable',
+        duration: 0,
+        startedAt: new Date().toISOString(),
+        conversationId,
+      });
+    }
 
     // Set status to 'calling' initially ("Calling...") - NOT ringing yet!
     setOutgoingCall({
@@ -670,6 +749,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       stopAllRingtones();
       activeCallStatusRef.current = 'ended';
+
+      if (profile?.id && activeCallIdRef.current) {
+        updateCallLog(profile.id, activeCallIdRef.current, {
+          status: 'unavailable',
+          endedAt: new Date().toISOString(),
+        });
+      }
       activeCallIdRef.current = null;
 
       setOutgoingCall(prev => {
@@ -700,6 +786,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const { caller, callType, conversationId, callId } = incomingCall;
     activeCallIdRef.current = callId;
 
+    if (profile?.id) {
+      updateCallLog(profile.id, callId, {
+        status: 'connected',
+      });
+    }
+
     // Switch callee into outgoingCall state with 'connected' status
     setOutgoingCall({
       partner: caller,
@@ -721,6 +813,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const declineCall = () => {
     stopAllRingtones();
     activeCallStatusRef.current = 'idle';
+
+    if (profile?.id && incomingCall) {
+      updateCallLog(profile.id, incomingCall.callId, {
+        status: 'declined',
+        endedAt: new Date().toISOString(),
+      });
+    }
     activeCallIdRef.current = null;
 
     if (!incomingCall) return;
@@ -737,6 +836,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const endCall = () => {
     stopAllRingtones();
     activeCallStatusRef.current = 'ended';
+
+    if (profile?.id && activeCallIdRef.current) {
+      const finalDuration = outgoingCallRef.current?.duration || 0;
+      updateCallLog(profile.id, activeCallIdRef.current, {
+        status: outgoingCallRef.current?.status === 'connected' ? 'connected' : 'ended',
+        duration: finalDuration,
+        endedAt: new Date().toISOString(),
+      });
+    }
     activeCallIdRef.current = null;
 
     if (callRetryTimerRef.current) {
@@ -822,6 +930,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         isMuted,
         isVideoEnabled,
         isSpeakerOn,
+        callHistory,
+        clearCallHistory,
+        deleteCallLog,
         startCall,
         acceptCall,
         declineCall,
