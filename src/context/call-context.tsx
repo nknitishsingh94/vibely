@@ -13,12 +13,24 @@ import {
 } from '@/lib/call-history';
 import type { Profile } from '@/types/database';
 
+export interface CallParticipant {
+  id: string; // user id
+  profile: Profile;
+  stream: MediaStream | null;
+  status: 'calling' | 'ringing' | 'connected' | 'declined' | 'ended';
+  isAudioMuted?: boolean;
+  isVideoMuted?: boolean;
+}
+
 export interface OutgoingCallState {
   partner: Profile;
+  participants: CallParticipant[];
+  roomId: string;
   callType: 'voice' | 'video';
   conversationId: string;
   status: 'calling' | 'ringing' | 'connected' | 'ended' | 'declined' | 'unavailable';
   duration: number;
+  isGroup?: boolean;
 }
 
 export interface IncomingCallState {
@@ -26,13 +38,17 @@ export interface IncomingCallState {
   callType: 'voice' | 'video';
   conversationId: string;
   callId: string;
+  roomId: string;
+  isMerge?: boolean;
+  existingParticipants?: Profile[];
 }
 
 interface CallContextType {
   outgoingCall: OutgoingCallState | null;
   incomingCall: IncomingCallState | null;
   localStream: MediaStream | null;
-  remoteStream: MediaStream | null;
+  remoteStream: MediaStream | null; // primary remote stream for 1-to-1 compat
+  participants: CallParticipant[]; // all remote participants in active call
   isMuted: boolean;
   isVideoEnabled: boolean;
   isSpeakerOn: boolean;
@@ -40,6 +56,7 @@ interface CallContextType {
   clearCallHistory: () => void;
   deleteCallLog: (id: string) => void;
   startCall: (partner: Profile, type: 'voice' | 'video', conversationId?: string) => Promise<void>;
+  mergeCall: (partner: Profile, conversationId?: string) => Promise<void>;
   acceptCall: () => Promise<void>;
   declineCall: () => void;
   endCall: () => void;
@@ -53,6 +70,7 @@ const CallContext = createContext<CallContextType>({
   incomingCall: null,
   localStream: null,
   remoteStream: null,
+  participants: [],
   isMuted: false,
   isVideoEnabled: true,
   isSpeakerOn: true,
@@ -60,6 +78,7 @@ const CallContext = createContext<CallContextType>({
   clearCallHistory: () => {},
   deleteCallLog: () => {},
   startCall: async () => {},
+  mergeCall: async () => {},
   acceptCall: async () => {},
   declineCall: () => {},
   endCall: () => {},
@@ -73,6 +92,8 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
   ],
 };
 
@@ -90,17 +111,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [incomingCall, setIncomingCall] = useState<IncomingCallState | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [participants, setParticipants] = useState<CallParticipant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
 
-  const pcRef = useRef<RTCPeerConnection | null>(null);
+  // Mesh WebRTC Peer Connections: Map of remoteUserId -> RTCPeerConnection
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const participantsRef = useRef<CallParticipant[]>([]);
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
+
   const callRoomChannelRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const callDurationTimerRef = useRef<any>(null);
   const callRetryTimerRef = useRef<any>(null);
   const callTimeoutRef = useRef<any>(null);
-  const offerRetryTimerRef = useRef<any>(null);
 
   // Synchronous state tracking to eliminate async React state race conditions
   const activeCallStatusRef = useRef<'idle' | 'calling' | 'ringing' | 'connected' | 'ended' | 'declined' | 'unavailable'>('idle');
@@ -114,9 +143,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (now - time > 8000) processedSignals.current.delete(key);
     });
 
-    const callId = payload?.callId || payload?.conversationId || '';
+    const callId = payload?.callId || payload?.conversationId || payload?.roomId || '';
+    const fromId = payload?.fromUserId || payload?.caller?.id || '';
+    const toId = payload?.toUserId || '';
+    const sdpType = payload?.sdp?.type || '';
     const ts = payload?.timestamp || '';
-    const sigKey = `${event}:${callId}:${ts}`;
+    const sigKey = `${event}:${callId}:${fromId}:${toId}:${sdpType}:${ts}`;
     if (callId && processedSignals.current.has(sigKey)) {
       return true;
     }
@@ -144,7 +176,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, [incomingCall]);
 
-  // Stop media tracks and clear timers helper
+  // Clean up all media tracks, peer connections, and timers
   const cleanupMedia = useCallback(() => {
     stopAllRingtones();
     activeCallStatusRef.current = 'idle';
@@ -162,10 +194,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(callTimeoutRef.current);
       callTimeoutRef.current = null;
     }
-    if (offerRetryTimerRef.current) {
-      clearInterval(offerRetryTimerRef.current);
-      offerRetryTimerRef.current = null;
-    }
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => {
@@ -178,12 +206,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setLocalStream(null);
     setRemoteStream(null);
 
-    if (pcRef.current) {
+    // Close and remove all peer connections in the mesh
+    peerConnectionsRef.current.forEach((pc) => {
       try {
-        pcRef.current.close();
+        pc.close();
       } catch {}
-      pcRef.current = null;
-    }
+    });
+    peerConnectionsRef.current.clear();
+    remoteStreamsRef.current.clear();
+    pendingIceCandidatesRef.current.clear();
+    setParticipants([]);
 
     if (callRoomChannelRef.current) {
       try {
@@ -194,7 +226,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Multi-channel signaling broadcaster
+  // Multi-channel signaling broadcaster to reach a user directly
   const sendSignalToUser = useCallback(
     (targetUserId: string, event: string, payload: any, conversationId?: string) => {
       if (!targetUserId) return;
@@ -249,220 +281,393 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  // Setup WebRTC as Caller
-  const setupWebRTCAsCaller = async (conversationId: string, callType: 'voice' | 'video') => {
-    stopAllRingtones();
+  // Helper to acquire local media stream
+  const acquireLocalMedia = async (callType: 'voice' | 'video') => {
+    if (localStreamRef.current) return localStreamRef.current;
     try {
-      const supabase = getSupabaseBrowserClient();
-      const channel = supabase.channel(`call-room:${conversationId || 'default'}`);
-      callRoomChannelRef.current = channel;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: callType === 'video',
+      });
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      return stream;
+    } catch (err) {
+      console.warn('Error acquiring media devices:', err);
+      return null;
+    }
+  };
 
-      const pc = new RTCPeerConnection(RTC_CONFIG);
-      pcRef.current = pc;
+  // Initiate a WebRTC offer to a remote peer (caller/existing peer role)
+  const initiatePeerOffer = useCallback(async (remoteUser: Profile, channel: any) => {
+    if (!remoteUser?.id || remoteUser.id === profile?.id) return;
 
-      // Handle remote tracks
-      pc.ontrack = event => {
-        if (event.streams && event.streams[0]) {
-          setRemoteStream(event.streams[0]);
-        }
-      };
+    // Check if peer connection already exists and is active
+    const existingPc = peerConnectionsRef.current.get(remoteUser.id);
+    if (existingPc && existingPc.signalingState !== 'closed') {
+      return;
+    }
 
-      // Handle ICE candidates
-      pc.onicecandidate = event => {
-        if (event.candidate) {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice_candidate',
-            payload: { candidate: event.candidate },
-          });
-        }
-      };
+    // Ensure local stream is ready
+    const stream = await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
 
-      // Add local media tracks
-      let stream = localStreamRef.current;
-      if (!stream) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: callType === 'video',
-          });
-          localStreamRef.current = stream;
-          setLocalStream(stream);
-        } catch (mediaErr) {
-          console.warn('Microphone/Camera permission error:', mediaErr);
-        }
-      }
+    // Create RTCPeerConnection for this remote peer
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    peerConnectionsRef.current.set(remoteUser.id, pc);
 
-      if (stream) {
-        stream.getTracks().forEach(track => {
-          pc.addTrack(track, stream!);
+    // Setup ontrack
+    pc.ontrack = (event) => {
+      if (event.streams && event.streams[0]) {
+        const remoteMediaStream = event.streams[0];
+        remoteStreamsRef.current.set(remoteUser.id, remoteMediaStream);
+        setRemoteStream(remoteMediaStream);
+        setParticipants(prev => {
+          const idx = prev.findIndex(p => p.id === remoteUser.id);
+          if (idx >= 0) {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], stream: remoteMediaStream, status: 'connected' };
+            return updated;
+          }
+          return [
+            ...prev,
+            { id: remoteUser.id, profile: remoteUser, stream: remoteMediaStream, status: 'connected' },
+          ];
         });
       }
+    };
 
-      // Create Offer
+    // Setup ICE candidate gathering
+    pc.onicecandidate = (event) => {
+      if (event.candidate && channel) {
+        channel.send({
+          type: 'broadcast',
+          event: 'ice_candidate',
+          payload: {
+            fromUserId: profile?.id,
+            toUserId: remoteUser.id,
+            candidate: event.candidate,
+          },
+        });
+      }
+    };
+
+    // Attach local media tracks
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
+    }
+
+    // Create & dispatch WebRTC offer
+    try {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      let offerAttempts = 0;
-      const sendOffer = () => {
-        channel.send({
-          type: 'broadcast',
-          event: 'webrtc_offer',
-          payload: { sdp: offer },
-        });
-      };
-
-      channel
-        .on('broadcast', { event: 'webrtc_answer' }, async ({ payload }: any) => {
-          if (offerRetryTimerRef.current) {
-            clearInterval(offerRetryTimerRef.current);
-            offerRetryTimerRef.current = null;
-          }
-          if (payload?.sdp) {
-            try {
-              if (pc.signalingState !== 'stable') {
-                await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-              }
-            } catch (err) {
-              console.warn('Error setting remote description:', err);
-            }
-          }
-        })
-        .on('broadcast', { event: 'ice_candidate' }, async ({ payload }: any) => {
-          if (payload?.candidate) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-            } catch {}
-          }
-        })
-        .on('broadcast', { event: 'call_ended' }, () => {
-          endCall();
-        })
-        .subscribe((status: string) => {
-          if (status === 'SUBSCRIBED') {
-            sendOffer();
-            if (offerRetryTimerRef.current) clearInterval(offerRetryTimerRef.current);
-            offerRetryTimerRef.current = setInterval(() => {
-              offerAttempts++;
-              if (offerAttempts >= 5 || pc.signalingState === 'stable') {
-                if (offerRetryTimerRef.current) {
-                  clearInterval(offerRetryTimerRef.current);
-                  offerRetryTimerRef.current = null;
-                }
-                return;
-              }
-              sendOffer();
-            }, 1500);
-          }
-        });
+      channel.send({
+        type: 'broadcast',
+        event: 'webrtc_offer',
+        payload: {
+          fromUserId: profile?.id,
+          toUserId: remoteUser.id,
+          sdp: offer,
+          senderProfile: profile,
+        },
+      });
     } catch (err) {
-      console.error('Error establishing WebRTC as caller:', err);
+      console.error('Error creating offer for peer:', remoteUser.id, err);
     }
-  };
+  }, [profile]);
 
-  // Setup WebRTC as Callee
-  const setupWebRTCAsCallee = async (conversationId: string, callType: 'voice' | 'video') => {
-    stopAllRingtones();
-    try {
-      const supabase = getSupabaseBrowserClient();
-      const channel = supabase.channel(`call-room:${conversationId || 'default'}`);
-      callRoomChannelRef.current = channel;
+  // Handle incoming offer from a remote peer (callee/new peer role)
+  const handleReceiveOffer = useCallback(async (payload: any, channel: any) => {
+    const { fromUserId, sdp, senderProfile } = payload;
+    if (!fromUserId || !sdp) return;
 
-      const pc = new RTCPeerConnection(RTC_CONFIG);
-      pcRef.current = pc;
+    // Ensure sender is in participants
+    if (senderProfile) {
+      setParticipants(prev => {
+        const idx = prev.findIndex(p => p.id === fromUserId);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], profile: senderProfile };
+          return updated;
+        }
+        return [
+          ...prev,
+          { id: fromUserId, profile: senderProfile, stream: null, status: 'connected' },
+        ];
+      });
+    }
 
-      pc.ontrack = event => {
+    const stream = await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
+
+    let pc = peerConnectionsRef.current.get(fromUserId);
+    if (!pc || pc.signalingState === 'closed') {
+      pc = new RTCPeerConnection(RTC_CONFIG);
+      peerConnectionsRef.current.set(fromUserId, pc);
+
+      pc.ontrack = (event) => {
         if (event.streams && event.streams[0]) {
-          setRemoteStream(event.streams[0]);
+          const remoteMediaStream = event.streams[0];
+          remoteStreamsRef.current.set(fromUserId, remoteMediaStream);
+          setRemoteStream(remoteMediaStream);
+          setParticipants(prev => {
+            const idx = prev.findIndex(p => p.id === fromUserId);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = { ...updated[idx], stream: remoteMediaStream, status: 'connected' };
+              return updated;
+            }
+            return [
+              ...prev,
+              {
+                id: fromUserId,
+                profile: senderProfile || { id: fromUserId, display_name: 'Participant' } as any,
+                stream: remoteMediaStream,
+                status: 'connected',
+              },
+            ];
+          });
         }
       };
 
-      pc.onicecandidate = event => {
-        if (event.candidate) {
+      pc.onicecandidate = (event) => {
+        if (event.candidate && channel) {
           channel.send({
             type: 'broadcast',
             event: 'ice_candidate',
-            payload: { candidate: event.candidate },
+            payload: {
+              fromUserId: profile?.id,
+              toUserId: fromUserId,
+              candidate: event.candidate,
+            },
           });
         }
       };
 
-      // Acquire local media
-      let stream = localStreamRef.current;
-      if (!stream) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: callType === 'video',
-          });
-          localStreamRef.current = stream;
-          setLocalStream(stream);
-        } catch (mediaErr) {
-          console.warn('Microphone/Camera permission error:', mediaErr);
-        }
-      }
-
       if (stream) {
         stream.getTracks().forEach(track => {
-          pc.addTrack(track, stream!);
+          pc!.addTrack(track, stream);
         });
       }
+    }
 
-      channel
-        .on('broadcast', { event: 'webrtc_offer' }, async ({ payload }: any) => {
-          if (payload?.sdp) {
-            try {
-              if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
-                await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
+    try {
+      if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
 
+        // Drain pending ICE candidates
+        const pending = pendingIceCandidatesRef.current.get(fromUserId) || [];
+        for (const cand of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+          } catch {}
+        }
+        pendingIceCandidatesRef.current.delete(fromUserId);
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        channel.send({
+          type: 'broadcast',
+          event: 'webrtc_answer',
+          payload: {
+            fromUserId: profile?.id,
+            toUserId: fromUserId,
+            sdp: answer,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('Error handling offer from peer:', fromUserId, err);
+    }
+  }, [profile]);
+
+  // Handle incoming answer from remote peer
+  const handleReceiveAnswer = useCallback(async (payload: any) => {
+    const { fromUserId, sdp } = payload;
+    const pc = peerConnectionsRef.current.get(fromUserId);
+    if (!pc || !sdp) return;
+
+    try {
+      if (pc.signalingState !== 'stable') {
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      }
+      // Drain pending ICE candidates
+      const pending = pendingIceCandidatesRef.current.get(fromUserId) || [];
+      for (const cand of pending) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(cand));
+        } catch {}
+      }
+      pendingIceCandidatesRef.current.delete(fromUserId);
+    } catch (err) {
+      console.warn('Error setting answer description:', err);
+    }
+  }, []);
+
+  // Handle incoming ICE candidate from remote peer
+  const handleReceiveIceCandidate = useCallback(async (payload: any) => {
+    const { fromUserId, candidate } = payload;
+    if (!fromUserId || !candidate) return;
+
+    const pc = peerConnectionsRef.current.get(fromUserId);
+    if (pc && pc.remoteDescription) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch {}
+    } else {
+      const queue = pendingIceCandidatesRef.current.get(fromUserId) || [];
+      queue.push(candidate);
+      pendingIceCandidatesRef.current.set(fromUserId, queue);
+    }
+  }, []);
+
+  // Handle peer leaving or declining
+  const handlePeerLeft = useCallback((userId: string) => {
+    const pc = peerConnectionsRef.current.get(userId);
+    if (pc) {
+      try {
+        pc.close();
+      } catch {}
+      peerConnectionsRef.current.delete(userId);
+    }
+    remoteStreamsRef.current.delete(userId);
+    pendingIceCandidatesRef.current.delete(userId);
+
+    setParticipants(prev => {
+      const remaining = prev.filter(p => p.id !== userId);
+      // If all remote peers have left, end call
+      if (remaining.length === 0 && activeCallStatusRef.current === 'connected') {
+        setTimeout(() => {
+          endCall();
+        }, 600);
+      }
+      return remaining;
+    });
+  }, []);
+
+  // Join Call Room (Mesh Signaling Channel)
+  const joinCallRoom = useCallback(
+    async (roomId: string, callType: 'voice' | 'video', announceSelf: boolean) => {
+      stopAllRingtones();
+      try {
+        const supabase = getSupabaseBrowserClient();
+        await acquireLocalMedia(callType);
+
+        // If channel already active on same room, reuse it
+        if (callRoomChannelRef.current?.topic === `call-room:${roomId}`) {
+          if (announceSelf && profile) {
+            callRoomChannelRef.current.send({
+              type: 'broadcast',
+              event: 'peer_joined',
+              payload: { user: profile },
+            });
+          }
+          return;
+        }
+
+        const channel = supabase.channel(`call-room:${roomId}`);
+        callRoomChannelRef.current = channel;
+
+        channel
+          .on('broadcast', { event: 'peer_joined' }, async ({ payload }: any) => {
+            if (!payload?.user || payload.user.id === profile?.id) return;
+            // Existing peer creates offer for newly joined peer!
+            await initiatePeerOffer(payload.user, channel);
+          })
+          .on('broadcast', { event: 'webrtc_offer' }, async ({ payload }: any) => {
+            if (!payload || payload.toUserId !== profile?.id) return;
+            await handleReceiveOffer(payload, channel);
+          })
+          .on('broadcast', { event: 'webrtc_answer' }, async ({ payload }: any) => {
+            if (!payload || payload.toUserId !== profile?.id) return;
+            await handleReceiveAnswer(payload);
+          })
+          .on('broadcast', { event: 'ice_candidate' }, async ({ payload }: any) => {
+            if (!payload || payload.toUserId !== profile?.id) return;
+            await handleReceiveIceCandidate(payload);
+          })
+          .on('broadcast', { event: 'participant_invited' }, ({ payload }: any) => {
+            if (!payload?.participant || payload.participant.id === profile?.id) return;
+            setParticipants(prev => {
+              if (prev.some(p => p.id === payload.participant.id)) return prev;
+              return [
+                ...prev,
+                {
+                  id: payload.participant.id,
+                  profile: payload.participant,
+                  stream: null,
+                  status: 'calling',
+                },
+              ];
+            });
+          })
+          .on('broadcast', { event: 'peer_left' }, ({ payload }: any) => {
+            if (!payload?.userId) return;
+            handlePeerLeft(payload.userId);
+          })
+          .on('broadcast', { event: 'call_declined' }, ({ payload }: any) => {
+            if (!payload?.userId) return;
+            handlePeerLeft(payload.userId);
+          })
+          .on('broadcast', { event: 'peer_muted' }, ({ payload }: any) => {
+            if (!payload?.userId) return;
+            setParticipants(prev =>
+              prev.map(p =>
+                p.id === payload.userId ? { ...p, isAudioMuted: !!payload.isMuted } : p
+              )
+            );
+          })
+          .on('broadcast', { event: 'peer_video_toggled' }, ({ payload }: any) => {
+            if (!payload?.userId) return;
+            setParticipants(prev =>
+              prev.map(p =>
+                p.id === payload.userId
+                  ? { ...p, isVideoMuted: !payload.isVideoEnabled }
+                  : p
+              )
+            );
+          })
+          .on('broadcast', { event: 'call_ended' }, () => {
+            endCall();
+          })
+          .subscribe((status: string) => {
+            if (status === 'SUBSCRIBED') {
+              if (announceSelf && profile) {
                 channel.send({
                   type: 'broadcast',
-                  event: 'webrtc_answer',
-                  payload: { sdp: answer },
+                  event: 'peer_joined',
+                  payload: { user: profile },
                 });
               }
-            } catch (err) {
-              console.warn('Callee offer handling error:', err);
             }
-          }
-        })
-        .on('broadcast', { event: 'ice_candidate' }, async ({ payload }: any) => {
-          if (payload?.candidate) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-            } catch {}
-          }
-        })
-        .on('broadcast', { event: 'call_ended' }, () => {
-          endCall();
-        })
-        .subscribe();
-    } catch (err) {
-      console.error('Error establishing WebRTC as callee:', err);
-    }
-  };
+          });
+      } catch (err) {
+        console.error('Error joining call room:', err);
+      }
+    },
+    [profile, initiatePeerOffer, handleReceiveOffer, handleReceiveAnswer, handleReceiveIceCandidate, handlePeerLeft]
+  );
 
-  // Listen for incoming call notifications and call signals
+  // Listen for incoming call notifications and global call signals
   useEffect(() => {
     if (!profile?.id) return;
     const supabase = getSupabaseBrowserClient();
 
-    // 1. Dedicated Call Channel for this user
     const callChannel = supabase.channel(`call-user:${profile.id}`);
-    // 2. Notification Channel for this user
     const notifChannel = supabase.channel(`user-notifications:${profile.id}`);
 
     const handleIncomingCall = (payload: any) => {
       if (!payload || !payload.caller) return;
       if (isDuplicateSignal('incoming_call', payload)) return;
 
-      // Don't accept or ring if already in any active call state
+      // Don't accept or ring if already in another active call state
       if (activeCallStatusRef.current !== 'idle') return;
       if (outgoingCallRef.current || incomingCallRef.current) return;
 
       const callId = payload.callId || `call_${Date.now()}`;
+      const roomId = payload.roomId || `room_${callId}`;
       activeCallStatusRef.current = 'ringing';
       activeCallIdRef.current = callId;
 
@@ -485,17 +690,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         callType: payload.callType || 'voice',
         conversationId: payload.conversationId,
         callId,
+        roomId,
+        isMerge: !!payload.isMerge,
+        existingParticipants: payload.existingParticipants || [],
       });
 
-      // Start incoming melodic ringtone chime on callee's device!
+      // Start melodic ringtone chime on callee's device
       startIncomingRing();
 
-      // Send ACK back to caller: "I received the call and my phone is now ringing!"
+      // Send ACK back to caller
       sendSignalToUser(
         payload.caller.id,
         'call_ringing',
         {
           callId,
+          roomId,
           conversationId: payload.conversationId,
         },
         payload.conversationId
@@ -505,14 +714,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const handleCallRinging = (payload?: any) => {
       if (isDuplicateSignal('call_ringing', payload)) return;
 
-      // Caller receives confirmation that partner's phone is actually ringing!
       if (callRetryTimerRef.current) {
         clearInterval(callRetryTimerRef.current);
         callRetryTimerRef.current = null;
       }
 
-      // CRITICAL: Only ring if caller is still waiting in 'calling' state!
-      // If the call is already connected, ended, or idle, NEVER ring!
       if (activeCallStatusRef.current !== 'calling') {
         return;
       }
@@ -526,7 +732,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
 
-      // Start outgoing telephone ring tone ONLY when in ringing state
       if (activeCallStatusRef.current === 'ringing') {
         startOutgoingRing();
       }
@@ -544,11 +749,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         callTimeoutRef.current = null;
       }
 
-      // Stop all ringtones immediately!
       stopAllRingtones();
       activeCallStatusRef.current = 'connected';
 
-      // Update call log status to connected
       if (profile?.id && activeCallIdRef.current) {
         updateCallLog(profile.id, activeCallIdRef.current, {
           status: 'connected',
@@ -556,7 +759,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
 
       setOutgoingCall(prev => (prev ? { ...prev, status: 'connected' } : null));
-      await setupWebRTCAsCaller(payload.conversationId, payload.callType || 'voice');
+
+      const roomId = payload.roomId || outgoingCallRef.current?.roomId || `room_${payload.callId}`;
+      await joinCallRoom(roomId, payload.callType || 'voice', false);
     };
 
     const handleCallDeclined = (payload?: any) => {
@@ -572,9 +777,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
 
       stopAllRingtones();
+
+      // If in a multi-peer call and a merged user declined, only remove that user!
+      if (participantsRef.current.length > 1 && payload?.userId) {
+        handlePeerLeft(payload.userId);
+        return;
+      }
+
       activeCallStatusRef.current = 'ended';
 
-      // Update call log status to declined
       if (profile?.id && activeCallIdRef.current) {
         updateCallLog(profile.id, activeCallIdRef.current, {
           status: 'declined',
@@ -596,7 +807,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       stopAllRingtones();
       activeCallStatusRef.current = 'idle';
 
-      // If incoming call was cancelled by caller, it remains missed
       if (profile?.id && activeCallIdRef.current) {
         updateCallLog(profile.id, activeCallIdRef.current, {
           status: 'missed',
@@ -607,7 +817,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setIncomingCall(null);
     };
 
-    // Attach handlers & SUBSCRIBE
     callChannel
       .on('broadcast', { event: 'incoming_call' }, ({ payload }: any) => handleIncomingCall(payload))
       .on('broadcast', { event: 'call_ringing' }, ({ payload }: any) => handleCallRinging(payload))
@@ -628,7 +837,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       supabase.removeChannel(callChannel);
       supabase.removeChannel(notifChannel);
     };
-  }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal]);
+  }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal, joinCallRoom, handlePeerLeft]);
 
   // Handle call duration timer when status === 'connected'
   useEffect(() => {
@@ -656,7 +865,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, [outgoingCall?.status, profile?.id]);
 
-  // 1. Start Call (Caller initiates)
+  // 1. Start Call (Caller initiates 1-on-1 call)
   const startCall = async (partner: Profile, type: 'voice' | 'video', convId?: string) => {
     if (!profile) return;
     stopAllRingtones();
@@ -664,6 +873,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const conversationId = convId || activeConversationId || '';
     const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const roomId = `room_${callId}`;
 
     activeCallStatusRef.current = 'calling';
     activeCallIdRef.current = callId;
@@ -682,33 +892,38 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // Set status to 'calling' initially ("Calling...") - NOT ringing yet!
+    const initialParticipants: CallParticipant[] = [
+      {
+        id: partner.id,
+        profile: partner,
+        stream: null,
+        status: 'calling',
+      },
+    ];
+
+    setParticipants(initialParticipants);
     setOutgoingCall({
       partner,
+      participants: initialParticipants,
+      roomId,
       callType: type,
       conversationId,
       status: 'calling',
       duration: 0,
+      isGroup: false,
     });
     setIsVideoEnabled(type === 'video');
     setIsMuted(false);
 
-    // Pre-acquire local media for fast start
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: type === 'video',
-      });
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-    } catch (e) {
-      console.warn('Could not acquire local stream:', e);
-    }
+    // Acquire local media
+    await acquireLocalMedia(type);
+
+    // Join room in preparation
+    await joinCallRoom(roomId, type, false);
 
     // Send call invite to partner with periodic retry
     let attempts = 0;
     const sendInvite = () => {
-      // Don't send more invites if no longer calling
       if (activeCallStatusRef.current !== 'calling') {
         if (callRetryTimerRef.current) {
           clearInterval(callRetryTimerRef.current);
@@ -726,11 +941,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           callType: type,
           conversationId,
           callId,
+          roomId,
+          existingParticipants: [profile],
         },
         conversationId
       );
 
-      // Stop retrying after 12 attempts (~18 seconds)
       if (attempts >= 12 && callRetryTimerRef.current) {
         clearInterval(callRetryTimerRef.current);
         callRetryTimerRef.current = null;
@@ -765,8 +981,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
 
-      // Send cancellation signal
-      sendSignalToUser(partner.id, 'call_cancelled', { callId, conversationId }, conversationId);
+      sendSignalToUser(partner.id, 'call_cancelled', { callId, conversationId, roomId }, conversationId);
 
       setTimeout(() => {
         setOutgoingCall(null);
@@ -775,15 +990,76 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }, 35000);
   };
 
-  // 2. Accept Call (Callee accepts)
+  // 2. Merge Call / Add Participant into active call (Seamless Multi-Party Mesh)
+  const mergeCall = async (partner: Profile, convId?: string) => {
+    if (!profile || !outgoingCallRef.current) return;
+    const currentRoomId = outgoingCallRef.current.roomId;
+    if (!currentRoomId) return;
+
+    // Check if partner is already in call
+    if (participantsRef.current.some(p => p.id === partner.id)) {
+      return;
+    }
+
+    // 1. Add partner to local participants as 'calling'
+    const newParticipantItem: CallParticipant = {
+      id: partner.id,
+      profile: partner,
+      stream: null,
+      status: 'calling',
+    };
+
+    setParticipants(prev => [...prev, newParticipantItem]);
+
+    setOutgoingCall(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        isGroup: true,
+        participants: [...prev.participants, newParticipantItem],
+      };
+    });
+
+    // 2. Broadcast to room so other members see the new participant ringing
+    if (callRoomChannelRef.current) {
+      callRoomChannelRef.current.send({
+        type: 'broadcast',
+        event: 'participant_invited',
+        payload: { participant: partner },
+      });
+    }
+
+    // 3. Send merge invite to the partner
+    const mergeCallId = `merge_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const currentParticipantsList = [
+      profile,
+      ...participantsRef.current.map(p => p.profile),
+    ];
+
+    sendSignalToUser(
+      partner.id,
+      'incoming_call',
+      {
+        caller: profile,
+        callType: outgoingCallRef.current.callType,
+        conversationId: convId || outgoingCallRef.current.conversationId,
+        callId: mergeCallId,
+        roomId: currentRoomId,
+        isMerge: true,
+        existingParticipants: currentParticipantsList,
+      },
+      convId || outgoingCallRef.current.conversationId
+    );
+  };
+
+  // 3. Accept Call (Callee accepts 1-on-1 or Merged Group Call)
   const acceptCall = async () => {
     if (!incomingCall || !profile) return;
-    
-    // Stop ringing IMMEDIATELY
+
     stopAllRingtones();
     activeCallStatusRef.current = 'connected';
 
-    const { caller, callType, conversationId, callId } = incomingCall;
+    const { caller, callType, conversationId, callId, roomId, isMerge, existingParticipants } = incomingCall;
     activeCallIdRef.current = callId;
 
     if (profile?.id) {
@@ -792,24 +1068,49 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // Switch callee into outgoingCall state with 'connected' status
+    // Build initial participants list
+    const initialParticipants: CallParticipant[] = [];
+    if (isMerge && existingParticipants && existingParticipants.length > 0) {
+      existingParticipants.forEach(p => {
+        if (p.id !== profile.id) {
+          initialParticipants.push({
+            id: p.id,
+            profile: p,
+            stream: null,
+            status: 'connected',
+          });
+        }
+      });
+    } else {
+      initialParticipants.push({
+        id: caller.id,
+        profile: caller,
+        stream: null,
+        status: 'connected',
+      });
+    }
+
+    setParticipants(initialParticipants);
     setOutgoingCall({
       partner: caller,
+      participants: initialParticipants,
+      roomId,
       callType,
       conversationId,
       status: 'connected',
       duration: 0,
+      isGroup: isMerge || (existingParticipants && existingParticipants.length > 1),
     });
     setIncomingCall(null);
 
-    // Notify caller that call was accepted across all channels!
-    sendSignalToUser(caller.id, 'call_accepted', { conversationId, callId, callType }, conversationId);
+    // Send call_accepted to caller
+    sendSignalToUser(caller.id, 'call_accepted', { conversationId, callId, callType, roomId }, conversationId);
 
-    // Callee sets up WebRTC
-    await setupWebRTCAsCallee(conversationId, callType);
+    // Callee joins the room and announces presence to existing peers
+    await joinCallRoom(roomId, callType, true);
   };
 
-  // 3. Decline Call
+  // 4. Decline Call
   const declineCall = () => {
     stopAllRingtones();
     activeCallStatusRef.current = 'idle';
@@ -823,16 +1124,33 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     activeCallIdRef.current = null;
 
     if (!incomingCall) return;
-    const { caller, conversationId, callId } = incomingCall;
+    const { caller, conversationId, callId, roomId, isMerge } = incomingCall;
 
-    // Notify caller that call was declined
-    sendSignalToUser(caller.id, 'call_declined', { conversationId, callId }, conversationId);
+    // If it was a merge invite, notify the room that this user declined
+    if (isMerge && roomId && profile) {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const channel = supabase.channel(`call-room:${roomId}`);
+        channel.subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            channel.send({
+              type: 'broadcast',
+              event: 'call_declined',
+              payload: { userId: profile.id, roomId },
+            });
+            setTimeout(() => supabase.removeChannel(channel), 1000);
+          }
+        });
+      } catch {}
+    }
+
+    sendSignalToUser(caller.id, 'call_declined', { conversationId, callId, userId: profile?.id }, conversationId);
 
     setIncomingCall(null);
     cleanupMedia();
   };
 
-  // 4. End Call
+  // 5. End Call
   const endCall = () => {
     stopAllRingtones();
     activeCallStatusRef.current = 'ended';
@@ -855,29 +1173,37 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(callTimeoutRef.current);
       callTimeoutRef.current = null;
     }
-    if (offerRetryTimerRef.current) {
-      clearInterval(offerRetryTimerRef.current);
-      offerRetryTimerRef.current = null;
-    }
 
     const currentCall = outgoingCallRef.current;
+
+    // If multi-peer call, send peer_left so remaining participants keep talking uninterrupted
+    // If 1-on-1 call, send call_ended to terminate for both
+    if (callRoomChannelRef.current) {
+      try {
+        const isMultiPeer = participantsRef.current.length > 1;
+        if (isMultiPeer && profile) {
+          callRoomChannelRef.current.send({
+            type: 'broadcast',
+            event: 'peer_left',
+            payload: { userId: profile.id },
+          });
+        } else {
+          callRoomChannelRef.current.send({
+            type: 'broadcast',
+            event: 'call_ended',
+            payload: { conversationId: currentCall?.conversationId },
+          });
+        }
+      } catch {}
+    }
+
     if (currentCall?.partner?.id) {
       sendSignalToUser(
         currentCall.partner.id,
         currentCall.status === 'connected' ? 'call_ended' : 'call_cancelled',
-        { conversationId: currentCall.conversationId },
+        { conversationId: currentCall.conversationId, roomId: currentCall.roomId },
         currentCall.conversationId
       );
-    }
-
-    if (callRoomChannelRef.current) {
-      try {
-        callRoomChannelRef.current.send({
-          type: 'broadcast',
-          event: 'call_ended',
-          payload: { conversationId: currentCall?.conversationId },
-        });
-      } catch {}
     }
 
     setOutgoingCall(prev => (prev ? { ...prev, status: 'ended' } : null));
@@ -891,27 +1217,41 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // Controls: Mute
   const toggleMute = () => {
+    const nextMuted = !isMuted;
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
       audioTracks.forEach(track => {
-        track.enabled = !track.enabled;
+        track.enabled = !nextMuted;
       });
-      setIsMuted(prev => !prev);
-    } else {
-      setIsMuted(prev => !prev);
+    }
+    setIsMuted(nextMuted);
+
+    if (callRoomChannelRef.current && profile) {
+      callRoomChannelRef.current.send({
+        type: 'broadcast',
+        event: 'peer_muted',
+        payload: { userId: profile.id, isMuted: nextMuted },
+      });
     }
   };
 
   // Controls: Video
   const toggleVideo = () => {
+    const nextVideo = !isVideoEnabled;
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks();
       videoTracks.forEach(track => {
-        track.enabled = !track.enabled;
+        track.enabled = nextVideo;
       });
-      setIsVideoEnabled(prev => !prev);
-    } else {
-      setIsVideoEnabled(prev => !prev);
+    }
+    setIsVideoEnabled(nextVideo);
+
+    if (callRoomChannelRef.current && profile) {
+      callRoomChannelRef.current.send({
+        type: 'broadcast',
+        event: 'peer_video_toggled',
+        payload: { userId: profile.id, isVideoEnabled: nextVideo },
+      });
     }
   };
 
@@ -927,6 +1267,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         incomingCall,
         localStream,
         remoteStream,
+        participants,
         isMuted,
         isVideoEnabled,
         isSpeakerOn,
@@ -934,6 +1275,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         clearCallHistory,
         deleteCallLog,
         startCall,
+        mergeCall,
         acceptCall,
         declineCall,
         endCall,

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Phone, PhoneOff, Video, Sparkles } from 'lucide-react';
+import { Phone, PhoneOff, Video, Sparkles, Users } from 'lucide-react';
 import { useCall } from '@/context/call-context';
 import { Avatar } from '@/components/ui/avatar';
 
@@ -16,6 +16,10 @@ export function IncomingCallModal() {
   if (!incomingCall) return null;
 
   const isVideo = incomingCall.callType === 'video';
+  const isGroup = incomingCall.isMerge || (incomingCall.existingParticipants && incomingCall.existingParticipants.length > 1);
+  const otherParticipants = (incomingCall.existingParticipants || []).filter(
+    p => p.id !== incomingCall.caller.id
+  );
 
   const handleAccept = async () => {
     if (isProcessing) return;
@@ -35,22 +39,51 @@ export function IncomingCallModal() {
         {/* Glow backdrop */}
         <div className="absolute -top-16 -left-16 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none animate-pulse" />
 
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-4">
-          <Sparkles className="w-3.5 h-3.5 animate-spin" />
-          <span>Incoming {isVideo ? 'Video' : 'Voice'} Call</span>
-        </div>
+        {isGroup ? (
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-4">
+            <Users className="w-3.5 h-3.5" />
+            <span>Group {isVideo ? 'Video' : 'Voice'} Call</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-4">
+            <Sparkles className="w-3.5 h-3.5 animate-spin" />
+            <span>Incoming {isVideo ? 'Video' : 'Voice'} Call</span>
+          </div>
+        )}
 
-        {/* Pulsing Avatar */}
+        {/* Pulsing Avatar or Multi-avatar Stack */}
         <div className="relative my-4 flex items-center justify-center">
           <div className="absolute w-36 h-36 rounded-full bg-emerald-500/15 animate-ping [animation-duration:2s]" />
           <div className="absolute w-28 h-28 rounded-full bg-emerald-500/20 animate-pulse" />
 
-          <Avatar
-            src={incomingCall.caller.avatar_path || undefined}
-            name={incomingCall.caller.display_name}
-            size="xl"
-            className="w-24 h-24 text-2xl ring-4 ring-emerald-500/40 relative z-10"
-          />
+          {isGroup && otherParticipants.length > 0 ? (
+            <div className="relative flex items-center justify-center z-10">
+              <Avatar
+                src={incomingCall.caller.avatar_path || undefined}
+                name={incomingCall.caller.display_name}
+                size="xl"
+                className="w-20 h-20 text-xl ring-4 ring-emerald-500/50 shadow-xl"
+              />
+              <div className="absolute -bottom-2 -right-2 flex -space-x-2">
+                {otherParticipants.slice(0, 2).map(p => (
+                  <Avatar
+                    key={p.id}
+                    src={p.avatar_path || undefined}
+                    name={p.display_name}
+                    size="sm"
+                    className="w-8 h-8 text-[10px] ring-2 ring-[#0B141A]"
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Avatar
+              src={incomingCall.caller.avatar_path || undefined}
+              name={incomingCall.caller.display_name}
+              size="xl"
+              className="w-24 h-24 text-2xl ring-4 ring-emerald-500/40 relative z-10"
+            />
+          )}
         </div>
 
         <h3 className="text-xl font-bold text-white mt-2">
@@ -59,6 +92,12 @@ export function IncomingCallModal() {
         {incomingCall.caller.username && (
           <p className="text-xs text-white/60 font-mono mt-0.5">
             @{incomingCall.caller.username.replace(/^@/, '')}
+          </p>
+        )}
+
+        {isGroup && otherParticipants.length > 0 && (
+          <p className="text-xs text-emerald-300 font-medium mt-2 px-3 py-1 rounded-full bg-emerald-950/40 border border-emerald-500/20">
+            Invited you to join with {otherParticipants.map(p => p.display_name).join(', ')}
           </p>
         )}
 
@@ -94,7 +133,7 @@ export function IncomingCallModal() {
               {isVideo ? <Video className="w-6 h-6" /> : <Phone className="w-6 h-6" />}
             </button>
             <span className="text-[11px] text-emerald-400 font-semibold">
-              {isProcessing ? 'Connecting' : 'Accept'}
+              {isProcessing ? 'Connecting' : isGroup ? 'Join Call' : 'Accept'}
             </span>
           </div>
         </div>
