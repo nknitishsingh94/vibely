@@ -586,9 +586,8 @@ export function Sidebar() {
 
         {/* User Profile Footer */}
         <div className="shrink-0 p-3 border-t border-border/60 bg-card/60 flex items-center justify-between gap-1 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-          <Link
-            href="/settings/profile"
-            className="flex items-center gap-2.5 min-w-0 p-1.5 rounded-xl hover:bg-muted/70 transition-colors flex-1"
+          <div
+            className="flex items-center gap-2.5 min-w-0 p-1.5 flex-1 select-none"
           >
             <Avatar
               src={profile?.avatar_path}
@@ -603,7 +602,7 @@ export function Sidebar() {
                 <span className="text-[#0C3B2E] dark:text-emerald-400 font-semibold">{myUsername || '@user'}</span>
               </div>
             </div>
-          </Link>
+          </div>
 
           <button
             type="button"
