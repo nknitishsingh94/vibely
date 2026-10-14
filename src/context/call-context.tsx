@@ -66,7 +66,7 @@ const RTC_CONFIG: RTCConfiguration = {
 
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
-  const { friendPresence, activeConversationId } = useChat();
+  const { friendPresence, activeConversationId, isUserOnline } = useChat();
 
   const [outgoingCall, setOutgoingCall] = useState<OutgoingCallState | null>(null);
   const [incomingCall, setIncomingCall] = useState<IncomingCallState | null>(null);
@@ -342,7 +342,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const startCall = async (partner: Profile, type: 'voice' | 'video', convId?: string) => {
     if (!profile) return;
     const conversationId = convId || activeConversationId || '';
-    const isPartnerOnline = partner.id === friendPresence.userId ? friendPresence.online : false;
+    const isPartnerOnline = partner.id ? isUserOnline(partner.id) : (partner.id === friendPresence.userId ? friendPresence.online : false);
 
     // Check offline vs online:
     // If offline: status is strictly 'calling' (no ringing sound)

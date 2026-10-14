@@ -29,6 +29,8 @@ export interface ChatContextType {
   isMediaDrawerOpen: boolean;
   typingUsers: string[];
   friendPresence: UserPresence;
+  isUserOnline: (userId?: string | null) => boolean;
+  onlineUserIds: Set<string>;
   setActiveConversationId: (id: string | null) => void;
   setReplyingTo: (msg: MessageWithDetails | null) => void;
   setSearchQuery: (q: string) => void;
@@ -91,6 +93,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [incomingRequests, setIncomingRequests] = useState<ConnectionRequestItem[]>([]);
   const [partnerActivity, setPartnerActivity] = useState<PartnerActivity | null>(null);
   const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  const onlineUserIdsRef = useRef<Set<string>>(onlineUserIds);
+  useEffect(() => {
+    onlineUserIdsRef.current = onlineUserIds;
+  }, [onlineUserIds]);
+
+  const isUserOnline = useCallback(
+    (userId?: string | null) => {
+      if (!userId) return false;
+      return onlineUserIds.has(userId);
+    },
+    [onlineUserIds]
+  );
+
   const [friendPresence, setFriendPresence] = useState<UserPresence>({
     userId: '',
     online: false,
@@ -108,26 +124,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Active conversation object
   const activeConversation = conversations.find(c => c.id === activeConversationId) || null;
 
-  // Sync friend presence from active conversation's partner
+  // Sync friend presence strictly from realtime presence (offline means offline!)
   useEffect(() => {
     if (activeConversation?.otherUser) {
-      const lastSeen = activeConversation.otherUser.last_seen_at;
-      const isRecentlyActive = lastSeen
-        ? Date.now() - new Date(lastSeen).getTime() < 120000
-        : false;
+      const partnerId = activeConversation.otherUser.id;
+      const isOnline = onlineUserIds.has(partnerId);
       setFriendPresence({
-        userId: activeConversation.otherUser.id,
-        online: isRecentlyActive,
-        lastSeen: lastSeen || new Date().toISOString(),
+        userId: partnerId,
+        online: isOnline,
+        lastSeen: activeConversation.otherUser.last_seen_at || new Date().toISOString(),
       });
+      if (!isOnline) {
+        setPartnerActivity(null);
+      }
     } else {
       setFriendPresence({
         userId: '',
         online: false,
         lastSeen: new Date().toISOString(),
       });
+      setPartnerActivity(null);
     }
-  }, [activeConversation]);
+  }, [activeConversation?.otherUser?.id, activeConversation?.otherUser?.last_seen_at, onlineUserIds]);
 
   // Load conversations
   const refreshConversations = useCallback(async () => {
@@ -762,6 +780,109 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isConfigured, profile, refreshConversations]);
 
+  // Global presence channel tracking all online users in the app
+  useEffect(() => {
+    if (!isConfigured || !profile?.id) return;
+
+    const supabase = getSupabaseBrowserClient();
+    const globalChannel = supabase.channel('global-presence', {
+      config: {
+        presence: {
+          key: profile.id,
+        },
+      },
+    });
+
+    globalChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = globalChannel.presenceState();
+        const activeIds = new Set<string>();
+        Object.keys(state).forEach(key => {
+          if (state[key] && (state[key] as any).length > 0) {
+            activeIds.add(key);
+          }
+        });
+        setOnlineUserIds(activeIds);
+      })
+      .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
+        setOnlineUserIds(prev => {
+          const next = new Set(prev);
+          next.add(key);
+          return next;
+        });
+      })
+      .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
+        setOnlineUserIds(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+        if (key === activeConversation?.otherUser?.id) {
+          setPartnerActivity(null);
+        }
+      });
+
+    globalChannel.subscribe((status: string) => {
+      if (status === 'SUBSCRIBED') {
+        globalChannel.track({
+          user_id: profile.id,
+          online_at: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Untrack presence immediately on unload, pagehide, or network disconnect
+    const handleImmediateLeave = () => {
+      try {
+        globalChannel.untrack();
+        supabase
+          .from('profiles')
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq('id', profile.id)
+          .then(() => {});
+      } catch {}
+    };
+
+    let visibilityTimer: NodeJS.Timeout | null = null;
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        visibilityTimer = setTimeout(() => {
+          try {
+            globalChannel.untrack();
+          } catch {}
+        }, 4000);
+      } else {
+        if (visibilityTimer) {
+          clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
+        try {
+          globalChannel.track({
+            user_id: profile.id,
+            online_at: new Date().toISOString(),
+          });
+        } catch {}
+      }
+    };
+
+    window.addEventListener('beforeunload', handleImmediateLeave);
+    window.addEventListener('pagehide', handleImmediateLeave);
+    window.addEventListener('offline', handleImmediateLeave);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (visibilityTimer) clearTimeout(visibilityTimer);
+      window.removeEventListener('beforeunload', handleImmediateLeave);
+      window.removeEventListener('pagehide', handleImmediateLeave);
+      window.removeEventListener('offline', handleImmediateLeave);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      try {
+        globalChannel.untrack();
+        globalChannel.unsubscribe();
+      } catch {}
+    };
+  }, [isConfigured, profile?.id, activeConversation?.otherUser?.id]);
+
   // Handle active conversation change
   useEffect(() => {
     if (activeConversationId) {
@@ -796,12 +917,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const state = channel.presenceState();
         const otherUserId = activeConversation?.otherUser?.id;
         if (otherUserId) {
-          const isPresent = Boolean(state[otherUserId] && (state[otherUserId] as any).length > 0);
+          const isInChannel = Boolean(state[otherUserId] && (state[otherUserId] as any).length > 0);
+          const isPresent = isInChannel || onlineUserIdsRef.current.has(otherUserId);
           setFriendPresence(prev => ({
             userId: otherUserId,
             online: isPresent,
             lastSeen: isPresent ? new Date().toISOString() : (activeConversation?.otherUser?.last_seen_at || prev.lastSeen),
           }));
+          if (!isPresent) {
+            setPartnerActivity(null);
+          }
         }
       })
       .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
@@ -820,6 +945,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             online: false,
             lastSeen: new Date().toISOString(),
           }));
+          setPartnerActivity(null);
         }
       });
 
@@ -1523,6 +1649,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         isMediaDrawerOpen,
         typingUsers,
         friendPresence,
+        isUserOnline,
+        onlineUserIds,
         setActiveConversationId,
         setReplyingTo,
         setSearchQuery,

@@ -42,6 +42,7 @@ export function NotificationBell({ onOpenConnect, className }: NotificationBellP
     respondToRequest,
     setActiveConversationId,
     friendPresence,
+    isUserOnline,
     deleteFriend,
   } = useChat();
 
@@ -358,7 +359,7 @@ export function NotificationBell({ onOpenConnect, className }: NotificationBellP
 
                       {friends.map(({ conversationId, friend }) => {
                         const isFriendOnline =
-                          friendPresence.userId === friend.id ? friendPresence.online : false;
+                          friend?.id ? isUserOnline(friend.id) : (friendPresence.userId === friend.id ? friendPresence.online : false);
 
                         return (
                           <div

@@ -46,6 +46,7 @@ export function Sidebar() {
     activeConversationId,
     setActiveConversationId,
     friendPresence,
+    isUserOnline,
     setIsMediaDrawerOpen,
     incomingRequests,
     respondToRequest,
@@ -449,7 +450,7 @@ export function Sidebar() {
             filteredConversations.map(conv => {
               const other = conv.otherUser;
               const isActive = conv.id === activeConversationId;
-              const isOtherOnline = other?.id === friendPresence.userId ? friendPresence.online : false;
+              const isOtherOnline = other?.id ? isUserOnline(other.id) : (other?.id === friendPresence.userId ? friendPresence.online : false);
               const isPartnerTyping = typingUsers.some(
                 u => u === other?.display_name || u === other?.username
               );
@@ -515,15 +516,15 @@ export function Sidebar() {
                     {/* Bottom Row: Status Tick + Last Message / Typing... + Unread Badge */}
                     <div className="flex items-center justify-between gap-1.5 text-xs">
                       <div className="truncate flex items-center min-w-0 max-w-[190px] sm:max-w-[210px]">
-                        {isPartnerTyping || (isActive && partnerActivity?.activity === 'typing') ? (
+                        {isOtherOnline && (isPartnerTyping || (isActive && partnerActivity?.activity === 'typing')) ? (
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1 animate-pulse">
                             typing...
                           </span>
-                        ) : isActive && partnerActivity?.activity === 'viewing_image' ? (
+                        ) : isOtherOnline && isActive && partnerActivity?.activity === 'viewing_image' ? (
                           <span className="text-purple-600 dark:text-purple-400 font-medium text-xs flex items-center gap-1 animate-pulse">
                             📸 viewing photo...
                           </span>
-                        ) : isActive && partnerActivity?.activity === 'in_chat' ? (
+                        ) : isOtherOnline && isActive && partnerActivity?.activity === 'in_chat' ? (
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1">
                             👀 in chat
                           </span>

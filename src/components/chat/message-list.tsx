@@ -15,7 +15,12 @@ export function MessageList() {
     typingUsers,
     activeConversation,
     partnerActivity,
+    friendPresence,
+    isUserOnline,
   } = useChat();
+
+  const partnerId = activeConversation?.otherUser?.id;
+  const isPartnerOnline = partnerId ? isUserOnline(partnerId) || friendPresence.online : friendPresence.online;
 
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -158,8 +163,8 @@ export function MessageList() {
         </div>
       ))}
 
-      {/* Snapchat-Style Live Activity Indicators */}
-      {partnerActivity?.activity === 'typing' || typingUsers.length > 0 ? (
+      {/* Snapchat-Style Live Activity Indicators - strictly when partner is online */}
+      {isPartnerOnline && (partnerActivity?.activity === 'typing' || typingUsers.length > 0) ? (
         <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200">
           <Avatar
             name={activeConversation?.otherUser?.display_name || 'Partner'}
@@ -178,7 +183,7 @@ export function MessageList() {
             />
           </div>
         </div>
-      ) : partnerActivity?.activity === 'viewing_image' ? (
+      ) : isPartnerOnline && partnerActivity?.activity === 'viewing_image' ? (
         <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200 select-none">
           <Avatar
             name={activeConversation?.otherUser?.display_name || 'Partner'}
@@ -190,7 +195,7 @@ export function MessageList() {
             <span>{activeConversation?.otherUser?.display_name || 'Partner'} is viewing photo</span>
           </div>
         </div>
-      ) : partnerActivity?.activity === 'in_chat' ? (
+      ) : isPartnerOnline && partnerActivity?.activity === 'in_chat' ? (
         <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200 select-none">
           <Avatar
             name={activeConversation?.otherUser?.display_name || 'Partner'}

@@ -34,6 +34,7 @@ export function ConversationHeader() {
     activeConversation,
     setActiveConversationId,
     friendPresence,
+    isUserOnline,
     isSearching,
     setIsSearching,
     searchQuery,
@@ -56,6 +57,7 @@ export function ConversationHeader() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = React.useState(false);
 
   const friend = activeConversation?.otherUser;
+  const isOnline = friend?.id ? isUserOnline(friend.id) || friendPresence.online : friendPresence.online;
 
   const handleStartCall = (type: 'voice' | 'video') => {
     if (friend) {
@@ -119,7 +121,7 @@ export function ConversationHeader() {
                 src={friend?.avatar_path}
                 name={friend?.display_name || 'Partner'}
                 size="md"
-                isOnline={friendPresence.online}
+                isOnline={isOnline}
               />
             </div>
 
@@ -136,8 +138,8 @@ export function ConversationHeader() {
               </div>
 
               <div className="flex items-center gap-2 text-xs truncate">
-                {/* Snapchat-Style Live Activity Status */}
-                {partnerActivity?.activity === 'typing' || typingUsers.length > 0 ? (
+                {/* Snapchat-Style Live Activity Status - ONLY when partner is ACTUALLY online */}
+                {isOnline && (partnerActivity?.activity === 'typing' || typingUsers.length > 0) ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 animate-pulse">
                     <span className="flex items-center gap-0.5">
                       <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
@@ -146,17 +148,17 @@ export function ConversationHeader() {
                     </span>
                     <span>typing...</span>
                   </span>
-                ) : partnerActivity?.activity === 'viewing_image' ? (
+                ) : isOnline && partnerActivity?.activity === 'viewing_image' ? (
                   <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-pulse">
                     <span>📸</span>
                     <span>viewing photo...</span>
                   </span>
-                ) : partnerActivity?.activity === 'in_chat' ? (
+                ) : isOnline && partnerActivity?.activity === 'in_chat' ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-0.5" />
                     <span>👀 In chat</span>
                   </span>
-                ) : friendPresence.online ? (
+                ) : isOnline ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                     <span>online</span>

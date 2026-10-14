@@ -60,7 +60,9 @@ export function formatLastSeen(dateString?: string | null): string {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    if (diffMs < 90000) return 'online';
+    if (diffMs < 60000) return 'last seen just now';
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 60) return `last seen ${minutes}m ago`;
     if (isToday(date)) {
       return `last seen today at ${format(date, 'h:mm a')}`;
     }
