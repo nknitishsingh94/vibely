@@ -397,8 +397,8 @@ export function CallModal() {
         className={cn(
           "relative w-full h-[100dvh] sm:max-w-lg sm:h-[92vh] sm:max-h-[760px] sm:rounded-3xl sm:border sm:shadow-2xl flex flex-col justify-between overflow-hidden transition-colors duration-300",
           isLightScreen
-            ? "bg-white sm:border-slate-200"
-            : "bg-[#070D12] sm:border-white/10"
+            ? "bg-background text-foreground sm:border-border"
+            : "bg-[#070D12] text-white sm:border-white/10"
         )}
       >
         {/* 1. BACKGROUND FULLSCREEN MEDIA LAYER */}
@@ -491,17 +491,17 @@ export function CallModal() {
           )
         ) : (
           /* Voice Call Backdrop */
-          <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#F0FDF4] via-white to-[#F8FAFC] z-0">
+          <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-emerald-500/10 via-background to-background z-0">
             {isMultiPeer ? (
               <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-12 mb-20">
-                <div className="flex flex-col items-center p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-sm relative">
+                <div className="flex flex-col items-center p-3.5 rounded-2xl bg-card border border-border/80 shadow-sm relative">
                   <Avatar
                     src={partner?.avatar_path || undefined}
                     name={partner?.display_name}
                     size="lg"
                     className="w-16 h-16 text-xl ring-2 ring-emerald-500/40 rounded-full"
                   />
-                  <p className="text-xs text-[#0C3B2E] font-semibold mt-2 truncate max-w-[110px]">
+                  <p className="text-xs text-foreground font-semibold mt-2 truncate max-w-[110px]">
                     {partner.display_name}
                   </p>
                   <span className="text-[10px] text-emerald-600 font-mono mt-0.5">
@@ -511,7 +511,7 @@ export function CallModal() {
                 {participants.map(p => (
                   <div
                     key={p.id}
-                    className="flex flex-col items-center p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-sm relative"
+                    className="flex flex-col items-center p-3.5 rounded-2xl bg-card border border-border/80 shadow-sm relative"
                   >
                     <Avatar
                       src={p.profile.avatar_path || undefined}
@@ -519,7 +519,7 @@ export function CallModal() {
                       size="lg"
                       className="w-16 h-16 text-xl ring-2 ring-emerald-500/40 rounded-full"
                     />
-                    <p className="text-xs text-[#0C3B2E] font-semibold mt-2 truncate max-w-[110px]">
+                    <p className="text-xs text-foreground font-semibold mt-2 truncate max-w-[110px]">
                       {p.profile.display_name}
                     </p>
                     <span className="text-[10px] text-emerald-600 font-mono mt-0.5">
@@ -547,9 +547,9 @@ export function CallModal() {
                   size="xl"
                   className="w-32 h-32 text-4xl ring-4 ring-emerald-500/30 relative z-10 shadow-xl rounded-full"
                 />
-                <h3 className="text-2xl font-bold text-[#0C3B2E] mt-4">{partner?.display_name}</h3>
+                <h3 className="text-2xl font-bold text-foreground mt-4">{partner?.display_name}</h3>
                 {partner?.username && (
-                  <p className="text-xs text-slate-500 font-mono mt-0.5">
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
                     @{partner.username.replace(/^@/, '')}
                   </p>
                 )}
@@ -688,7 +688,7 @@ export function CallModal() {
                 <h2
                   className={cn(
                     "text-base font-bold truncate max-w-[150px] sm:max-w-[200px]",
-                    isLightScreen ? "text-[#0C3B2E]" : "text-white drop-shadow-md"
+                    isLightScreen ? "text-foreground" : "text-white drop-shadow-md"
                   )}
                 >
                   {isMultiPeer
@@ -699,7 +699,7 @@ export function CallModal() {
                   className={cn(
                     "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold shadow-xs",
                     isLightScreen
-                      ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-800"
+                      ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300"
                       : "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
                   )}
                 >
@@ -948,23 +948,23 @@ export function CallModal() {
           <div
             className={cn(
               "absolute inset-0 z-50 p-4 flex flex-col justify-between animate-in fade-in duration-150 backdrop-blur-xl",
-              isLightScreen ? "bg-white/98 text-slate-900" : "bg-black/95 text-white"
+              isLightScreen ? "bg-card/98 text-foreground" : "bg-black/95 text-white"
             )}
           >
             {/* Header */}
             <div
               className={cn(
                 "flex items-center justify-between pb-3 border-b",
-                isLightScreen ? "border-slate-200" : "border-white/10"
+                isLightScreen ? "border-border" : "border-white/10"
               )}
             >
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                   <UserPlus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className={cn("text-sm font-bold", isLightScreen ? "text-[#0C3B2E]" : "text-white")}>Merge Call</h3>
-                  <p className={cn("text-[11px]", isLightScreen ? "text-slate-500" : "text-white/50")}>Add friends to talk together</p>
+                  <h3 className={cn("text-sm font-bold", isLightScreen ? "text-foreground" : "text-white")}>Merge Call</h3>
+                  <p className={cn("text-[11px]", isLightScreen ? "text-muted-foreground" : "text-white/50")}>Add friends to talk together</p>
                 </div>
               </div>
               <button

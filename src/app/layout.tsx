@@ -33,7 +33,11 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#0C3B2E',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#0C3B2E' },
+    { media: '(prefers-color-scheme: dark)', color: '#051812' },
+  ],
+  colorScheme: 'light dark',
   interactiveWidget: 'resizes-content',
 };
 
@@ -69,12 +73,11 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
+      <body className="min-h-full flex flex-col bg-background text-foreground selection:bg-emerald-500/20">
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
-          forcedTheme="light"
-          enableSystem={false}
+          defaultTheme="system"
+          enableSystem={true}
           disableTransitionOnChange
         >
           <AuthProvider>

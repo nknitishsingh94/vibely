@@ -37,18 +37,18 @@ export function IncomingCallModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200 select-none">
-      <div className="relative w-full max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl p-6 flex flex-col items-center text-center overflow-hidden">
+      <div className="relative w-full max-w-sm rounded-3xl bg-card border border-border shadow-2xl p-6 flex flex-col items-center text-center overflow-hidden">
         {/* Glow backdrop */}
-        <div className="absolute -top-16 -left-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
+        <div className="absolute -top-16 -left-16 w-48 h-48 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-full blur-3xl pointer-events-none animate-pulse" />
 
         {isGroup ? (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-4">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold mb-4">
             <Users className="w-3.5 h-3.5" />
             <span>Group {isVideo ? 'Video' : 'Voice'} Call</span>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-4">
-            <Sparkles className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold mb-4">
+            <Sparkles className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
             <span>Incoming {isVideo ? 'Video' : 'Voice'} Call</span>
           </div>
         )}
@@ -73,7 +73,7 @@ export function IncomingCallModal() {
                     src={p.avatar_path || undefined}
                     name={p.display_name}
                     size="sm"
-                    className="w-8 h-8 text-[10px] ring-2 ring-white rounded-full"
+                    className="w-8 h-8 text-[10px] ring-2 ring-white dark:ring-slate-900 rounded-full"
                   />
                 ))}
               </div>
@@ -88,22 +88,22 @@ export function IncomingCallModal() {
           )}
         </div>
 
-        <h3 className="text-xl font-bold text-[#0C3B2E] mt-2">
+        <h3 className="text-xl font-bold text-foreground mt-2">
           {incomingCall.caller.display_name}
         </h3>
         {incomingCall.caller.username && (
-          <p className="text-xs text-slate-500 font-mono mt-0.5">
+          <p className="text-xs text-muted-foreground font-mono mt-0.5">
             @{incomingCall.caller.username.replace(/^@/, '')}
           </p>
         )}
 
         {isGroup && otherParticipants.length > 0 && (
-          <p className="text-xs text-emerald-800 font-medium mt-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200">
+          <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium mt-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             Invited you to join with {otherParticipants.map(p => p.display_name).join(', ')}
           </p>
         )}
 
-        <p className="text-xs text-emerald-600 font-medium tracking-wide mt-2 animate-pulse">
+        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide mt-2 animate-pulse">
           {isProcessing ? 'Connecting...' : 'Ringing...'}
         </p>
 
@@ -120,7 +120,7 @@ export function IncomingCallModal() {
             >
               <PhoneOff className="w-6 h-6" />
             </button>
-            <span className="text-[11px] text-slate-600 font-medium">Decline</span>
+            <span className="text-[11px] text-muted-foreground font-medium">Decline</span>
           </div>
 
           {/* Accept Button */}
@@ -134,7 +134,7 @@ export function IncomingCallModal() {
             >
               {isVideo ? <Video className="w-6 h-6" /> : <Phone className="w-6 h-6" />}
             </button>
-            <span className="text-[11px] text-emerald-700 font-semibold">
+            <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
               {isProcessing ? 'Connecting' : isGroup ? 'Join Call' : 'Accept'}
             </span>
           </div>
