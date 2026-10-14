@@ -148,6 +148,16 @@ export function ConversationHeader() {
                     </span>
                     <span>typing...</span>
                   </span>
+                ) : isOnline && partnerActivity?.activity === 'viewing_image' ? (
+                  <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-pulse">
+                    <span>📸</span>
+                    <span>viewing photo...</span>
+                  </span>
+                ) : isOnline && partnerActivity?.activity === 'in_chat' ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-0.5" />
+                    <span>👀 In chat</span>
+                  </span>
                 ) : isOnline ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
