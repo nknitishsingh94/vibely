@@ -1698,6 +1698,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!profile) return { error: 'Not authenticated' };
 
     const nowIso = new Date().toISOString();
+    const targetMsg = messages.find(m => m.id === messageId);
 
     if (mode === 'for_me') {
       storeDeletedForMe(profile.id, [messageId]);
@@ -1720,7 +1721,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (mode === 'for_everyone') {
-      const targetMsg = messages.find(m => m.id === messageId);
       if (targetMsg && targetMsg.sender_id !== profile.id) {
         return { error: 'You can only delete your own messages for everyone' };
       }
@@ -1753,17 +1753,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }),
     }).catch(err => console.error('Delete message API error:', err));
 
-    // 3. Delete for everyone: update database and broadcast
+    // 3. Delete for everyone: update database, delete storage files, and broadcast
     if (!isConfigured) return {};
 
     try {
       const supabase = getSupabaseBrowserClient();
+
+      // Remove physical file from Supabase Storage
+      if (targetMsg?.storage_path) {
+        supabase.storage.from('chat-media').remove([targetMsg.storage_path]).catch(() => {});
+      }
+
       const { error } = await supabase
         .from('messages')
         .update({
           deleted_at: nowIso,
           body: null,
           storage_path: null,
+          original_filename: null,
+          file_size: null,
+          mime_type: null,
         })
         .eq('id', messageId)
         .eq('sender_id', profile.id);
@@ -1851,12 +1860,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const supabase = getSupabaseBrowserClient();
+
+      // Remove physical files from Supabase Storage
+      const outgoingStoragePaths = messages
+        .filter(m => outgoingIds.includes(m.id) && m.storage_path)
+        .map(m => m.storage_path as string);
+
+      if (outgoingStoragePaths.length > 0) {
+        supabase.storage.from('chat-media').remove(outgoingStoragePaths).catch(() => {});
+      }
+
       await supabase
         .from('messages')
         .update({
           deleted_at: nowIso,
           body: null,
           storage_path: null,
+          original_filename: null,
+          file_size: null,
+          mime_type: null,
         })
         .in('id', outgoingIds)
         .eq('sender_id', profile.id);

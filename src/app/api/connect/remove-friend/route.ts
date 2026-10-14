@@ -71,13 +71,33 @@ export async function POST(req: Request) {
 
     // 2. If a conversation exists, delete it cleanly
     if (targetConvId) {
-      // Delete conversation members first
+      // A. Delete all uploaded media files from Supabase Storage ('chat-media' bucket)
+      try {
+        const { data: fileList } = await db.storage
+          .from('chat-media')
+          .list(targetConvId);
+
+        if (fileList && fileList.length > 0) {
+          const filePaths = fileList.map(f => `${targetConvId}/${f.name}`);
+          await db.storage.from('chat-media').remove(filePaths);
+        }
+      } catch (storageErr) {
+        console.error('Failed to clean up conversation media files in storage:', storageErr);
+      }
+
+      // B. Permanently delete all message records for this conversation
+      await db
+        .from('messages')
+        .delete()
+        .eq('conversation_id', targetConvId);
+
+      // C. Delete conversation members
       await db
         .from('conversation_members')
         .delete()
         .eq('conversation_id', targetConvId);
 
-      // Delete the conversation record
+      // D. Delete the conversation record
       await db
         .from('conversations')
         .delete()

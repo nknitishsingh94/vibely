@@ -44,14 +44,37 @@ export async function POST(req: Request) {
 
     const nowIso = new Date().toISOString();
 
+    // 1. Fetch any storage paths associated with these messages to delete physical files from Supabase Storage
+    const { data: msgsWithStorage } = await db
+      .from('messages')
+      .select('id, storage_path, sender_id')
+      .in('id', messageIds);
+
+    const storagePathsToRemove = (msgsWithStorage || [])
+      .filter(m => (mode === 'for_everyone' ? m.sender_id === userId : true))
+      .map(m => m.storage_path)
+      .filter((p): p is string => Boolean(p));
+
+    // Remove files from Supabase Storage bucket ('chat-media') to free up storage space
+    if (storagePathsToRemove.length > 0) {
+      try {
+        await db.storage.from('chat-media').remove(storagePathsToRemove);
+      } catch (storageErr) {
+        console.error('Failed to remove media files from chat-media storage:', storageErr);
+      }
+    }
+
     if (mode === 'for_everyone') {
-      // 1. Delete for everyone: permanently update deleted_at, body, and storage_path in DB
+      // 2. Delete for everyone: permanently wipe body (encrypted ciphertext), storage_path, and metadata from DB
       const { error: updateErr } = await db
         .from('messages')
         .update({
           deleted_at: nowIso,
           body: null,
           storage_path: null,
+          original_filename: null,
+          file_size: null,
+          mime_type: null,
         })
         .in('id', messageIds)
         .eq('sender_id', userId);
@@ -62,6 +85,21 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ success: true, deletedAt: nowIso, count: messageIds.length });
+    }
+
+    if (mode === 'permanent' || mode === 'hard_delete') {
+      // Hard delete: completely delete the rows from messages table
+      const { error: deleteErr } = await db
+        .from('messages')
+        .delete()
+        .in('id', messageIds)
+        .eq('sender_id', userId);
+
+      if (deleteErr) {
+        return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, count: messageIds.length });
     }
 
     // For 'for_me', if any message was already marked deleted_at (a placeholder) AND the user is the sender,
