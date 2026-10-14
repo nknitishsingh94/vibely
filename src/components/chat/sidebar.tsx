@@ -568,22 +568,6 @@ export function Sidebar() {
                             {conv.unreadCount}
                           </span>
                         )}
-
-                        {/* Quick Delete Chat Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setConfirmDeleteChat({ friend: other, conversationId: conv.id });
-                          }}
-                          className="flex items-center gap-1 px-1.5 py-1 rounded-lg text-[11px] font-medium text-rose-600/80 hover:text-rose-600 bg-rose-500/5 hover:bg-rose-500/15 border border-rose-500/20 transition-all cursor-pointer shrink-0"
-                          title="Delete Chat"
-                          aria-label="Delete Chat"
-                        >
-                          <Trash2 className="w-3 h-3 text-rose-500" />
-                          <span className="hidden sm:inline">Delete</span>
-                        </button>
                       </div>
                     </div>
                   </div>

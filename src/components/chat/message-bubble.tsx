@@ -395,7 +395,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         className={cn(
-          'relative max-w-[85%] sm:max-w-md rounded-2xl shadow-xs transition-all overflow-hidden',
+          'relative max-w-[85%] sm:max-w-md rounded-2xl shadow-xs transition-all',
           isImageOnly ? 'p-1 sm:p-1.5' : 'p-3 sm:p-3.5 pr-7 sm:pr-8',
           isLittleNote
             ? 'little-note-card rounded-2xl'
@@ -404,118 +404,127 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
             : 'bg-white dark:bg-[#202C33] text-foreground border border-border/70 rounded-bl-xs shadow-2xs'
         )}
       >
-        {/* Subtle Dropdown Chevron for Mobile & Touch */}
+        {/* Subtle Dropdown Chevron & Context Menu */}
         {!isEditing && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowMobileMenu(prev => !prev);
-            }}
-            className={cn(
-              'absolute top-2 right-2 p-1 rounded-full text-xs transition-all cursor-pointer z-10',
-              isOutgoing
-                ? 'text-white/70 hover:text-white hover:bg-white/10'
-                : 'text-muted-foreground/70 hover:text-foreground hover:bg-muted',
-              'opacity-70 sm:opacity-0 sm:group-hover:opacity-100'
-            )}
-            title="Message options"
-            aria-label="Message options"
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* Action Menu Popup (Anchored Dropdown for Mobile / Desktop) */}
-        {showMobileMenu && (
-          <>
-            <div
-              className="fixed inset-0 z-30"
-              onClick={() => setShowMobileMenu(false)}
-            />
-            <div
+          <div className="absolute top-2 right-2 z-30">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMobileMenu(prev => !prev);
+              }}
               className={cn(
-                'absolute z-40 top-8 w-44 rounded-2xl bg-card border border-border/90 shadow-xl backdrop-blur-md p-1.5 space-y-1 animate-in fade-in zoom-in-95 text-foreground select-none',
-                isOutgoing ? 'right-0' : 'left-0'
+                'p-1 rounded-full text-xs transition-all cursor-pointer flex items-center justify-center',
+                isOutgoing
+                  ? 'text-white/80 hover:text-white hover:bg-white/20 bg-black/15'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted bg-muted/60',
+                'opacity-90 hover:opacity-100 shadow-xs'
               )}
+              title="Message options"
+              aria-label="Message options"
             >
-              {/* Quick Emojis Bar */}
-              <div className="flex items-center justify-between px-1.5 py-1 border-b border-border/50 mb-1">
-                {COMMON_EMOJIS.slice(0, 5).map(emoji => (
-                  <button
-                    key={emoji}
-                    onClick={e => handleReactionClick(emoji, e)}
-                    className="p-1 hover:scale-125 transition-transform text-sm cursor-pointer"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
 
-              {/* Reply */}
-              <button
-                onClick={() => {
-                  setReplyingTo(message);
-                  setShowMobileMenu(false);
-                }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
-              >
-                <Reply className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>Reply</span>
-              </button>
-
-              {/* Copy */}
-              {displayBody && (
-                <button
-                  onClick={handleCopy}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
-                >
-                  {isCopied ? (
-                    <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                  )}
-                  <span>{isCopied ? 'Copied!' : 'Copy text'}</span>
-                </button>
-              )}
-
-              {/* Save to Moments */}
-              <button
-                onClick={handleToggleFavorite}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
-              >
-                <Bookmark className={cn('w-3.5 h-3.5', isBookmarked ? 'text-amber-500 fill-current' : 'text-muted-foreground')} />
-                <span>{isBookmarked ? 'Unsave moment' : 'Save to Moments'}</span>
-              </button>
-
-              {/* Edit (if available) */}
-              {isEditAvailable && (
-                <button
-                  onClick={() => {
-                    setIsEditing(true);
-                    setEditText(displayBody || '');
+            {/* Action Menu Popup (Anchored directly under Chevron) */}
+            {showMobileMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setShowMobileMenu(false);
                   }}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                />
+                <div
+                  className="absolute z-50 top-full mt-1.5 w-48 rounded-2xl bg-card border border-border/90 shadow-2xl backdrop-blur-md p-1.5 space-y-1 animate-in fade-in zoom-in-95 text-foreground select-none right-0"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>Edit message</span>
-                </button>
-              )}
+                  {/* Quick Emojis Bar */}
+                  <div className="flex items-center justify-between px-1.5 py-1 border-b border-border/50 mb-1">
+                    {COMMON_EMOJIS.slice(0, 5).map(emoji => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={e => handleReactionClick(emoji, e)}
+                        className="p-1 hover:scale-125 transition-transform text-sm cursor-pointer"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
 
-              {/* Delete */}
-              <button
-                onClick={() => {
-                  setShowMobileMenu(false);
-                  setShowDeleteModal(true);
-                }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-destructive/10 text-destructive transition-colors cursor-pointer text-left"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete message</span>
-              </button>
-            </div>
-          </>
+                  {/* Reply */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyingTo(message);
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                  >
+                    <Reply className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>Reply</span>
+                  </button>
+
+                  {/* Copy */}
+                  {displayBody && (
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                    >
+                      {isCopied ? (
+                        <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                      )}
+                      <span>{isCopied ? 'Copied!' : 'Copy text'}</span>
+                    </button>
+                  )}
+
+                  {/* Save to Moments */}
+                  <button
+                    type="button"
+                    onClick={handleToggleFavorite}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                  >
+                    <Bookmark className={cn('w-3.5 h-3.5', isBookmarked ? 'text-amber-500 fill-current' : 'text-muted-foreground')} />
+                    <span>{isBookmarked ? 'Unsave moment' : 'Save to Moments'}</span>
+                  </button>
+
+                  {/* Edit (if available) */}
+                  {isEditAvailable && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setEditText(displayBody || '');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                    >
+                      <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span>Edit message</span>
+                    </button>
+                  )}
+
+                  {/* Delete Option with Red Trash Icon */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowDeleteModal(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-destructive/10 text-destructive font-medium transition-colors cursor-pointer text-left"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    <span>Delete message</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {/* Little Note Header Badge */}
