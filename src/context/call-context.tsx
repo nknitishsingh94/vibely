@@ -95,7 +95,27 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -123,6 +143,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
   const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const addedCandidatesRef = useRef<Set<string>>(new Set());
   const participantsRef = useRef<CallParticipant[]>([]);
   useEffect(() => {
     participantsRef.current = participants;
@@ -223,6 +244,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     peerConnectionsRef.current.clear();
     remoteStreamsRef.current.clear();
     pendingIceCandidatesRef.current.clear();
+    addedCandidatesRef.current.clear();
     setParticipants([]);
 
     if (callRoomChannelRef.current) {
@@ -237,7 +259,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // Flush queued ICE candidates helper
   const flushPendingIceCandidates = useCallback(async (userId: string, pc: RTCPeerConnection) => {
     const pending = pendingIceCandidatesRef.current.get(userId) || [];
-    if (pending.length > 0 && pc.remoteDescription) {
+    if (pending.length > 0 && pc.remoteDescription && pc.remoteDescription.type) {
       for (const cand of pending) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(cand));
@@ -258,7 +280,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         timestamp: payload?.timestamp || Date.now(),
       };
 
-      // 1. Direct Server-Side Broadcast (<50ms delivery across all channels simultaneously)
+      // Direct Server-Side Broadcast (<50ms delivery across all channels simultaneously)
       fetch('/api/chat/call-signal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -272,17 +294,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }).catch(err => {
         console.warn('Server-side signal dispatch error:', err);
       });
-
-      // 2. Direct client WebSocket fallback
-      try {
-        const supabase = getSupabaseBrowserClient();
-        const callChannel = supabase.channel(`call-user:${targetUserId}`);
-        callChannel.send({
-          type: 'broadcast',
-          event,
-          payload: enrichedPayload,
-        }).catch(() => {});
-      } catch {}
     },
     []
   );
@@ -406,6 +417,27 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const pc = new RTCPeerConnection(RTC_CONFIG);
     peerConnectionsRef.current.set(remoteUser.id, pc);
 
+    // Monitor connection states for debugging & auto ICE-restart
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[WebRTC ICE State ${remoteUser.id}]:`, pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed') {
+        console.warn('ICE connection failed, attempting ICE restart...');
+        try {
+          pc.restartIce();
+        } catch {}
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`[WebRTC Connection State ${remoteUser.id}]:`, pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        console.warn('Connection failed, restarting ICE...');
+        try {
+          pc.restartIce();
+        } catch {}
+      }
+    };
+
     // Setup ontrack with reliable fresh MediaStream creation
     pc.ontrack = (event) => {
       let currentStream = remoteStreamsRef.current.get(remoteUser.id);
@@ -438,16 +470,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     };
 
-    // Setup onicecandidate with dual channel dispatch (room channel + direct signaling)
+    // Setup onicecandidate with clean serializable candidate payload
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        const cand = event.candidate.toJSON ? event.candidate.toJSON() : {
+          candidate: event.candidate.candidate,
+          sdpMid: event.candidate.sdpMid,
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+          usernameFragment: event.candidate.usernameFragment,
+        };
+
         const candPayload = {
           fromUserId: profile?.id,
           toUserId: remoteUser.id,
-          candidate: event.candidate,
+          candidate: cand,
         };
 
-        if (callRoomChannelRef.current) {
+        if (callRoomChannelRef.current?.state === 'joined') {
           callRoomChannelRef.current.send({
             type: 'broadcast',
             event: 'ice_candidate',
@@ -631,11 +670,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // Handle incoming ICE candidate from remote peer
   const handleReceiveIceCandidate = useCallback(async (payload: any) => {
-    const { fromUserId, candidate } = payload;
+    const { fromUserId, candidate, toUserId } = payload;
     if (!fromUserId || !candidate) return;
+    if (toUserId && profile?.id && toUserId !== profile.id) return;
+
+    const candString = typeof candidate === 'string' ? candidate : candidate.candidate || '';
+    if (!candString) return;
+
+    const candKey = `${fromUserId}:${candidate.sdpMid ?? ''}:${candidate.sdpMLineIndex ?? ''}:${candString}`;
+    if (addedCandidatesRef.current.has(candKey)) return;
+    addedCandidatesRef.current.add(candKey);
 
     const pc = peerConnectionsRef.current.get(fromUserId);
-    if (pc && pc.remoteDescription) {
+    if (pc && pc.remoteDescription && pc.remoteDescription.type) {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (e) {
@@ -646,7 +693,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       queue.push(candidate);
       pendingIceCandidatesRef.current.set(fromUserId, queue);
     }
-  }, []);
+  }, [profile?.id]);
 
   // Handle peer leaving or declining
   const handlePeerLeft = useCallback((userId: string) => {
@@ -1308,6 +1355,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       conversationId,
       roomId
     );
+
+    // 6. Also dispatch webrtc_answer for immediate SDP synchronization
+    if (answerSdp) {
+      sendSignalToUser(
+        caller.id,
+        'webrtc_answer',
+        {
+          fromUserId: profile.id,
+          toUserId: caller.id,
+          sdp: answerSdp,
+        },
+        conversationId,
+        roomId
+      );
+    }
   };
 
   // 4. Decline Call

@@ -23,50 +23,38 @@ export async function POST(req: Request) {
 
     const broadcastPromises: Promise<any>[] = [];
 
+    const sendToChannel = (channelName: string) => {
+      const channel = adminClient.channel(channelName);
+      if (typeof channel.httpSend === 'function') {
+        return channel.httpSend(event, enrichedPayload).catch(err => {
+          console.warn(`httpSend to ${channelName} failed:`, err);
+        });
+      } else {
+        return channel
+          .send({
+            type: 'broadcast',
+            event,
+            payload: enrichedPayload,
+          })
+          .catch(() => {});
+      }
+    };
+
     // 1. Direct user call channel
     if (targetUserId) {
-      const callChannel = adminClient.channel(`call-user:${targetUserId}`);
-      broadcastPromises.push(
-        callChannel.send({
-          type: 'broadcast',
-          event,
-          payload: enrichedPayload,
-        }).catch(() => {})
-      );
-
+      broadcastPromises.push(sendToChannel(`call-user:${targetUserId}`));
       // 2. Direct user notification channel
-      const notifChannel = adminClient.channel(`user-notifications:${targetUserId}`);
-      broadcastPromises.push(
-        notifChannel.send({
-          type: 'broadcast',
-          event,
-          payload: enrichedPayload,
-        }).catch(() => {})
-      );
+      broadcastPromises.push(sendToChannel(`user-notifications:${targetUserId}`));
     }
 
     // 3. Conversation channel (if present)
     if (conversationId) {
-      const convChannel = adminClient.channel(`conversation:${conversationId}`);
-      broadcastPromises.push(
-        convChannel.send({
-          type: 'broadcast',
-          event,
-          payload: enrichedPayload,
-        }).catch(() => {})
-      );
+      broadcastPromises.push(sendToChannel(`conversation:${conversationId}`));
     }
 
     // 4. Room channel (if present)
     if (roomId) {
-      const roomChannel = adminClient.channel(`call-room:${roomId}`);
-      broadcastPromises.push(
-        roomChannel.send({
-          type: 'broadcast',
-          event,
-          payload: enrichedPayload,
-        }).catch(() => {})
-      );
+      broadcastPromises.push(sendToChannel(`call-room:${roomId}`));
     }
 
     await Promise.allSettled(broadcastPromises);
