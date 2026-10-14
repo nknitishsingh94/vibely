@@ -17,6 +17,7 @@ import {
 } from '@/types/database';
 import { encryptMessage, decryptMessage } from '@/lib/e2ee';
 import { playSecurityAlertSound } from '@/lib/ringtone';
+import { showChatMessageNotification } from '@/lib/device-notifications';
 
 export type SecurityEventType = 'screenshot' | 'video_saved' | 'media_saved' | 'file_downloaded';
 
@@ -579,6 +580,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       })
       .on('broadcast', { event: 'request-declined' }, () => {
         refreshRequests();
+      })
+      .on('broadcast', { event: 'new_message' }, ({ payload }: any) => {
+        if (!payload || payload.sender?.id === profile.id) return;
+        refreshConversations();
+
+        const isCurrentOpen = activeConversationIdRef.current === payload.conversationId;
+        const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+
+        if (!isCurrentOpen || isHidden) {
+          showChatMessageNotification({
+            senderName: payload.sender?.display_name || 'Friend',
+            messageText: payload.body,
+            messageType: payload.messageType,
+            conversationId: payload.conversationId,
+            avatarUrl: payload.sender?.avatar_path,
+          });
+        }
       })
       .on('broadcast', { event: 'friend-removed' }, (payload: any) => {
         refreshConversations();
@@ -1226,6 +1244,17 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
           // If incoming message from other user, record receipt
           if (newMsg.sender_id !== profile.id) {
+            // If tab is in background, show device notification
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+              showChatMessageNotification({
+                senderName: senderProfile?.display_name || 'Friend',
+                messageText: completeMessage.body,
+                messageType: completeMessage.message_type,
+                conversationId: activeConversationId,
+                avatarUrl: senderProfile?.avatar_path,
+              });
+            }
+
             const nowIso = new Date().toISOString();
             await supabase.from('message_receipts').upsert(
               {
@@ -1573,6 +1602,32 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             : c
         )
       );
+
+      // Notify recipient device in real time via their user-notifications channel
+      const partnerId = activeConversation?.otherUser?.id;
+      if (partnerId && insertedMsg) {
+        try {
+          const userNotifChan = supabase.channel(`user-notifications:${partnerId}`);
+          userNotifChan.subscribe((status: string) => {
+            if (status === 'SUBSCRIBED') {
+              userNotifChan.send({
+                type: 'broadcast',
+                event: 'new_message',
+                payload: {
+                  conversationId: activeConversationId,
+                  sender: profile,
+                  messageType: payload.messageType,
+                  body: payload.body || '',
+                  created_at: insertedMsg.created_at,
+                },
+              });
+              setTimeout(() => {
+                supabase.removeChannel(userNotifChan);
+              }, 1200);
+            }
+          });
+        } catch {}
+      }
 
       return {};
     } catch (err: unknown) {

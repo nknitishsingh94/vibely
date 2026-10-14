@@ -5,6 +5,7 @@ import { useAuth } from './auth-context';
 import { useChat } from './chat-context';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { startOutgoingRing, startIncomingRing, stopAllRingtones, unlockAudioSession } from '@/lib/ringtone';
+import { showIncomingCallNotification, dismissCallNotification } from '@/lib/device-notifications';
 import {
   addCallLog,
   updateCallLog,
@@ -1035,6 +1036,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       // Start melodic ringtone chime on callee's device
       startIncomingRing();
 
+      // Trigger native device notification & mobile vibration for incoming call
+      showIncomingCallNotification({
+        callerName: payload.caller.display_name,
+        callType: payload.callType || 'voice',
+        callId,
+        conversationId: payload.conversationId,
+        avatarUrl: payload.caller.avatar_path,
+      });
+
       // Send ACK back to caller immediately
       sendSignalToUser(
         payload.caller.id,
@@ -1468,6 +1478,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!incomingCall || !profile) return;
 
     stopAllRingtones();
+    dismissCallNotification(incomingCall.callId);
     activeCallStatusRef.current = 'connected';
 
     const { caller, callType, conversationId, callId, roomId, isMerge, existingParticipants, sdp: initialOffer } = incomingCall;
@@ -1589,6 +1600,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // 4. Decline Call
   const declineCall = () => {
     stopAllRingtones();
+    dismissCallNotification(incomingCall?.callId || activeCallIdRef.current || undefined);
     activeCallStatusRef.current = 'idle';
 
     if (profile?.id && incomingCall) {
@@ -1628,6 +1640,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // 5. End Call
   const endCall = () => {
     stopAllRingtones();
+    dismissCallNotification(activeCallIdRef.current || undefined);
     activeCallStatusRef.current = 'ended';
 
     if (profile?.id && activeCallIdRef.current) {

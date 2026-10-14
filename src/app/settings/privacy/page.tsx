@@ -1,16 +1,25 @@
 'use client';
 
 import * as React from 'react';
-import { ShieldCheck, Eye, Keyboard, BellRing, Trash2, Laptop, AlertTriangle, Zap } from 'lucide-react';
+import { ShieldCheck, Eye, Keyboard, BellRing, Trash2, Laptop, AlertTriangle, Zap, Bell, PhoneCall, MessageSquareCheck, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
+import { toast } from '@/components/ui/toast';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
+import {
+  getNotificationPermission,
+  requestNotificationPermission,
+  showIncomingCallNotification,
+  showChatMessageNotification,
+  dismissCallNotification,
+} from '@/lib/device-notifications';
 
 export default function PrivacySettingsPage() {
   const { signOut } = useAuth();
   const router = useRouter();
 
+  const [notifPermission, setNotifPermission] = React.useState<NotificationPermission>('default');
   const [readReceipts, setReadReceipts] = React.useState(true);
   const [typingIndicators, setTypingIndicators] = React.useState(true);
   const [soundEffects, setSoundEffects] = React.useState(true);
@@ -22,6 +31,55 @@ export default function PrivacySettingsPage() {
   });
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+
+  React.useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, []);
+
+  const handleRequestPermission = async () => {
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      toast.success('Call & Message notifications enabled!');
+      // Show confirmation test notification
+      showChatMessageNotification({
+        senderName: 'Vibely Sanctuary',
+        messageText: '🎉 Call & Message notifications are active!',
+        conversationId: 'system_test',
+      });
+    } else if (perm === 'denied') {
+      toast.error('Notification permission was blocked in browser settings.');
+    }
+  };
+
+  const handleTestCallNotification = async () => {
+    if (notifPermission !== 'granted') {
+      await handleRequestPermission();
+      return;
+    }
+    toast.info('Simulating incoming call notification (5 seconds)...');
+    showIncomingCallNotification({
+      callerName: 'Alex (Test Call)',
+      callType: 'voice',
+      callId: 'test_call_' + Date.now(),
+    });
+    setTimeout(() => {
+      dismissCallNotification();
+    }, 5000);
+  };
+
+  const handleTestMessageNotification = async () => {
+    if (notifPermission !== 'granted') {
+      await handleRequestPermission();
+      return;
+    }
+    toast.success('Sending test message notification...');
+    showChatMessageNotification({
+      senderName: 'Alex',
+      messageText: 'Hey there! How is your day going? 💕',
+      conversationId: 'test_conv',
+    });
+  };
 
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
@@ -41,6 +99,72 @@ export default function PrivacySettingsPage() {
       </div>
 
       <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-xs space-y-6">
+        {/* Device & Push Notifications for Calls & Messages */}
+        <div className="space-y-3 pb-6 border-b border-border/60">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Call & Message Notifications</span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Rings and vibrates your phone when a call or message arrives
+              </p>
+            </div>
+            <span
+              className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border capitalize ${
+                notifPermission === 'granted'
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  : notifPermission === 'denied'
+                  ? 'bg-rose-500/10 text-rose-600 border-rose-500/30'
+                  : 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+              }`}
+            >
+              {notifPermission === 'granted' ? 'Active' : notifPermission === 'denied' ? 'Blocked' : 'Not Allowed'}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-muted/40 border border-border/40 space-y-3">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              When enabled, incoming voice and video calls will trigger notifications and phone vibration just like an actual call, and new messages will pop up with audio chimes.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {notifPermission !== 'granted' ? (
+                <Button
+                  size="sm"
+                  onClick={handleRequestPermission}
+                  className="rounded-xl text-xs font-semibold bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-xs"
+                >
+                  <Bell className="w-3.5 h-3.5 mr-1.5" />
+                  Enable Call & Message Notifications
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleTestCallNotification}
+                    className="rounded-xl text-xs font-medium border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5 mr-1.5" />
+                    Test Call Ring & Vibrate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleTestMessageNotification}
+                    className="rounded-xl text-xs font-medium border-border hover:bg-muted cursor-pointer"
+                  >
+                    <MessageSquareCheck className="w-3.5 h-3.5 mr-1.5" />
+                    Test Message Chime
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Real-Time Communication Preferences */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Real-Time Privacy</h3>

@@ -96,3 +96,42 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+// Handle notification clicks (Mobile & Desktop)
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  const targetUrl = data.url || (data.conversationId ? `/chat/${data.conversationId}` : '/chat');
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a window is already open, focus it
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if (data.type === 'call' && event.action === 'decline') {
+            client.postMessage({ type: 'CALL_DECLINE', callId: data.callId });
+          } else if (data.type === 'call') {
+            client.postMessage({ type: 'CALL_NOTIFICATION_CLICK', callId: data.callId });
+          }
+          return;
+        }
+      }
+      // If no window is open, open a new window to target URL
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
+self.addEventListener('notificationclose', (event) => {
+  const data = event.notification.data || {};
+  if (data.type === 'call') {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      clientList.forEach((client) => {
+        client.postMessage({ type: 'CALL_NOTIFICATION_DISMISSED', callId: data.callId });
+      });
+    });
+  }
+});
