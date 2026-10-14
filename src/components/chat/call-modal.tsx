@@ -19,6 +19,8 @@ import {
   Maximize2,
   Minimize2,
   Zap,
+  ScreenShare,
+  ScreenShareOff,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { useCall, type CallParticipant } from '@/context/call-context';
@@ -114,7 +116,10 @@ function ParticipantVideoTile({
           autoPlay
           playsInline
           muted
-          className="w-full h-full object-cover"
+          className={cn(
+            "w-full h-full",
+            participant.isScreenSharing ? "object-contain bg-black" : "object-cover"
+          )}
         />
       ) : (
         <div className="flex flex-col items-center justify-center p-3 text-center space-y-1.5">
@@ -136,6 +141,12 @@ function ParticipantVideoTile({
       {/* Participant badge */}
       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[10px] text-white flex items-center gap-1.5 font-medium border border-white/10">
         <span className="truncate max-w-[90px]">{participant.profile.display_name}</span>
+        {participant.isScreenSharing && (
+          <span className="flex items-center gap-0.5 text-emerald-400 font-semibold">
+            <ScreenShare className="w-2.5 h-2.5" />
+            <span className="text-[9px]">Screen</span>
+          </span>
+        )}
         {participant.isAudioMuted && <MicOff className="w-2.5 h-2.5 text-rose-400" />}
       </div>
     </div>
@@ -151,6 +162,8 @@ export function CallModal() {
     isMuted,
     isVideoEnabled,
     isSpeakerOn,
+    isScreenSharing,
+    isRemoteScreenSharing,
     facingMode,
     flipCamera,
     isAntiBusyMode,
@@ -159,6 +172,8 @@ export function CallModal() {
     toggleMute,
     toggleVideo,
     toggleSpeaker,
+    toggleScreenShare,
+    stopScreenShare,
     mergeCall,
   } = useCall();
 
@@ -169,6 +184,28 @@ export function CallModal() {
   const [invitedUserIds, setInvitedUserIds] = React.useState<Set<string>>(new Set());
   const [showControls, setShowControls] = React.useState(true);
   const [isPipExpanded, setIsPipExpanded] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const callContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      callContainerRef.current?.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  React.useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+    };
+  }, []);
 
   const localVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const singleRemoteVideoRef = React.useRef<HTMLVideoElement | null>(null);
@@ -278,8 +315,10 @@ export function CallModal() {
 
   const { partner, callType, status, duration, isGroup } = outgoingCall;
   const isVideo = callType === 'video';
+  const isScreenActive = isScreenSharing || isRemoteScreenSharing;
+  const isVideoView = isVideo || isScreenActive;
   const isMultiPeer = isGroup || participants.length > 1;
-  const isLightScreen = !isVideo || !isVideoEnabled || (!hasRemoteVideo && !isMultiPeer);
+  const isLightScreen = !isVideoView || (!hasRemoteVideo && !isMultiPeer && !isScreenActive);
 
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -348,6 +387,7 @@ export function CallModal() {
 
       {/* Main Full-Screen Calling Shell (Snapchat / FaceTime 100dvh edge-to-edge mobile container) */}
       <div
+        ref={callContainerRef}
         className={cn(
           "relative w-full h-[100dvh] sm:max-w-lg sm:h-[92vh] sm:max-h-[760px] sm:rounded-3xl sm:border sm:shadow-2xl flex flex-col justify-between overflow-hidden transition-colors duration-300",
           isLightScreen
@@ -356,7 +396,7 @@ export function CallModal() {
         )}
       >
         {/* 1. BACKGROUND FULLSCREEN MEDIA LAYER */}
-        {isVideo && isVideoEnabled ? (
+        {isVideoView && (isVideoEnabled || isScreenActive) ? (
           isMultiPeer ? (
             /* Multi-user video grid */
             <div className="absolute inset-0 w-full h-full grid grid-cols-2 gap-2 p-3 pt-20 pb-28 overflow-y-auto bg-zinc-950 z-0">
@@ -373,8 +413,10 @@ export function CallModal() {
                     playsInline
                     muted
                     className={cn(
-                      'w-full h-full object-cover',
-                      facingMode === 'user' && '-scale-x-100'
+                      'w-full h-full',
+                      isScreenSharing
+                        ? 'object-contain bg-black'
+                        : facingMode === 'user' ? 'object-cover -scale-x-100' : 'object-cover'
                     )}
                   />
                 ) : (
@@ -384,7 +426,8 @@ export function CallModal() {
                   </div>
                 )}
                 <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[10px] text-white font-medium border border-white/10 flex items-center gap-1">
-                  <span>You</span>
+                  <span>{isScreenSharing ? 'Your Screen' : 'You'}</span>
+                  {isScreenSharing && <ScreenShare className="w-2.5 h-2.5 text-emerald-400" />}
                   {isMuted && <MicOff className="w-2.5 h-2.5 text-rose-400" />}
                 </div>
               </div>
@@ -392,16 +435,21 @@ export function CallModal() {
           ) : (
             /* 1-on-1 Full-Screen Video Canvas (Edge-to-edge Snapchat style) */
             <div
-              className="absolute inset-0 w-full h-full bg-zinc-950 overflow-hidden z-0"
+              className="absolute inset-0 w-full h-full bg-zinc-950 overflow-hidden z-0 flex items-center justify-center"
               onClick={() => setShowControls(prev => !prev)}
             >
-              {hasRemoteVideo ? (
+              {hasRemoteVideo || isScreenSharing ? (
                 <video
-                  ref={handleRemoteVideoRef}
+                  ref={isScreenSharing && !hasRemoteVideo ? handleLocalVideoRef : handleRemoteVideoRef}
                   autoPlay
                   playsInline
-                  muted
-                  className="w-full h-full object-cover"
+                  muted={isScreenSharing && !hasRemoteVideo}
+                  className={cn(
+                    'w-full h-full transition-all duration-200',
+                    isRemoteScreenSharing || isScreenSharing
+                      ? 'object-contain bg-black'
+                      : 'object-cover'
+                  )}
                 />
               ) : (
                 /* Connecting / Camera waiting backdrop */
@@ -516,7 +564,7 @@ export function CallModal() {
         )}
 
         {/* 2. FLOATING PICTURE-IN-PICTURE (Self-view in Snapchat / FaceTime style) */}
-        {isVideo && isVideoEnabled && !isMultiPeer && (
+        {((isVideo && isVideoEnabled) || isScreenSharing) && !isMultiPeer && (
           <div
             onClick={() => setIsPipExpanded(prev => !prev)}
             className={cn(
@@ -534,8 +582,10 @@ export function CallModal() {
                 playsInline
                 muted
                 className={cn(
-                  'w-full h-full object-cover',
-                  facingMode === 'user' && '-scale-x-100'
+                  'w-full h-full',
+                  isScreenSharing
+                    ? 'object-contain bg-black'
+                    : facingMode === 'user' ? 'object-cover -scale-x-100' : 'object-cover'
                 )}
               />
             ) : (
@@ -545,23 +595,52 @@ export function CallModal() {
               </div>
             )}
 
-            {/* Quick Flip Camera Button right on the PiP */}
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation();
-                flipCamera();
-              }}
-              className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md text-white/90 border border-white/20 cursor-pointer active:scale-90 transition-transform shadow-md"
-              title="Flip camera (Front / Rear)"
-            >
-              <SwitchCamera className="w-3.5 h-3.5" />
-            </button>
+            {/* Quick Flip Camera Button right on the PiP (hidden during screen sharing) */}
+            {!isScreenSharing && (
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  flipCamera();
+                }}
+                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md text-white/90 border border-white/20 cursor-pointer active:scale-90 transition-transform shadow-md"
+                title="Flip camera (Front / Rear)"
+              >
+                <SwitchCamera className="w-3.5 h-3.5" />
+              </button>
+            )}
 
             {/* PiP Badge */}
-            <div className="absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[9px] text-white/90 font-medium">
-              You
+            <div className="absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[9px] text-white/90 font-medium flex items-center gap-1">
+              <span>{isScreenSharing ? 'Your Screen' : 'You'}</span>
+              {isScreenSharing && <ScreenShare className="w-2.5 h-2.5 text-emerald-400" />}
             </div>
+          </div>
+        )}
+
+        {/* SCREEN SHARE BANNER NOTIFICATION */}
+        {isRemoteScreenSharing && (
+          <div className="absolute top-18 sm:top-20 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-emerald-600/95 text-white text-xs font-semibold flex items-center gap-2 shadow-xl border border-emerald-400/40 backdrop-blur-md animate-in fade-in slide-in-from-top-2 pointer-events-auto">
+            <ScreenShare className="w-4 h-4 text-white animate-pulse" />
+            <span className="truncate max-w-[180px] sm:max-w-[240px]">{partner?.display_name}&apos;s Screen</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
+          </div>
+        )}
+
+        {isScreenSharing && (
+          <div className="absolute top-18 sm:top-20 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-black/85 text-white text-xs font-semibold flex items-center gap-2.5 shadow-2xl border border-emerald-500/50 backdrop-blur-md animate-in fade-in slide-in-from-top-2 pointer-events-auto">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="tracking-tight">Sharing your screen</span>
+            <button
+              type="button"
+              onClick={stopScreenShare}
+              className="ml-0.5 px-2.5 py-0.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+            >
+              Stop
+            </button>
           </div>
         )}
 
@@ -633,6 +712,24 @@ export function CallModal() {
 
           {/* Right: Anti-Busy Mode & Add Participant */}
           <div className="relative z-10 flex items-center gap-2">
+            {isRemoteScreenSharing && (
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className={cn(
+                  "p-2.5 rounded-full active:scale-90 backdrop-blur-md shadow-sm transition-all cursor-pointer border",
+                  isFullscreen
+                    ? "bg-emerald-600 text-white border-emerald-500"
+                    : isLightScreen
+                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+                    : "bg-white/15 hover:bg-white/25 text-white border-white/20"
+                )}
+                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Screen Share"}
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => toggleAntiBusyMode()}
@@ -692,13 +789,13 @@ export function CallModal() {
           />
 
           {/* Floating Controls Bar */}
-          <div className="relative z-10 flex items-center justify-center gap-3 sm:gap-4 w-full">
+          <div className="relative z-10 flex items-center justify-center gap-2.5 sm:gap-4 w-full">
             {/* Toggle Mic */}
             <button
               type="button"
               onClick={toggleMute}
               className={cn(
-                'w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
+                'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
                 isMuted
                   ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/40 ring-2 ring-rose-400'
                   : isLightScreen
@@ -715,7 +812,7 @@ export function CallModal() {
               type="button"
               onClick={toggleVideo}
               className={cn(
-                'w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
+                'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
                 isVideoEnabled && isVideo
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/40 ring-2 ring-emerald-400'
                   : isLightScreen
@@ -731,13 +828,34 @@ export function CallModal() {
               )}
             </button>
 
-            {/* Flip Camera (Front / Rear) - Essential Snapchat Feature */}
-            {isVideo && isVideoEnabled && (
+            {/* Toggle Screen Share (Desktop & Mobile) */}
+            <button
+              type="button"
+              onClick={toggleScreenShare}
+              className={cn(
+                'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95 border',
+                isScreenSharing
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/40 ring-2 ring-emerald-400 border-emerald-400 animate-pulse'
+                  : isLightScreen
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                  : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20'
+              )}
+              title={isScreenSharing ? 'Stop Sharing Screen' : 'Share Screen (Mobile & Desktop)'}
+            >
+              {isScreenSharing ? (
+                <ScreenShareOff className="w-5 h-5 text-white" />
+              ) : (
+                <ScreenShare className={cn("w-5 h-5", isLightScreen ? "text-emerald-700" : "text-emerald-400")} />
+              )}
+            </button>
+
+            {/* Flip Camera (Front / Rear) - Only shown when camera is active and not sharing screen */}
+            {isVideo && isVideoEnabled && !isScreenSharing && (
               <button
                 type="button"
                 onClick={flipCamera}
                 className={cn(
-                  "w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95 border",
+                  "w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95 border",
                   isLightScreen
                     ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200/90"
                     : "bg-white/15 hover:bg-white/25 text-white border-white/20 backdrop-blur-md"
@@ -753,7 +871,7 @@ export function CallModal() {
               type="button"
               onClick={toggleSpeaker}
               className={cn(
-                'w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
+                'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
                 isSpeakerOn
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
                   : isLightScreen
@@ -769,7 +887,7 @@ export function CallModal() {
             <button
               type="button"
               onClick={endCall}
-              className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-90 text-white flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all cursor-pointer ring-2 ring-rose-400/40"
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-90 text-white flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all cursor-pointer ring-2 ring-rose-400/40"
               title="End Call"
             >
               <PhoneOff className="w-6 h-6 text-white" />
