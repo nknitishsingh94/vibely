@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ShieldCheck, Eye, Keyboard, BellRing, Trash2, Laptop, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Eye, Keyboard, BellRing, Trash2, Laptop, AlertTriangle, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { useAuth } from '@/context/auth-context';
@@ -14,6 +14,12 @@ export default function PrivacySettingsPage() {
   const [readReceipts, setReadReceipts] = React.useState(true);
   const [typingIndicators, setTypingIndicators] = React.useState(true);
   const [soundEffects, setSoundEffects] = React.useState(true);
+  const [antiBusyMode, setAntiBusyMode] = React.useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('vibely_anti_busy_mode') === 'true';
+    }
+    return false;
+  });
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
@@ -93,6 +99,28 @@ export default function PrivacySettingsPage() {
                 type="checkbox"
                 checked={soundEffects}
                 onChange={e => setSoundEffects(e.target.checked)}
+                className="w-5 h-5 rounded-md text-emerald-600 accent-[#005C4B] cursor-pointer"
+              />
+            </div>
+
+            {/* Anti-Busy Stealth Mode */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/40 border border-border/40">
+              <div className="flex items-start gap-3">
+                <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-semibold text-foreground">Anti-Busy Mode (WhatsApp Busy Bypass)</h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Bypasses Android in-call telecom lock during Vibely calls so WhatsApp callers won't see you as busy or on another call (recommended with earphones)
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={antiBusyMode}
+                onChange={e => {
+                  setAntiBusyMode(e.target.checked);
+                  localStorage.setItem('vibely_anti_busy_mode', String(e.target.checked));
+                }}
                 className="w-5 h-5 rounded-md text-emerald-600 accent-[#005C4B] cursor-pointer"
               />
             </div>

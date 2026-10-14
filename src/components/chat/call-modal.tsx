@@ -18,6 +18,7 @@ import {
   SwitchCamera,
   Maximize2,
   Minimize2,
+  Zap,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { useCall, type CallParticipant } from '@/context/call-context';
@@ -151,6 +152,8 @@ export function CallModal() {
     isSpeakerOn,
     facingMode,
     flipCamera,
+    isAntiBusyMode,
+    toggleAntiBusyMode,
     endCall,
     toggleMute,
     toggleVideo,
@@ -596,8 +599,29 @@ export function CallModal() {
             </div>
           </div>
 
-          {/* Right: Add Participant Button */}
+          {/* Right: Anti-Busy Mode & Add Participant */}
           <div className="relative z-10 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => toggleAntiBusyMode()}
+              className={cn(
+                "px-2.5 py-1.5 rounded-full backdrop-blur-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 border",
+                isAntiBusyMode
+                  ? "bg-amber-500/25 border-amber-500/50 text-amber-300 ring-2 ring-amber-400/30"
+                  : "bg-white/15 border-white/20 text-white/70 hover:text-white"
+              )}
+              title={
+                isAntiBusyMode
+                  ? "Anti-Busy Mode ON: WhatsApp calls will NOT show busy!"
+                  : "Turn on Anti-Busy Mode (prevents WhatsApp from showing busy)"
+              }
+            >
+              <Zap className={cn("w-3.5 h-3.5", isAntiBusyMode && "text-amber-400 fill-amber-400")} />
+              <span className="text-[10px] tracking-tight">
+                {isAntiBusyMode ? "Anti-Busy ON" : "Anti-Busy"}
+              </span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsMergeDialogOpen(true)}

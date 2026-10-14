@@ -67,6 +67,8 @@ interface CallContextType {
   toggleSpeaker: () => void;
   flipCamera: () => Promise<void>;
   facingMode: 'user' | 'environment';
+  isAntiBusyMode: boolean;
+  toggleAntiBusyMode: (val?: boolean) => void;
 }
 
 const CallContext = createContext<CallContextType>({
@@ -92,6 +94,8 @@ const CallContext = createContext<CallContextType>({
   toggleVideo: () => {},
   toggleSpeaker: () => {},
   flipCamera: async () => {},
+  isAntiBusyMode: false,
+  toggleAntiBusyMode: () => {},
 });
 
 const RTC_CONFIG: RTCConfiguration = {
@@ -352,11 +356,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       return freshStream;
     }
 
-    const audioConstraints = {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    };
+    const isAntiBusy =
+      typeof window !== 'undefined' &&
+      localStorage.getItem('vibely_anti_busy_mode') === 'true';
+
+    // Anti-busy mode: disables VoIP communication filters so Chromium stays in MODE_NORMAL
+    // This stops Android from entering in-call telecom mode, so WhatsApp callers won't see "Busy / On another call"
+    const audioConstraints = isAntiBusy
+      ? {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        }
+      : {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        };
 
     // 2. Video call media acquisition with graceful multi-tier fallbacks
     if (callType === 'video') {
@@ -1628,6 +1644,32 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
+  const [isAntiBusyMode, setIsAntiBusyModeState] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('vibely_anti_busy_mode') === 'true';
+    }
+    return false;
+  });
+
+  const toggleAntiBusyMode = useCallback((enabled?: boolean) => {
+    setIsAntiBusyModeState(prev => {
+      const next = enabled !== undefined ? enabled : !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('vibely_anti_busy_mode', String(next));
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach(track => {
+          track.applyConstraints(
+            next
+              ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+              : { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          ).catch(() => {});
+        });
+      }
+      return next;
+    });
+  }, []);
+
   // Controls: Flip Camera (Snapchat / FaceTime front & rear camera switch)
   const flipCamera = async () => {
     if (!localStreamRef.current) return;
@@ -1687,6 +1729,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         isSpeakerOn,
         facingMode,
         flipCamera,
+        isAntiBusyMode,
+        toggleAntiBusyMode,
         callHistory,
         clearCallHistory,
         deleteCallLog,
