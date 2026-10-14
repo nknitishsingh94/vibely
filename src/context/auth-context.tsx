@@ -13,7 +13,8 @@ interface AuthContextType {
   isConfigured: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (data: { displayName: string; username: string; bio?: string | null }) => Promise<{ error?: string }>;
+  updateProfile: (data: { displayName: string; username: string; bio?: string | null; avatarPath?: string | null }) => Promise<{ error?: string }>;
+  uploadAvatar: (avatarData: string | null) => Promise<{ success: boolean; avatarUrl?: string; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   refreshProfile: async () => {},
   updateProfile: async () => ({ error: 'Not implemented' }),
+  uploadAvatar: async () => ({ success: false, error: 'Not implemented' }),
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -118,7 +120,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateProfile = async (data: { displayName: string; username: string; bio?: string | null }) => {
+  const updateProfile = async (data: {
+    displayName: string;
+    username: string;
+    bio?: string | null;
+    avatarPath?: string | null;
+  }) => {
     if (!profile) return { error: 'No profile found' };
 
     if (!isConfigured) {
@@ -127,20 +134,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         display_name: data.displayName,
         username: data.username,
         bio: data.bio ?? null,
+        avatar_path: data.avatarPath !== undefined ? data.avatarPath : prev.avatar_path,
       } : null);
       return {};
     }
 
     try {
       const supabase = getSupabaseBrowserClient();
+      const updates: any = {
+        display_name: data.displayName,
+        username: data.username,
+        bio: data.bio ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      if (data.avatarPath !== undefined) {
+        updates.avatar_path = data.avatarPath;
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          display_name: data.displayName,
-          username: data.username,
-          bio: data.bio ?? null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', profile.id);
 
       if (error) {
@@ -154,6 +167,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const uploadAvatar = async (
+    avatarData: string | null
+  ): Promise<{ success: boolean; avatarUrl?: string; error?: string }> => {
+    if (!profile) return { success: false, error: 'No profile found' };
+
+    try {
+      const res = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profile.id,
+          avatarData,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        return { success: false, error: data.error || 'Failed to update avatar' };
+      }
+
+      if (data.profile) {
+        setProfile(data.profile);
+      } else {
+        setProfile(prev => (prev ? { ...prev, avatar_path: data.avatarUrl ?? null } : null));
+      }
+
+      await refreshProfile();
+      return { success: true, avatarUrl: data.avatarUrl };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error updating avatar' };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -164,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         refreshProfile,
         updateProfile,
+        uploadAvatar,
       }}
     >
       {children}

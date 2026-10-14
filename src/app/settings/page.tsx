@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
 import { useRomanticFeatures } from '@/lib/romantic-features';
+import { AvatarPickerModal } from '@/components/chat/avatar-picker-modal';
 
 export default function SettingsHubPage() {
   const { user, profile, signOut } = useAuth();
@@ -35,6 +36,7 @@ export default function SettingsHubPage() {
   const [copied, setCopied] = React.useState(false);
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = React.useState(false);
 
   const myUsername = profile?.username ? `@${profile.username}` : '';
 
@@ -93,19 +95,27 @@ export default function SettingsHubPage() {
       {/* WhatsApp Profile Card Banner */}
       <div className="p-4 sm:p-5 rounded-3xl bg-card border border-border/80 shadow-xs space-y-4">
         <div className="flex items-center gap-4">
-          <div className="relative group shrink-0">
+          <div
+            onClick={() => setIsAvatarPickerOpen(true)}
+            className="relative group shrink-0 cursor-pointer"
+          >
             <Avatar
               src={profile?.avatar_path}
               name={profile?.display_name || 'User'}
               size="xl"
+              className="ring-2 ring-emerald-500/30 group-hover:ring-emerald-500/60 transition-all"
             />
-            <Link
-              href="/settings/profile"
-              className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-emerald-600 text-white shadow-md hover:bg-emerald-700 transition-colors"
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsAvatarPickerOpen(true);
+              }}
+              className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-emerald-600 text-white shadow-md hover:bg-emerald-700 transition-colors cursor-pointer"
               title="Change photo"
             >
               <Camera className="w-3.5 h-3.5" />
-            </Link>
+            </button>
           </div>
 
           <div className="flex-1 min-w-0">
@@ -247,6 +257,11 @@ export default function SettingsHubPage() {
           </Button>
         </div>
       </Dialog>
+
+      <AvatarPickerModal
+        isOpen={isAvatarPickerOpen}
+        onClose={() => setIsAvatarPickerOpen(false)}
+      />
     </div>
   );
 }

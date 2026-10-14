@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
+import { AvatarPickerModal } from './avatar-picker-modal';
 import { NotificationBell } from './notification-bar';
 import { formatConversationTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
@@ -67,6 +68,7 @@ export function Sidebar() {
   const { daysTogether, favorites } = useRomanticFeatures();
   const { startCall, callHistory, clearCallHistory, deleteCallLog } = useCall();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = React.useState(false);
   const [filterText, setFilterText] = React.useState('');
   const [filterTab, setFilterTab] = React.useState<'all' | 'unread' | 'favorites' | 'calls'>('all');
   const [callSubTab, setCallSubTab] = React.useState<'all' | 'missed'>('all');
@@ -834,11 +836,21 @@ export function Sidebar() {
           <div
             className="flex items-center gap-2.5 min-w-0 p-1.5 flex-1 select-none"
           >
-            <Avatar
-              src={profile?.avatar_path}
-              name={profile?.display_name || 'Me'}
-              size="sm"
-            />
+            <div
+              onClick={() => setIsAvatarPickerOpen(true)}
+              className="relative group cursor-pointer shrink-0"
+              title="Change profile photo"
+            >
+              <Avatar
+                src={profile?.avatar_path}
+                name={profile?.display_name || 'Me'}
+                size="sm"
+                className="ring-1 ring-white/10 group-hover:ring-emerald-500/60 transition-all"
+              />
+              <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                <Camera className="w-2.5 h-2.5" />
+              </div>
+            </div>
             <div className="min-w-0 text-left">
               <p className="text-xs font-semibold truncate text-foreground leading-tight">
                 {profile?.display_name || 'My Profile'}
@@ -1071,6 +1083,11 @@ export function Sidebar() {
       <InviteModal
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}
+      />
+
+      <AvatarPickerModal
+        isOpen={isAvatarPickerOpen}
+        onClose={() => setIsAvatarPickerOpen(false)}
       />
     </>
   );

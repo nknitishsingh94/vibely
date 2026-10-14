@@ -11,9 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
+import { AvatarPickerModal } from '@/components/chat/avatar-picker-modal';
 
 export default function ProfileSettingsPage() {
   const { profile, updateProfile, isConfigured } = useAuth();
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -108,27 +110,43 @@ export default function ProfileSettingsPage() {
 
         {/* Avatar Section */}
         <div className="flex items-center gap-4 pb-6 border-b border-border/60">
-          <div className="relative group">
+          <div
+            onClick={() => setIsAvatarPickerOpen(true)}
+            className="relative group cursor-pointer"
+          >
             <Avatar
               src={profile?.avatar_path}
               name={profile?.display_name || 'User'}
               size="xl"
+              className="w-20 h-20 text-2xl ring-2 ring-emerald-500/30 group-hover:ring-emerald-500/60 transition-all"
             />
-            <button
-              type="button"
-              className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
-              title="Change avatar photo"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
+            <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+              <Camera className="w-6 h-6" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-emerald-600 text-white shadow-md border-2 border-background">
+              <Camera className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h4 className="text-sm font-semibold text-foreground">Profile Picture</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
-              JPG, PNG, or WebP. Max 5MB.
+              Select an image from gallery or take a live photo
             </p>
+            <button
+              type="button"
+              onClick={() => setIsAvatarPickerOpen(true)}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold transition-all cursor-pointer shadow-2xs active:scale-95"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Change Photo</span>
+            </button>
           </div>
         </div>
+
+        <AvatarPickerModal
+          isOpen={isAvatarPickerOpen}
+          onClose={() => setIsAvatarPickerOpen(false)}
+        />
 
         {/* Profile Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
