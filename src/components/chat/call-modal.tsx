@@ -7,6 +7,7 @@ import {
   Mic,
   MicOff,
   VideoOff,
+  Volume1,
   Volume2,
   VolumeX,
   ShieldCheck,
@@ -48,7 +49,8 @@ function RemoteParticipantAudio({
       audioRef.current = node;
       if (node && stream) {
         node.srcObject = stream;
-        node.muted = !isSpeakerOn;
+        node.muted = false;
+        node.volume = isSpeakerOn ? 1.0 : 0.55;
         node.play().catch(err => {
           console.warn('Remote participant audio play warning:', err);
         });
@@ -60,14 +62,15 @@ function RemoteParticipantAudio({
   React.useEffect(() => {
     if (audioRef.current && stream) {
       audioRef.current.srcObject = stream;
-      audioRef.current.muted = !isSpeakerOn;
+      audioRef.current.muted = false;
+      audioRef.current.volume = isSpeakerOn ? 1.0 : 0.55;
       audioRef.current.play().catch(err => {
         console.warn('Remote participant audio effect warning:', err);
       });
     }
   }, [stream, isSpeakerOn]);
 
-  return <audio ref={handleAudioRef} autoPlay playsInline muted={!isSpeakerOn} />;
+  return <audio ref={handleAudioRef} autoPlay playsInline />;
 }
 
 /**
@@ -262,7 +265,8 @@ export function CallModal() {
       primaryAudioRef.current = node;
       if (node && remoteStream) {
         node.srcObject = remoteStream;
-        node.muted = !isSpeakerOn;
+        node.muted = false;
+        node.volume = isSpeakerOn ? 1.0 : 0.55;
         node.play().catch(err => {
           console.warn('Primary audio callback play warning:', err);
         });
@@ -295,7 +299,8 @@ export function CallModal() {
   React.useEffect(() => {
     if (primaryAudioRef.current && remoteStream) {
       primaryAudioRef.current.srcObject = remoteStream;
-      primaryAudioRef.current.muted = !isSpeakerOn;
+      primaryAudioRef.current.muted = false;
+      primaryAudioRef.current.volume = isSpeakerOn ? 1.0 : 0.55;
       primaryAudioRef.current.play().catch(err => {
         console.warn('Primary audio playback error:', err);
       });
@@ -384,7 +389,7 @@ export function CallModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black select-none sm:bg-black/95 sm:backdrop-blur-xl sm:p-4 animate-in fade-in duration-200">
       {/* Primary Dedicated Audio Player (Permanent & unmuted for primary peer) */}
-      <audio ref={handlePrimaryAudioRef} autoPlay playsInline muted={!isSpeakerOn} />
+      <audio ref={handlePrimaryAudioRef} autoPlay playsInline />
 
       {/* Additional Audio Players for secondary participants when in group/merged call */}
       {participants.slice(1).map(p => (
@@ -836,26 +841,47 @@ export function CallModal() {
               {isMuted ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5" />}
             </button>
 
-            {/* Toggle Video */}
-            <button
-              type="button"
-              onClick={toggleVideo}
-              className={cn(
-                'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
-                isVideoEnabled && isVideo
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/40 ring-2 ring-emerald-400'
-                  : isLightScreen
-                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
-                  : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20'
-              )}
-              title={isVideoEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
-            >
-              {isVideoEnabled && isVideo ? (
-                <Video className="w-5 h-5 text-white" />
-              ) : (
-                <VideoOff className="w-5 h-5 text-slate-600" />
-              )}
-            </button>
+            {/* In Audio Call: Speaker button sits here in place of the video button */}
+            {!isVideo && (
+              <button
+                type="button"
+                onClick={toggleSpeaker}
+                className={cn(
+                  'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95 border',
+                  isSpeakerOn
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-400 border-emerald-400'
+                    : isLightScreen
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/90'
+                    : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20'
+                )}
+                title={isSpeakerOn ? 'Speaker: Loudspeaker ON' : 'Speaker: Normal Call (Earpiece Mode)'}
+              >
+                {isSpeakerOn ? <Volume2 className="w-5 h-5 text-white" /> : <Volume1 className="w-5 h-5" />}
+              </button>
+            )}
+
+            {/* In Video Call: Toggle Video Camera */}
+            {isVideo && (
+              <button
+                type="button"
+                onClick={toggleVideo}
+                className={cn(
+                  'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
+                  isVideoEnabled
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/40 ring-2 ring-emerald-400'
+                    : isLightScreen
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
+                    : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20'
+                )}
+                title={isVideoEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
+              >
+                {isVideoEnabled ? (
+                  <Video className="w-5 h-5 text-white" />
+                ) : (
+                  <VideoOff className="w-5 h-5 text-slate-600" />
+                )}
+              </button>
+            )}
 
             {/* Toggle Screen Share (Desktop & Mobile) */}
             <button
@@ -914,22 +940,24 @@ export function CallModal() {
               </button>
             )}
 
-            {/* Toggle Speaker */}
-            <button
-              type="button"
-              onClick={toggleSpeaker}
-              className={cn(
-                'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
-                isSpeakerOn
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
-                  : isLightScreen
-                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200/90'
-                  : 'bg-white/10 text-white/50 border border-white/10'
-              )}
-              title={isSpeakerOn ? 'Speaker On' : 'Speaker Off'}
-            >
-              {isSpeakerOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-            </button>
+            {/* In Video Call: Toggle Speaker */}
+            {isVideo && (
+              <button
+                type="button"
+                onClick={toggleSpeaker}
+                className={cn(
+                  'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95 border',
+                  isSpeakerOn
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-400 border-emerald-400'
+                    : isLightScreen
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200/90'
+                    : 'bg-white/10 text-white/50 border border-white/10'
+                )}
+                title={isSpeakerOn ? 'Speakerphone: ON (Loudspeaker)' : 'Speakerphone: OFF'}
+              >
+                {isSpeakerOn ? <Volume2 className="w-5 h-5" /> : <Volume1 className="w-5 h-5" />}
+              </button>
+            )}
 
             {/* End Call Button */}
             <button

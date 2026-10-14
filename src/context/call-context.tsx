@@ -217,7 +217,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isRemoteScreenSharing, setIsRemoteScreenSharing] = useState(false);
 
@@ -1367,6 +1367,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       isGroup: false,
     });
     setIsVideoEnabled(type === 'video');
+    setIsSpeakerOn(type === 'video');
     setIsMuted(false);
 
     // Acquire local media tracks immediately
@@ -1582,6 +1583,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       isGroup: isMerge || (existingParticipants && existingParticipants.length > 1),
     });
     setIsVideoEnabled(callType === 'video');
+    setIsSpeakerOn(callType === 'video');
     setIsMuted(false);
     setIncomingCall(null);
 
