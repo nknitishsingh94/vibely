@@ -32,6 +32,9 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Sync Capacitor Android
         run: |
           npm run cap sync android || npx cap sync android || echo "Capacitor already synced"
@@ -51,7 +54,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Rename APK
         run: |
