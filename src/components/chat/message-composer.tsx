@@ -172,6 +172,11 @@ export function MessageComposer() {
     const trimmed = text.trim();
     if (!trimmed && attachments.length === 0) return;
 
+    // Immediately keep focus on textarea so soft keyboard stays up on mobile
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+
     setIsSending(true);
     setErrorMessage(null);
 
@@ -185,6 +190,15 @@ export function MessageComposer() {
 
     // Case 1: Pure text message
     if (attachments.length === 0) {
+      // Clear text IMMEDIATELY for instant, snappy WhatsApp feel
+      setText('');
+      setIsLittleNoteMode(false);
+      broadcastTyping(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.focus();
+      }
+
       const res = await sendMessage({
         messageType: 'text',
         body: finalBody,
@@ -195,11 +209,12 @@ export function MessageComposer() {
 
       if (res.error) {
         setErrorMessage(res.error);
-      } else {
-        setText('');
-        setIsLittleNoteMode(false);
-        broadcastTyping(false);
-        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        setText(trimmed);
+      }
+
+      // Re-affirm focus after sending so keyboard never dismisses
+      if (textareaRef.current) {
+        textareaRef.current.focus();
       }
       return;
     }
@@ -241,7 +256,10 @@ export function MessageComposer() {
       setIsLittleNoteMode(false);
       clearAllAttachments();
       broadcastTyping(false);
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.focus();
+      }
     } else {
       // Partially sent; remove only the sent items from queue
       const remaining = queue.slice(failedIndex);
@@ -249,6 +267,9 @@ export function MessageComposer() {
         if (queue[j].previewUrl) URL.revokeObjectURL(queue[j].previewUrl!);
       }
       setAttachments(remaining);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
     }
   };
 
@@ -256,6 +277,9 @@ export function MessageComposer() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
     }
   };
 
@@ -570,6 +594,7 @@ export function MessageComposer() {
                   <button
                     key={emoji}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       setText(prev => prev + emoji);
                       setShowEmojiPicker(false);
@@ -645,8 +670,17 @@ export function MessageComposer() {
         {text.trim() || attachments.length > 0 ? (
           <button
             type="button"
-            onClick={handleSend}
-            disabled={isSending}
+            onMouseDown={(e) => {
+              // Crucial: prevent textarea blur on pointer press
+              e.preventDefault();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              if (textareaRef.current) {
+                textareaRef.current.focus();
+              }
+              handleSend();
+            }}
             className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-md transition-all cursor-pointer"
             title="Send chat"
             aria-label="Send"
