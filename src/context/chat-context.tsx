@@ -231,24 +231,59 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         if (isCurrentActive) {
           // If user is currently looking at this conversation, unread count is always 0
           unreadCount = 0;
-        } else if (row.last_read_at) {
-          const { count } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('conversation_id', conv.id)
-            .gt('created_at', row.last_read_at)
-            .neq('sender_id', profile.id)
-            .is('deleted_at', null);
-          unreadCount = count || 0;
         } else {
-          // If last_read_at is null, count messages sent by others
-          const { count } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('conversation_id', conv.id)
-            .neq('sender_id', profile.id)
-            .is('deleted_at', null);
-          unreadCount = count || 0;
+          // Check local read cache as well as database last_read_at
+          let localReadIso: string | null = null;
+          try {
+            if (typeof window !== 'undefined' && profile?.id) {
+              localReadIso = localStorage.getItem(`vibely_last_read_${profile.id}_${conv.id}`);
+            }
+          } catch {}
+
+          const effectiveLastRead = localReadIso && row.last_read_at
+            ? (new Date(localReadIso).getTime() > new Date(row.last_read_at).getTime() ? localReadIso : row.last_read_at)
+            : (localReadIso || row.last_read_at);
+
+          if (effectiveLastRead) {
+            const { count } = await supabase
+              .from('messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('conversation_id', conv.id)
+              .gt('created_at', effectiveLastRead)
+              .neq('sender_id', profile.id)
+              .is('deleted_at', null);
+            unreadCount = count || 0;
+          } else {
+            // Neither DB nor local storage has last_read_at
+            if (lastMsg && lastMsg.sender_id === profile.id) {
+              unreadCount = 0;
+            } else if (lastMsg) {
+              // Check if user has a read receipt in message_receipts
+              const { data: userReceipt } = await supabase
+                .from('message_receipts')
+                .select('read_at')
+                .eq('message_id', lastMsg.id)
+                .eq('user_id', profile.id)
+                .maybeSingle();
+
+              if (userReceipt?.read_at) {
+                unreadCount = 0;
+                try {
+                  localStorage.setItem(`vibely_last_read_${profile.id}_${conv.id}`, userReceipt.read_at);
+                } catch {}
+              } else {
+                const { count } = await supabase
+                  .from('messages')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('conversation_id', conv.id)
+                  .neq('sender_id', profile.id)
+                  .is('deleted_at', null);
+                unreadCount = count || 0;
+              }
+            } else {
+              unreadCount = 0;
+            }
+          }
         }
 
         convList.push({
@@ -496,7 +531,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         console.warn('Unable to fetch messages from database:', errDetail);
         setMessages([]);
       } else if (data) {
-        // Filter or mark messages deleted for me on this device
+        // Filter out messages deleted for me on this device
         let deletedForMe: string[] = [];
         try {
           if (profile?.id && typeof window !== 'undefined') {
@@ -504,15 +539,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }
         } catch {}
 
-        const mappedData = data.map((m: any) => {
-          if (deletedForMe.includes(m.id)) {
-            return { ...m, deleted_at: m.deleted_at || new Date().toISOString() };
-          }
-          return m;
-        });
+        const visibleData = data.filter((m: any) => !deletedForMe.includes(m.id));
 
         const enriched: MessageWithDetails[] = await Promise.all(
-          mappedData.map(async (msg: any) => {
+          visibleData.map(async (msg: any) => {
             if (msg.deleted_at) {
               return {
                 ...msg,
@@ -556,9 +586,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
         );
 
+        // Cache read state locally and call server endpoint
+        const nowIso = new Date().toISOString();
+        try {
+          if (typeof window !== 'undefined' && profile?.id) {
+            localStorage.setItem(`vibely_last_read_${profile.id}_${conversationId}`, nowIso);
+          }
+        } catch {}
+
         // Mark conversation read in database & notify partner for blue ticks
         if (profile?.id && conversationId) {
-          const nowIso = new Date().toISOString();
+          fetch('/api/chat/mark-read', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': profile.id,
+            },
+            body: JSON.stringify({ conversationId, userId: profile.id }),
+          }).catch(() => {});
+
           supabase
             .from('conversation_members')
             .update({ last_read_at: nowIso })
@@ -1277,21 +1323,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     const nowIso = new Date().toISOString();
 
-    // 1. Keep message in place and mark deleted_at locally so placeholder renders right in its spot
-    setMessages(prev =>
-      prev.map(m =>
-        m.id === messageId
-          ? {
-              ...m,
-              deleted_at: nowIso,
-              body: null,
-              storage_path: null,
-              signedMediaUrl: null,
-            }
-          : m
-      )
-    );
-
     if (mode === 'for_me') {
       try {
         if (typeof window !== 'undefined') {
@@ -1305,8 +1336,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.error('Failed to save delete-for-me to storage:', e);
       }
+      // Completely remove message from local messages state
+      setMessages(prev => prev.filter(m => m.id !== messageId));
       return {};
     }
+
+    // 1. Delete for everyone: keep message in place and mark deleted_at locally so placeholder renders right in its spot
+    setMessages(prev =>
+      prev.map(m =>
+        m.id === messageId
+          ? {
+              ...m,
+              deleted_at: nowIso,
+              body: null,
+              storage_path: null,
+              signedMediaUrl: null,
+            }
+          : m
+      )
+    );
 
     // 2. Delete for everyone: update database and broadcast
     if (!isConfigured) return {};
@@ -1409,11 +1457,29 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
     );
 
+    const nowIso = new Date().toISOString();
+    try {
+      if (typeof window !== 'undefined' && profile?.id) {
+        localStorage.setItem(`vibely_last_read_${profile.id}_${conversationId}`, nowIso);
+      }
+    } catch {}
+
     if (isConfigured) {
+      // 1. Call server API to guarantee DB update even if client RLS blocks
+      fetch('/api/chat/mark-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': profile.id,
+        },
+        body: JSON.stringify({ conversationId, userId: profile.id }),
+      }).catch(() => {});
+
+      // 2. Client-side update
       const supabase = getSupabaseBrowserClient();
       await supabase
         .from('conversation_members')
-        .update({ last_read_at: new Date().toISOString() })
+        .update({ last_read_at: nowIso })
         .eq('conversation_id', conversationId)
         .eq('user_id', profile.id);
     }

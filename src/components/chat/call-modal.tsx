@@ -11,77 +11,51 @@ import {
   Volume2,
   VolumeX,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
-import { toast } from '@/components/ui/toast';
+import { useCall } from '@/context/call-context';
 import { cn } from '@/lib/utils';
 
-interface CallModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  partnerName: string;
-  partnerAvatar?: string | null;
-  partnerUsername?: string | null;
-  initialCallType?: 'voice' | 'video';
-}
+export function CallModal() {
+  const {
+    outgoingCall,
+    localStream,
+    remoteStream,
+    isMuted,
+    isVideoEnabled,
+    isSpeakerOn,
+    endCall,
+    toggleMute,
+    toggleVideo,
+    toggleSpeaker,
+  } = useCall();
 
-export function CallModal({
-  isOpen,
-  onClose,
-  partnerName,
-  partnerAvatar,
-  partnerUsername,
-  initialCallType = 'voice',
-}: CallModalProps) {
-  const [callType, setCallType] = React.useState<'voice' | 'video'>(initialCallType);
-  const [callStatus, setCallStatus] = React.useState<'calling' | 'ringing' | 'connected' | 'ended'>('calling');
-  const [callDuration, setCallDuration] = React.useState(0);
-  const [isMuted, setIsMuted] = React.useState(false);
-  const [isVideoEnabled, setIsVideoEnabled] = React.useState(initialCallType === 'video');
-  const [isSpeakerOn, setIsSpeakerOn] = React.useState(true);
+  const localVideoRef = React.useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = React.useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
-  // Sync initialCallType
+  // Attach local media stream to local video element
   React.useEffect(() => {
-    setCallType(initialCallType);
-    setIsVideoEnabled(initialCallType === 'video');
-  }, [initialCallType]);
-
-  // Handle call state progression
-  React.useEffect(() => {
-    if (!isOpen) {
-      setCallStatus('calling');
-      setCallDuration(0);
-      return;
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
     }
+  }, [localStream, isVideoEnabled]);
 
-    setCallStatus('calling');
-    const ringTimer = setTimeout(() => {
-      setCallStatus('ringing');
-    }, 1500);
-
-    const connectTimer = setTimeout(() => {
-      setCallStatus('connected');
-    }, 3500);
-
-    return () => {
-      clearTimeout(ringTimer);
-      clearTimeout(connectTimer);
-    };
-  }, [isOpen]);
-
-  // Duration timer when connected
+  // Attach remote media stream to remote video & audio elements
   React.useEffect(() => {
-    if (callStatus !== 'connected') return;
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(() => {});
+    }
+  }, [remoteStream]);
 
-    const timer = setInterval(() => {
-      setCallDuration(prev => prev + 1);
-    }, 1000);
+  if (!outgoingCall) return null;
 
-    return () => clearInterval(timer);
-  }, [callStatus]);
-
-  if (!isOpen) return null;
+  const { partner, callType, status, duration } = outgoingCall;
+  const isVideo = callType === 'video';
 
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -89,22 +63,14 @@ export function CallModal({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleEndCall = () => {
-    setCallStatus('ended');
-    toast.info('Call ended');
-    setTimeout(() => {
-      onClose();
-    }, 500);
-  };
-
   const getStatusText = () => {
-    switch (callStatus) {
+    switch (status) {
       case 'calling':
         return 'Calling...';
       case 'ringing':
         return 'Ringing...';
       case 'connected':
-        return formatTimer(callDuration);
+        return formatTimer(duration);
       case 'ended':
         return 'Call ended';
     }
@@ -112,6 +78,9 @@ export function CallModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-200 select-none">
+      {/* Hidden remote audio element for real-time voice streaming */}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
       {/* Background ambient lighting */}
       <div className="absolute inset-0 bg-radial from-emerald-950/40 via-transparent to-black pointer-events-none" />
 
@@ -125,16 +94,16 @@ export function CallModal({
           </div>
 
           <h2 className="text-xl font-bold text-white mt-3 text-center">
-            {partnerName || 'Partner'}
+            {partner?.display_name || 'Partner'}
           </h2>
-          {partnerUsername && (
-            <p className="text-xs text-white/50 font-mono">@{partnerUsername.replace(/^@/, '')}</p>
+          {partner?.username && (
+            <p className="text-xs text-white/50 font-mono">@{partner.username.replace(/^@/, '')}</p>
           )}
 
           <p
             className={cn(
               'text-xs font-medium tracking-wider mt-1 transition-all',
-              callStatus === 'connected' ? 'text-emerald-400 font-mono' : 'text-white/70 animate-pulse'
+              status === 'connected' ? 'text-emerald-400 font-mono' : 'text-white/70 animate-pulse'
             )}
           >
             {getStatusText()}
@@ -143,30 +112,50 @@ export function CallModal({
 
         {/* Center Media / Avatar Area */}
         <div className="flex-1 flex flex-col items-center justify-center relative my-4">
-          {callType === 'video' && isVideoEnabled ? (
-            /* Simulated Video Stream */
+          {isVideo && isVideoEnabled ? (
+            /* Live WebRTC Video Streams */
             <div className="relative w-full h-full rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 flex items-center justify-center">
-              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 z-10" />
-              <img
-                src={partnerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80'}
-                alt={partnerName}
-                className="w-full h-full object-cover filter brightness-95"
-              />
-              <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-[11px] text-white">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Live Camera</span>
-              </div>
+              {remoteStream ? (
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                /* Waiting for remote camera placeholder */
+                <div className="flex flex-col items-center justify-center text-center p-4 space-y-2">
+                  <Avatar
+                    src={partner?.avatar_path || undefined}
+                    name={partner?.display_name}
+                    size="xl"
+                    className="w-24 h-24 text-2xl ring-4 ring-emerald-500/30"
+                  />
+                  <p className="text-xs text-white/60">
+                    {status === 'connected' ? 'Connecting camera...' : getStatusText()}
+                  </p>
+                </div>
+              )}
 
-              {/* Floating Self Video Tile */}
+              {/* Floating Self Video Picture-in-Picture Box */}
               <div className="absolute bottom-3 right-3 w-24 h-32 rounded-xl overflow-hidden border-2 border-white/20 bg-zinc-800 shadow-xl z-20 flex items-center justify-center">
-                <span className="text-[10px] text-white/70 font-medium">You</span>
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover mirror-mode"
+                />
+                <span className="absolute bottom-1 right-1.5 text-[9px] text-white/80 bg-black/60 px-1 rounded font-medium">
+                  You
+                </span>
               </div>
             </div>
           ) : (
             /* Voice Call Pulse Area */
             <div className="flex flex-col items-center justify-center relative">
               {/* Pulse Wave Rings */}
-              {callStatus !== 'ended' && (
+              {status !== 'ended' && (
                 <>
                   <div className="absolute w-44 h-44 rounded-full bg-emerald-500/10 animate-ping [animation-duration:3s]" />
                   <div className="absolute w-36 h-36 rounded-full bg-emerald-500/15 animate-pulse" />
@@ -175,15 +164,15 @@ export function CallModal({
 
               <div className="relative z-10 shadow-2xl rounded-full">
                 <Avatar
-                  src={partnerAvatar || undefined}
-                  name={partnerName}
+                  src={partner?.avatar_path || undefined}
+                  name={partner?.display_name}
                   size="xl"
                   className="w-28 h-28 text-3xl ring-4 ring-emerald-500/30"
                 />
               </div>
 
               {/* Animated Equalizer when connected */}
-              {callStatus === 'connected' && (
+              {status === 'connected' && (
                 <div className="flex items-center gap-1 mt-6">
                   {[40, 70, 30, 90, 60, 80, 50].map((h, i) => (
                     <span
@@ -204,10 +193,7 @@ export function CallModal({
             {/* Toggle Mic */}
             <button
               type="button"
-              onClick={() => {
-                setIsMuted(prev => !prev);
-                toast.info(isMuted ? 'Microphone unmuted' : 'Microphone muted');
-              }}
+              onClick={toggleMute}
               className={cn(
                 'w-12 h-12 rounded-full flex items-center justify-center text-white transition-all cursor-pointer shadow-md',
                 isMuted
@@ -222,24 +208,16 @@ export function CallModal({
             {/* Toggle Video */}
             <button
               type="button"
-              onClick={() => {
-                if (callType === 'voice') {
-                  setCallType('video');
-                  setIsVideoEnabled(true);
-                  toast.info('Switched to Video Call');
-                } else {
-                  setIsVideoEnabled(prev => !prev);
-                }
-              }}
+              onClick={toggleVideo}
               className={cn(
                 'w-12 h-12 rounded-full flex items-center justify-center text-white transition-all cursor-pointer shadow-md',
-                isVideoEnabled && callType === 'video'
+                isVideoEnabled && isVideo
                   ? 'bg-emerald-600 hover:bg-emerald-700'
                   : 'bg-white/10 hover:bg-white/20 backdrop-blur-xs'
               )}
               title={isVideoEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
             >
-              {isVideoEnabled && callType === 'video' ? (
+              {isVideoEnabled && isVideo ? (
                 <Video className="w-5 h-5" />
               ) : (
                 <VideoOff className="w-5 h-5" />
@@ -249,10 +227,7 @@ export function CallModal({
             {/* Toggle Speaker */}
             <button
               type="button"
-              onClick={() => {
-                setIsSpeakerOn(prev => !prev);
-                toast.info(isSpeakerOn ? 'Speaker disabled' : 'Speaker enabled');
-              }}
+              onClick={toggleSpeaker}
               className={cn(
                 'w-12 h-12 rounded-full flex items-center justify-center text-white transition-all cursor-pointer shadow-md',
                 isSpeakerOn
@@ -267,7 +242,7 @@ export function CallModal({
             {/* End Call Button */}
             <button
               type="button"
-              onClick={handleEndCall}
+              onClick={endCall}
               className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-rose-600/40 transition-all cursor-pointer"
               title="End Call"
             >

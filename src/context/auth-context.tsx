@@ -44,12 +44,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        console.warn('Error fetching profile:', error.message || error);
-      } else if (data) {
+      if (data) {
         setProfile(data as Profile);
+      } else {
+        // Auto-sync profile and cross-device account merges
+        const res = await fetch('/api/auth/sync-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+        const resData = await res.json();
+        if (resData.profile) {
+          setProfile(resData.profile);
+        }
       }
     } catch (err) {
       console.warn('Failed to load profile:', err);
@@ -67,11 +76,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = getSupabaseBrowserClient();
 
     // Initial session fetch
-    supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
+    supabase.auth.getSession().then(async ({ data }: { data: { session: any } }) => {
       const session = data?.session;
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadProfile(session.user.id);
+        await loadProfile(session.user.id);
       }
       setIsLoading(false);
     });

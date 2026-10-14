@@ -137,7 +137,7 @@ export default function ChatPage() {
           /* Empty state on desktop when no conversation is selected */
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground select-none romantic-wallpaper">
             <div className="max-w-md w-full space-y-5 animate-in fade-in duration-300">
-              <BrandLogo size="lg" className="justify-center mb-2" />
+              <BrandLogo size="lg" className="justify-center mb-2" href="/chat" />
 
               <div className="space-y-2">
                 <h3 className="text-2xl font-sans font-bold text-foreground">

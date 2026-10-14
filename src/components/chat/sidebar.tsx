@@ -23,17 +23,20 @@ import {
   Bell,
   Lock,
   Phone,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
-import { CallModal } from './call-modal';
 import { NotificationBell } from './notification-bar';
 import { formatConversationTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
+import { useCall } from '@/context/call-context';
 
 export function Sidebar() {
   const { profile, signOut, isConfigured } = useAuth();
@@ -48,16 +51,18 @@ export function Sidebar() {
     typingUsers,
     markConversationAsRead,
     partnerActivity,
+    deleteFriend,
   } = useChat();
   const router = useRouter();
 
   const { daysTogether, favorites } = useRomanticFeatures();
+  const { startCall } = useCall();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [filterText, setFilterText] = React.useState('');
   const [filterTab, setFilterTab] = React.useState<'all' | 'unread' | 'favorites'>('all');
   const [copiedId, setCopiedId] = React.useState(false);
-  const [isCallModalOpen, setIsCallModalOpen] = React.useState(false);
-  const [selectedCallPartner, setSelectedCallPartner] = React.useState<any>(null);
+  const [confirmDeleteChat, setConfirmDeleteChat] = React.useState<{ friend: any; conversationId: string } | null>(null);
+  const [isDeletingChat, setIsDeletingChat] = React.useState(false);
 
   const myUsername = profile?.username ? `@${profile.username}` : '';
 
@@ -142,7 +147,14 @@ export function Sidebar() {
         {/* Brand Header */}
         <div className="shrink-0 p-3.5 sm:p-4 border-b border-border/50 flex flex-col gap-2 pt-[max(env(safe-area-inset-top),0.875rem)]">
           <div className="flex items-center justify-between">
-            <BrandLogo size="md" />
+            <BrandLogo
+              size="md"
+              href="/chat"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveConversationId(null);
+              }}
+            />
 
             <div className="flex items-center gap-1.5">
               <NotificationBell onOpenConnect={() => setIsInviteOpen(true)} />
@@ -223,8 +235,7 @@ export function Sidebar() {
               onClick={() => {
                 const targetConv = conversations.find(c => c.id === activeConversationId) || conversations[0];
                 if (targetConv?.otherUser) {
-                  setSelectedCallPartner(targetConv.otherUser);
-                  setIsCallModalOpen(true);
+                  startCall(targetConv.otherUser, 'voice', targetConv.id);
                 } else {
                   setIsInviteOpen(true);
                 }
@@ -441,12 +452,30 @@ export function Sidebar() {
                         )}
                       </div>
 
-                      {/* WhatsApp Unread Counter Badge (Emerald Circle) */}
-                      {hasUnread && (
-                        <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                          {conv.unreadCount}
-                        </span>
-                      )}
+                      {/* Badge and Delete Button */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* WhatsApp Unread Counter Badge (Emerald Circle) */}
+                        {hasUnread && (
+                          <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            {conv.unreadCount}
+                          </span>
+                        )}
+
+                        {/* Quick Delete Chat Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setConfirmDeleteChat({ friend: other, conversationId: conv.id });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 sm:opacity-0 max-sm:opacity-75 p-1 rounded-md text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-500/10 transition-all cursor-pointer"
+                          title="Delete Chat"
+                          aria-label="Delete Chat"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -505,18 +534,75 @@ export function Sidebar() {
         </div>
       </aside>
 
+      {/* Delete Chat Confirmation Dialog */}
+      <Dialog
+        isOpen={!!confirmDeleteChat}
+        onClose={() => !isDeletingChat && setConfirmDeleteChat(null)}
+        title="Delete Chat"
+        size="sm"
+      >
+        <div className="space-y-4 pt-1">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+            <div className="w-10 h-10 rounded-full bg-destructive/20 text-destructive flex items-center justify-center shrink-0">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">
+                {confirmDeleteChat?.friend?.display_name || 'Partner'}
+              </p>
+              <p className="text-xs text-muted-foreground font-mono truncate">
+                {confirmDeleteChat?.friend?.username ? `@${confirmDeleteChat.friend.username}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Are you sure you want to delete this chat with <strong className="text-foreground">{confirmDeleteChat?.friend?.display_name || 'this partner'}</strong>? This will delete all messages and disconnect your partner.
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isDeletingChat}
+              onClick={() => setConfirmDeleteChat(null)}
+              className="text-xs rounded-xl cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={isDeletingChat}
+              onClick={async () => {
+                if (!confirmDeleteChat) return;
+                setIsDeletingChat(true);
+                try {
+                  await deleteFriend(confirmDeleteChat.friend.id, confirmDeleteChat.conversationId);
+                  setConfirmDeleteChat(null);
+                  // Intentionally NO success toast per user instruction
+                } catch {
+                  // Silent
+                } finally {
+                  setIsDeletingChat(false);
+                }
+              }}
+              className="text-xs rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700 text-white cursor-pointer font-medium"
+            >
+              {isDeletingChat ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
+              <span>Delete Chat</span>
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
       <InviteModal
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}
-      />
-
-      <CallModal
-        isOpen={isCallModalOpen}
-        onClose={() => setIsCallModalOpen(false)}
-        partnerName={selectedCallPartner?.display_name || 'Partner'}
-        partnerAvatar={selectedCallPartner?.avatar_path}
-        partnerUsername={selectedCallPartner?.username}
-        initialCallType="voice"
       />
     </>
   );

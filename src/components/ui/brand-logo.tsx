@@ -7,6 +7,7 @@ interface BrandLogoProps {
   showTagline?: boolean;
   className?: string;
   href?: string;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 export function BrandLogo({
@@ -14,6 +15,7 @@ export function BrandLogo({
   showTagline = false,
   className,
   href = '/',
+  onClick,
 }: BrandLogoProps) {
   const iconSizes = {
     sm: 'w-7 h-7 rounded-xl',
@@ -88,9 +90,17 @@ export function BrandLogo({
   );
 
   if (href) {
-    return <Link href={href}>{content}</Link>;
+    return (
+      <Link href={href} onClick={onClick}>
+        {content}
+      </Link>
+    );
   }
 
-  return content;
+  return (
+    <div onClick={onClick} className={onClick ? 'cursor-pointer' : undefined}>
+      {content}
+    </div>
+  );
 }
 

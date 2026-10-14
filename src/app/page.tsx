@@ -45,7 +45,7 @@ export default function LandingPage() {
       {/* Sleek Fixed Floating Box Navbar */}
       <div className="fixed top-3 sm:top-4 left-0 right-0 z-50 flex justify-center px-3 sm:px-4 pointer-events-none">
         <header className="pointer-events-auto flex items-center justify-between gap-3 sm:gap-6 px-3.5 sm:px-5 py-1.5 sm:py-2 rounded-2xl bg-white/95 dark:bg-[#071F18]/95 border border-[#0C3B2E]/15 dark:border-white/15 shadow-md shadow-[#0C3B2E]/10 backdrop-blur-xl transition-all w-full max-w-lg sm:max-w-2xl">
-          <BrandLogo size="sm" href="/" />
+          <BrandLogo size="sm" href={user ? '/chat' : '/'} />
 
           <nav className="hidden sm:flex items-center gap-5 text-xs font-semibold text-stone-600 dark:text-emerald-100/80">
             <a href="#features" className="hover:text-[#0C3B2E] dark:hover:text-white transition-colors">

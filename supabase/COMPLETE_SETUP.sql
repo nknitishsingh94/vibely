@@ -333,6 +333,13 @@ CREATE POLICY "Users can insert members for their conversations"
   TO authenticated
   WITH CHECK (user_id = auth.uid() OR public.is_conversation_member(conversation_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Users can update their own membership row" ON public.conversation_members;
+CREATE POLICY "Users can update their own membership row"
+  ON public.conversation_members FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
 -- Messages
 DROP POLICY IF EXISTS "Users can view messages in their conversations" ON public.messages;
 CREATE POLICY "Users can view messages in their conversations"

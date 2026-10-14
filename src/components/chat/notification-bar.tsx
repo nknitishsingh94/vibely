@@ -185,7 +185,7 @@ export function NotificationBell({ onOpenConnect, className }: NotificationBellP
     try {
       const res = await deleteFriend(confirmDelete.friend.id, confirmDelete.conversationId);
       if (res.success) {
-        toast.success(`${confirmDelete.friend.display_name} removed from friends.`);
+        // Intentionally NO success toast per user instruction
         setConfirmDelete(null);
       } else {
         toast.error(res.error || 'Failed to remove friend');

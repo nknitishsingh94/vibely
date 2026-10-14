@@ -4,6 +4,9 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
 import { ChatProvider } from '@/context/chat-context';
+import { CallProvider } from '@/context/call-context';
+import { CallModal } from '@/components/chat/call-modal';
+import { IncomingCallModal } from '@/components/chat/incoming-call-modal';
 import { FloatingHeartsOverlay } from '@/components/ui/floating-hearts';
 import { Toaster } from '@/components/ui/toast';
 
@@ -61,9 +64,13 @@ export default function RootLayout({
         >
           <AuthProvider>
             <ChatProvider>
-              {children}
-              <FloatingHeartsOverlay />
-              <Toaster />
+              <CallProvider>
+                {children}
+                <CallModal />
+                <IncomingCallModal />
+                <FloatingHeartsOverlay />
+                <Toaster />
+              </CallProvider>
             </ChatProvider>
           </AuthProvider>
         </ThemeProvider>
