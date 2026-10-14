@@ -231,6 +231,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
 
   // Touch handlers for mobile long-press: enters multi-select mode!
   const handleTouchStart = () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = setTimeout(() => {
       toggleSelectMessage(message.id);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -238,7 +239,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           navigator.vibrate(40);
         } catch {}
       }
-    }, 450);
+    }, 400);
   };
 
   const handleTouchEnd = () => {
@@ -246,6 +247,11 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    toggleSelectMessage(message.id);
   };
 
   // Group reactions by emoji
@@ -290,15 +296,15 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           <div
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            onContextMenu={handleContextMenu}
             onClick={() => {
               if (isSelectMode) {
                 toggleSelectMessage(message.id);
-              } else {
-                setShowDeleteModal(true);
               }
             }}
             className={cn(
-              'group/del relative rounded-2xl px-3 py-1.5 text-xs flex items-center gap-2 border shadow-2xs italic transition-all cursor-pointer',
+              'group/del relative rounded-2xl px-3 py-1.5 text-xs flex items-center gap-2 border shadow-2xs italic transition-all cursor-pointer select-none',
               isOutgoing
                 ? 'bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/60'
                 : 'bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/60',
@@ -312,22 +318,6 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
             <span className="text-[10px] ml-1 not-italic text-muted-foreground/60 font-mono">
               {formatMessageTime(message.created_at)}
             </span>
-
-            {/* Direct Delete button to remove this deleted placeholder box from screen */}
-            {!isSelectMode && (
-              <button
-                type="button"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  await deleteMessage(message.id, 'for_me');
-                }}
-                className="ml-1 p-1 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-500/15 transition-colors cursor-pointer"
-                title="Delete for me"
-                aria-label="Delete for me"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
 
           {/* Checkbox indicator on right for outgoing deleted messages in select mode */}
@@ -348,35 +338,6 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
             </div>
           )}
         </div>
-
-        {/* Delete Confirmation Modal for Deleted Placeholder Box */}
-        <Dialog
-          isOpen={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
-          size="sm"
-          title="Delete message?"
-          description="Delete this message from your device."
-        >
-          <div className="flex flex-col gap-2 pt-3">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDeleteForMe}
-              className="w-full justify-center text-xs font-semibold h-9 rounded-xl gap-2 cursor-pointer shadow-xs bg-rose-600 hover:bg-rose-700 text-white"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete for me</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowDeleteModal(false)}
-              className="w-full justify-center text-xs text-muted-foreground h-9 rounded-xl cursor-pointer"
-            >
-              Cancel
-            </Button>
-          </div>
-        </Dialog>
       </div>
     );
   }
@@ -575,6 +536,8 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           <div
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            onContextMenu={handleContextMenu}
             onClick={() => {
               if (isSelectMode) toggleSelectMessage(message.id);
             }}

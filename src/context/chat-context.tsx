@@ -85,10 +85,56 @@ export interface ConnectionRequestItem {
   };
 }
 
+function getStoredDeletedForMe(userId?: string | null): Set<string> {
+  const ids = new Set<string>();
+  if (typeof window === 'undefined') return ids;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('vibely_deleted_for_me')) {
+        const item = localStorage.getItem(k);
+        if (item) {
+          const parsed = JSON.parse(item);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(id => {
+              if (typeof id === 'string') ids.add(id);
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error reading deleted for me IDs:', e);
+  }
+  return ids;
+}
+
+function storeDeletedForMe(userId: string | undefined | null, messageIds: string[]) {
+  if (typeof window === 'undefined' || messageIds.length === 0) return;
+  try {
+    if (userId) {
+      const userKey = `vibely_deleted_for_me_${userId}`;
+      const existing: string[] = JSON.parse(localStorage.getItem(userKey) || '[]');
+      const merged = Array.from(new Set([...existing, ...messageIds]));
+      localStorage.setItem(userKey, JSON.stringify(merged));
+    }
+    const globalKey = 'vibely_deleted_for_me';
+    const existingGlobal: string[] = JSON.parse(localStorage.getItem(globalKey) || '[]');
+    const mergedGlobal = Array.from(new Set([...existingGlobal, ...messageIds]));
+    localStorage.setItem(globalKey, JSON.stringify(mergedGlobal));
+  } catch (e) {
+    console.error('Error storing deleted for me IDs:', e);
+  }
+}
+
 const ChatContext = createContext<ChatContextType | null>(null);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { profile, isConfigured } = useAuth();
+  const profileRef = useRef(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageWithDetails[]>([]);
@@ -574,15 +620,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         console.warn('Unable to fetch messages from database:', errDetail);
         setMessages([]);
       } else if (data) {
-        // Filter out messages deleted for me on this device
-        let deletedForMe: string[] = [];
-        try {
-          if (profile?.id && typeof window !== 'undefined') {
-            deletedForMe = JSON.parse(localStorage.getItem(`vibely_deleted_for_me_${profile.id}`) || '[]');
-          }
-        } catch {}
-
-        const visibleData = data.filter((m: any) => !deletedForMe.includes(m.id));
+        // Filter out messages deleted for me on this device (robust across devices and refreshes)
+        const deletedForMe = getStoredDeletedForMe(profileRef.current?.id || profile?.id);
+        const visibleData = data.filter((m: any) => !deletedForMe.has(m.id));
 
         const enriched: MessageWithDetails[] = await Promise.all(
           visibleData.map(async (msg: any) => {
@@ -688,7 +728,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoadingMessages(false);
     }
-  }, [isConfigured]);
+  }, [isConfigured, profile?.id]);
 
   // Initialize conversations
   useEffect(() => {
@@ -978,6 +1018,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // Broadcast listener for instant message deletion by partner
     channel.on('broadcast', { event: 'message_deleted' }, ({ payload }: { payload: any }) => {
       if (payload?.messageId) {
+        const deletedForMe = getStoredDeletedForMe(profileRef.current?.id || profile?.id);
+        if (deletedForMe.has(payload.messageId)) {
+          setMessages(prev => prev.filter(m => m.id !== payload.messageId));
+          return;
+        }
         setMessages(prev =>
           prev.map(m =>
             m.id === payload.messageId
@@ -997,19 +1042,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // Broadcast listener for multiple messages deletion by partner
     channel.on('broadcast', { event: 'messages_deleted' }, ({ payload }: { payload: any }) => {
       if (Array.isArray(payload?.messageIds) && payload.messageIds.length > 0) {
+        const deletedForMe = getStoredDeletedForMe(profileRef.current?.id || profile?.id);
         const deletedIds = new Set(payload.messageIds);
         setMessages(prev =>
-          prev.map(m =>
-            deletedIds.has(m.id)
-              ? {
-                  ...m,
-                  deleted_at: payload.deletedAt || new Date().toISOString(),
-                  body: null,
-                  storage_path: null,
-                  signedMediaUrl: null,
-                }
-              : m
-          )
+          prev
+            .filter(m => !deletedForMe.has(m.id))
+            .map(m =>
+              deletedIds.has(m.id)
+                ? {
+                    ...m,
+                    deleted_at: payload.deletedAt || new Date().toISOString(),
+                    body: null,
+                    storage_path: null,
+                    signedMediaUrl: null,
+                  }
+                : m
+            )
         );
       }
     });
@@ -1086,6 +1134,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         async (payload: any) => {
           const newMsg = payload.new as any;
           if (newMsg.deleted_at) return;
+          const deletedForMe = getStoredDeletedForMe(profileRef.current?.id || profile?.id);
+          if (deletedForMe.has(newMsg.id)) return;
 
           // Fetch sender profile
           const { data: senderProfile } = await supabase
@@ -1185,6 +1235,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         },
         (payload: any) => {
           const updated = payload.new as any;
+          const deletedForMe = getStoredDeletedForMe(profileRef.current?.id || profile?.id);
+
+          if (deletedForMe.has(updated.id)) {
+            setMessages(prev => prev.filter(m => m.id !== updated.id));
+            return;
+          }
+
           if (updated.deleted_at) {
             // Keep message in place with deleted_at set so UI renders deleted placeholder
             setMessages(prev =>
@@ -1520,20 +1577,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const nowIso = new Date().toISOString();
 
     if (mode === 'for_me') {
-      try {
-        if (typeof window !== 'undefined') {
-          const key = `vibely_deleted_for_me_${profile.id}`;
-          const stored: string[] = JSON.parse(localStorage.getItem(key) || '[]');
-          if (!stored.includes(messageId)) {
-            stored.push(messageId);
-            localStorage.setItem(key, JSON.stringify(stored));
-          }
-        }
-      } catch (e) {
-        console.error('Failed to save delete-for-me to storage:', e);
-      }
+      storeDeletedForMe(profile.id, [messageId]);
       // Completely remove message from local messages state
       setMessages(prev => prev.filter(m => m.id !== messageId));
+
+      // Notify server endpoint
+      fetch('/api/chat/delete-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': profile.id },
+        body: JSON.stringify({
+          messageIds: [messageId],
+          conversationId: activeConversationId,
+          mode: 'for_me',
+          userId: profile.id,
+        }),
+      }).catch(() => {});
+
       return {};
     }
 
@@ -1559,7 +1618,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
-    // 2. Delete for everyone: update database and broadcast
+    // 2. Call server API route for 100% reliable DB write via Service Role
+    fetch('/api/chat/delete-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': profile.id },
+      body: JSON.stringify({
+        messageIds: [messageId],
+        conversationId: activeConversationId,
+        mode: 'for_everyone',
+        userId: profile.id,
+      }),
+    }).catch(err => console.error('Delete message API error:', err));
+
+    // 3. Delete for everyone: update database and broadcast
     if (!isConfigured) return {};
 
     try {
@@ -1568,6 +1639,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         .from('messages')
         .update({
           deleted_at: nowIso,
+          body: null,
+          storage_path: null,
         })
         .eq('id', messageId)
         .eq('sender_id', profile.id);
@@ -1596,18 +1669,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const nowIso = new Date().toISOString();
 
     if (mode === 'for_me') {
-      try {
-        if (typeof window !== 'undefined') {
-          const key = `vibely_deleted_for_me_${profile.id}`;
-          const stored: string[] = JSON.parse(localStorage.getItem(key) || '[]');
-          const updated = Array.from(new Set([...stored, ...messageIds]));
-          localStorage.setItem(key, JSON.stringify(updated));
-        }
-      } catch (e) {
-        console.error('Failed to save delete-for-me to storage:', e);
-      }
+      storeDeletedForMe(profile.id, messageIds);
       setMessages(prev => prev.filter(m => !messageIds.includes(m.id)));
       setSelectedMessageIds([]);
+
+      // Notify server endpoint
+      fetch('/api/chat/delete-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': profile.id },
+        body: JSON.stringify({
+          messageIds,
+          conversationId: activeConversationId,
+          mode: 'for_me',
+          userId: profile.id,
+        }),
+      }).catch(() => {});
+
       return {};
     }
 
@@ -1635,13 +1712,29 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     );
     setSelectedMessageIds([]);
 
+    // Call server API route with Service Role for guaranteed DB write
+    fetch('/api/chat/delete-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': profile.id },
+      body: JSON.stringify({
+        messageIds: outgoingIds,
+        conversationId: activeConversationId,
+        mode: 'for_everyone',
+        userId: profile.id,
+      }),
+    }).catch(err => console.error('Bulk delete API error:', err));
+
     if (!isConfigured) return {};
 
     try {
       const supabase = getSupabaseBrowserClient();
       await supabase
         .from('messages')
-        .update({ deleted_at: nowIso })
+        .update({
+          deleted_at: nowIso,
+          body: null,
+          storage_path: null,
+        })
         .in('id', outgoingIds)
         .eq('sender_id', profile.id);
 
