@@ -1644,13 +1644,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       // Construct persistent Snapchat system message
       let eventText = '';
       if (type === 'screenshot') {
-        eventText = `[📸 Screenshot] ${profile.display_name} took a screenshot of the chat!`;
+        eventText = `[📸 Screenshot] ${profile.display_name} took a screenshot`;
       } else if (type === 'video_saved') {
-        eventText = `[💾 Video Saved] ${profile.display_name} saved a video to gallery!`;
+        eventText = `[💾 Video Saved] ${profile.display_name} saved a video`;
       } else if (type === 'media_saved') {
-        eventText = `[🖼️ Photo Saved] ${profile.display_name} saved a photo to gallery!`;
+        eventText = `[🖼️ Photo Saved] ${profile.display_name} saved a photo`;
       } else if (type === 'file_downloaded') {
-        eventText = `[📥 File Downloaded] ${profile.display_name} downloaded ${filename || 'a file'}!`;
+        eventText = `[📥 File Downloaded] ${profile.display_name} saved a file`;
       }
 
       try {

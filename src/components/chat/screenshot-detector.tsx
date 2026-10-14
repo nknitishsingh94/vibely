@@ -6,7 +6,7 @@ import { useChat } from '@/context/chat-context';
 /**
  * Snapchat-Style Universal Screenshot Detector
  * Intercepts desktop shortcuts (PrtScn, Win+Shift+S, Mac Cmd+Shift+3/4/5),
- * browser print commands, and mobile OS hardware screenshot focus shifts.
+ * browser print commands, and mobile keyboard shortcuts without false visibility blurs.
  */
 export function ScreenshotDetector() {
   const { activeConversationId, notifySecurityEvent } = useChat();
@@ -26,7 +26,7 @@ export function ScreenshotDetector() {
         metaOrShiftPressed = true;
       }
 
-      // Windows PrintScreen (some platforms fire on keydown)
+      // Windows PrintScreen
       if (e.key === 'PrintScreen' || e.keyCode === 44 || e.code === 'PrintScreen') {
         notifySecurityEvent('screenshot');
         return;
@@ -55,7 +55,7 @@ export function ScreenshotDetector() {
       }
     };
 
-    // 2. Keyup event listener (Windows PrtScn keyup is the standard in Chromium browsers)
+    // 2. Keyup event listener (Windows PrtScn keyup is standard in Chromium browsers)
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'PrintScreen' || e.keyCode === 44 || e.code === 'PrintScreen') {
         notifySecurityEvent('screenshot');
@@ -68,10 +68,10 @@ export function ScreenshotDetector() {
       }
     };
 
-    // 3. Window blur detection (Windows Snipping Tool causes immediate window blur after Win+Shift+S or PrtScn)
+    // 3. Window blur detection when paired directly with modifier key sequence
     const handleBlur = () => {
       const timeSinceLastKey = Date.now() - lastKeyTime;
-      if (metaOrShiftPressed && timeSinceLastKey < 450) {
+      if (metaOrShiftPressed && timeSinceLastKey < 400) {
         notifySecurityEvent('screenshot');
       }
     };
@@ -81,34 +81,16 @@ export function ScreenshotDetector() {
       notifySecurityEvent('screenshot');
     };
 
-    // 5. Mobile focus/blur detection:
-    // When a user takes a hardware screenshot on Android or iOS (Power + Volume Down),
-    // the mobile browser experiences a temporary visibility pause of ~200-1100ms.
-    let blurTime = 0;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        blurTime = Date.now();
-      } else if (document.visibilityState === 'visible') {
-        const elapsed = Date.now() - blurTime;
-        if (blurTime > 0 && elapsed > 180 && elapsed < 1200) {
-          notifySecurityEvent('screenshot');
-        }
-        blurTime = 0;
-      }
-    };
-
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
     window.addEventListener('blur', handleBlur);
     window.addEventListener('beforeprint', handleBeforePrint);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('beforeprint', handleBeforePrint);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [activeConversationId, notifySecurityEvent]);
 

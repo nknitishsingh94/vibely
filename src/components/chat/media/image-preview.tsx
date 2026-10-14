@@ -38,7 +38,6 @@ export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps
       {/* Inline Image Thumbnail (Clean, borderless, high quality) */}
       <div
         onClick={handleOpen}
-        onContextMenu={handleDownloadNotify}
         className="relative group overflow-hidden rounded-2xl cursor-pointer select-none bg-black/10 transition-all active:scale-[0.99]"
       >
         <img

@@ -26,7 +26,6 @@ export function VideoPlayer({ src, filename, fileSize, mimeType }: VideoPlayerPr
         controls
         preload="metadata"
         className="w-full max-h-80 object-contain bg-black"
-        onContextMenu={handleDownloadNotify}
       >
         Your browser does not support the video tag.
       </video>

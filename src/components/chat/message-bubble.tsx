@@ -89,20 +89,20 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     const timeFormatted = formatMessageTime(message.created_at);
 
     let icon = <Camera className="w-3.5 h-3.5 text-amber-500 animate-pulse" />;
-    let text = isOutgoing ? 'You took a screenshot of the chat' : `${senderName} took a screenshot of the chat`;
+    let text = isOutgoing ? 'You took a screenshot' : `${senderName} took a screenshot`;
     let badgeColor = "bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-200";
 
     if (isVideoSavedAlert) {
       icon = <Save className="w-3.5 h-3.5 text-emerald-500" />;
-      text = isOutgoing ? 'You saved a video to gallery' : `${senderName} saved a video to gallery`;
+      text = isOutgoing ? 'You saved a video' : `${senderName} saved a video`;
       badgeColor = "bg-emerald-500/10 border-emerald-500/25 text-emerald-900 dark:text-emerald-200";
     } else if (isPhotoSavedAlert) {
       icon = <Download className="w-3.5 h-3.5 text-sky-500" />;
-      text = isOutgoing ? 'You saved a photo to gallery' : `${senderName} saved a photo to gallery`;
+      text = isOutgoing ? 'You saved a photo' : `${senderName} saved a photo`;
       badgeColor = "bg-sky-500/10 border-sky-500/25 text-sky-900 dark:text-sky-200";
     } else if (isFileDownloadedAlert) {
       icon = <Download className="w-3.5 h-3.5 text-indigo-500" />;
-      text = isOutgoing ? 'You downloaded a file' : `${senderName} downloaded a file`;
+      text = isOutgoing ? 'You saved a file' : `${senderName} saved a file`;
       badgeColor = "bg-indigo-500/10 border-indigo-500/25 text-indigo-900 dark:text-indigo-200";
     }
 
