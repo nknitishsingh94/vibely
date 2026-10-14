@@ -71,6 +71,10 @@ export function CallModal() {
         return 'Ringing...';
       case 'connected':
         return formatTimer(duration);
+      case 'declined':
+        return 'Call declined';
+      case 'unavailable':
+        return 'Unavailable / No answer';
       case 'ended':
         return 'Call ended';
     }
@@ -103,7 +107,11 @@ export function CallModal() {
           <p
             className={cn(
               'text-xs font-medium tracking-wider mt-1 transition-all',
-              status === 'connected' ? 'text-emerald-400 font-mono' : 'text-white/70 animate-pulse'
+              status === 'connected'
+                ? 'text-emerald-400 font-mono'
+                : status === 'declined' || status === 'unavailable'
+                ? 'text-rose-400 font-semibold'
+                : 'text-white/70 animate-pulse'
             )}
           >
             {getStatusText()}
