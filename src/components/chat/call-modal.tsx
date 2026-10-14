@@ -24,6 +24,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { useCall, type CallParticipant } from '@/context/call-context';
 import { useChat } from '@/context/chat-context';
 import { cn } from '@/lib/utils';
+import { VibelyEmblem } from '@/components/ui/brand-logo';
 import type { Profile } from '@/types/database';
 
 /**
@@ -744,14 +745,17 @@ export function CallModal() {
             </div>
 
             {/* Search Input */}
-            <div className="relative my-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+            <div className="relative my-3 flex items-center">
+              <div className="absolute left-2.5 flex items-center gap-1.5 pointer-events-none select-none z-10">
+                <VibelyEmblem size="xs" />
+                <Search className="w-3.5 h-3.5 text-white/50" />
+              </div>
               <input
                 type="text"
-                placeholder="Search friends to add..."
+                placeholder="Search Vibely friends to add..."
                 value={mergeSearch}
                 onChange={e => setMergeSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-white/40 focus:outline-hidden focus:border-emerald-500/50"
+                className="w-full pl-[3.75rem] pr-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-white/40 focus:outline-hidden focus:border-emerald-500/50"
               />
             </div>
 

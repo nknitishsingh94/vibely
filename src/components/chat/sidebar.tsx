@@ -36,7 +36,7 @@ import { useChat } from '@/context/chat-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
-import { BrandLogo } from '@/components/ui/brand-logo';
+import { BrandLogo, VibelyEmblem } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
 import { AvatarPickerModal } from './avatar-picker-modal';
 import { NotificationBell } from './notification-bar';
@@ -297,21 +297,25 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* WhatsApp-Style Search Input */}
+        {/* Vibely Branded Search Input */}
         <div className="shrink-0 px-3 pt-2.5 pb-1.5 space-y-2">
-          <div className="relative flex items-center">
-            <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 pointer-events-none" />
+          <div className="relative flex items-center group">
+            <div className="absolute left-2.5 flex items-center gap-1.5 pointer-events-none select-none z-10">
+              <VibelyEmblem size="xs" />
+              <Search className="w-3.5 h-3.5 text-muted-foreground/70 group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400 transition-colors" />
+            </div>
             <input
               type="text"
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
-              placeholder="Search or start new chat"
-              className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-muted/60 hover:bg-muted/80 focus:bg-background border border-border/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder:text-muted-foreground transition-all"
+              placeholder="Search Vibely or start new chat"
+              className="w-full pl-[3.75rem] pr-8 py-2 rounded-xl text-xs bg-muted/60 hover:bg-muted/80 focus:bg-background border border-border/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder:text-muted-foreground transition-all shadow-xs"
             />
             {filterText && (
               <button
                 onClick={() => setFilterText('')}
-                className="absolute right-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+                className="absolute right-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted transition-colors cursor-pointer"
+                title="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

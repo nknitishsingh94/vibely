@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
+import { VibelyEmblem } from '@/components/ui/brand-logo';
 
 interface ForwardModalProps {
   isOpen: boolean;
@@ -92,14 +93,17 @@ export function ForwardModal({
     >
       <div className="space-y-3 pt-1 select-none">
         {/* Search Input */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="relative flex items-center">
+          <div className="absolute left-2.5 flex items-center gap-1.5 pointer-events-none select-none z-10">
+            <VibelyEmblem size="xs" />
+            <Search className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
           <input
             type="text"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Search friends or chats..."
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-muted/60 border border-border/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder:text-muted-foreground"
+            placeholder="Search Vibely friends or chats..."
+            className="w-full pl-[3.75rem] pr-3 py-2 text-xs rounded-xl bg-muted/60 border border-border/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder:text-muted-foreground"
           />
         </div>
 

@@ -33,6 +33,7 @@ import { ForwardModal } from './forward-modal';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCall } from '@/context/call-context';
+import { VibelyEmblem } from '@/components/ui/brand-logo';
 
 export function ConversationHeader() {
   const { profile } = useAuth();
@@ -438,12 +439,15 @@ export function ConversationHeader() {
         {/* In-conversation Search Bar when toggled */}
         {isSearching && (
           <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-muted/40 border-t border-border/50 animate-in slide-in-from-top-1 duration-150">
-            <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <div className="flex items-center gap-1.5 shrink-0 select-none">
+              <VibelyEmblem size="xs" />
+              <Search className="w-3.5 h-3.5 text-muted-foreground" />
+            </div>
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search messages, little notes, or memories..."
+              placeholder="Search in Vibely messages, little notes, or memories..."
               autoFocus
               className="w-full bg-transparent text-xs focus:outline-none placeholder:text-muted-foreground"
             />
