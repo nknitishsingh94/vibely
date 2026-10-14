@@ -56,6 +56,7 @@ interface CallContextType {
   callHistory: CallLogItem[];
   clearCallHistory: () => void;
   deleteCallLog: (id: string) => void;
+  markCallHistoryAsRead: () => void;
   startCall: (partner: Profile, type: 'voice' | 'video', conversationId?: string) => Promise<void>;
   mergeCall: (partner: Profile, conversationId?: string) => Promise<void>;
   acceptCall: () => Promise<void>;
@@ -81,6 +82,7 @@ const CallContext = createContext<CallContextType>({
   callHistory: [],
   clearCallHistory: () => {},
   deleteCallLog: () => {},
+  markCallHistoryAsRead: () => {},
   startCall: async () => {},
   mergeCall: async () => {},
   acceptCall: async () => {},
@@ -132,6 +134,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     history: callHistory,
     clearAll: clearCallHistory,
     removeLog: deleteCallLog,
+    markAsRead: markCallHistoryAsRead,
   } = useCallHistory(profile?.id);
 
   const [outgoingCall, setOutgoingCall] = useState<OutgoingCallState | null>(null);
@@ -1661,6 +1664,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         callHistory,
         clearCallHistory,
         deleteCallLog,
+        markCallHistoryAsRead,
         startCall,
         mergeCall,
         acceptCall,

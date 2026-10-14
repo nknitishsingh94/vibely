@@ -17,6 +17,7 @@ export interface CallLogItem {
   startedAt: string; // ISO string
   endedAt?: string; // ISO string
   conversationId?: string;
+  isRead?: boolean; // whether missed call has been viewed/read by user
 }
 
 const STORAGE_PREFIX = 'vibely_call_history_';
@@ -58,6 +59,31 @@ export function saveCallHistory(userId: string, history: CallLogItem[]): void {
 }
 
 /**
+ * Mark all unread incoming missed/declined calls as read
+ */
+export function markMissedCallsAsRead(userId: string): void {
+  if (!userId) return;
+  const current = getCallHistory(userId);
+  let changed = false;
+
+  const updated = current.map(item => {
+    const isMissed =
+      item.direction === 'incoming' &&
+      (item.status === 'missed' || item.status === 'declined');
+
+    if (isMissed && !item.isRead) {
+      changed = true;
+      return { ...item, isRead: true };
+    }
+    return item;
+  });
+
+  if (changed) {
+    saveCallHistory(userId, updated);
+  }
+}
+
+/**
  * Add or update a call log entry
  */
 export function addCallLog(
@@ -75,8 +101,14 @@ export function addCallLog(
     };
     current[existingIdx] = newOrUpdatedItem;
   } else {
+    const isMissed =
+      entry.direction === 'incoming' &&
+      (entry.status === 'missed' || entry.status === 'declined');
+    const defaultIsRead = entry.isRead !== undefined ? entry.isRead : !isMissed;
+
     newOrUpdatedItem = {
       ...entry,
+      isRead: defaultIsRead,
       id: `call_log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     };
     current.unshift(newOrUpdatedItem);
@@ -211,10 +243,17 @@ export function useCallHistory(userId?: string) {
     load();
   }, [userId, load]);
 
+  const markAsRead = React.useCallback(() => {
+    if (!userId) return;
+    markMissedCallsAsRead(userId);
+    load();
+  }, [userId, load]);
+
   return {
     history,
     removeLog,
     clearAll,
+    markAsRead,
     refresh: load,
   };
 }

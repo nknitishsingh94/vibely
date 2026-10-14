@@ -66,7 +66,7 @@ export function Sidebar() {
   const router = useRouter();
 
   const { daysTogether, favorites } = useRomanticFeatures();
-  const { startCall, callHistory, clearCallHistory, deleteCallLog } = useCall();
+  const { startCall, callHistory, clearCallHistory, deleteCallLog, markCallHistoryAsRead } = useCall();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = React.useState(false);
   const [filterText, setFilterText] = React.useState('');
@@ -167,11 +167,21 @@ export function Sidebar() {
     return name.includes(filterText.toLowerCase()) || user.includes(filterText.toLowerCase());
   });
 
-  const missedCallsCount = React.useMemo(() => {
+  const unreadMissedCallsCount = React.useMemo(() => {
     return callHistory.filter(
-      c => c.direction === 'incoming' && (c.status === 'missed' || c.status === 'declined')
+      c =>
+        c.direction === 'incoming' &&
+        (c.status === 'missed' || c.status === 'declined') &&
+        !c.isRead
     ).length;
   }, [callHistory]);
+
+  // When user opens/views the calls tab, clear missed call notification badges immediately
+  React.useEffect(() => {
+    if (filterTab === 'calls' && unreadMissedCallsCount > 0) {
+      markCallHistoryAsRead();
+    }
+  }, [filterTab, unreadMissedCallsCount, markCallHistoryAsRead]);
 
   const filteredCalls = React.useMemo(() => {
     return callHistory.filter(call => {
@@ -346,7 +356,10 @@ export function Sidebar() {
 
             {/* Calls Tab Button */}
             <button
-              onClick={() => setFilterTab('calls')}
+              onClick={() => {
+                setFilterTab('calls');
+                markCallHistoryAsRead();
+              }}
               className={cn(
                 'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1 shrink-0',
                 filterTab === 'calls'
@@ -357,9 +370,9 @@ export function Sidebar() {
             >
               <Phone className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               <span>Calls</span>
-              {missedCallsCount > 0 && (
+              {unreadMissedCallsCount > 0 && (
                 <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
-                  {missedCallsCount}
+                  {unreadMissedCallsCount}
                 </span>
               )}
             </button>
@@ -479,7 +492,10 @@ export function Sidebar() {
                     All
                   </button>
                   <button
-                    onClick={() => setCallSubTab('missed')}
+                    onClick={() => {
+                      setCallSubTab('missed');
+                      markCallHistoryAsRead();
+                    }}
                     className={cn(
                       'px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1',
                       callSubTab === 'missed'
@@ -488,9 +504,9 @@ export function Sidebar() {
                     )}
                   >
                     <span>Missed</span>
-                    {missedCallsCount > 0 && (
+                    {unreadMissedCallsCount > 0 && (
                       <span className="w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[8px] font-bold flex items-center justify-center">
-                        {missedCallsCount}
+                        {unreadMissedCallsCount}
                       </span>
                     )}
                   </button>
