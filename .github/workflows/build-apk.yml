@@ -54,7 +54,11 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace --no-daemon
+          if ! ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log; then
+            ERR=$(tail -n 15 build.log | tr '\n' ' ' | sed 's/"//g')
+            echo "::error title=Gradle Build Error::$ERR"
+            exit 1
+          fi
 
       - name: Rename APK
         run: |
