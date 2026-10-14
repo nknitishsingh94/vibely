@@ -577,11 +577,12 @@ export function Sidebar() {
                             e.stopPropagation();
                             setConfirmDeleteChat({ friend: other, conversationId: conv.id });
                           }}
-                          className="opacity-0 group-hover:opacity-100 sm:opacity-0 max-sm:opacity-75 p-1 rounded-md text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-500/10 transition-all cursor-pointer"
+                          className="flex items-center gap-1 px-1.5 py-1 rounded-lg text-[11px] font-medium text-rose-600/80 hover:text-rose-600 bg-rose-500/5 hover:bg-rose-500/15 border border-rose-500/20 transition-all cursor-pointer shrink-0"
                           title="Delete Chat"
                           aria-label="Delete Chat"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3 h-3 text-rose-500" />
+                          <span className="hidden sm:inline">Delete</span>
                         </button>
                       </div>
                     </div>
