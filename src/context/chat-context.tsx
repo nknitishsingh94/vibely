@@ -690,6 +690,30 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     };
   }, [profile?.id, isConfigured]);
 
+  // Auto-refresh when mobile tab resumes from background, screen unlocks, or reconnects
+  useEffect(() => {
+    if (!profile?.id || !isConfigured) return;
+
+    const handleResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      refreshConversations();
+      refreshRequests();
+      if (activeConversationIdRef.current) {
+        loadMessages(activeConversationIdRef.current);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleResume);
+    window.addEventListener('online', handleResume);
+    window.addEventListener('focus', handleResume);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleResume);
+      window.removeEventListener('online', handleResume);
+      window.removeEventListener('focus', handleResume);
+    };
+  }, [profile?.id, isConfigured, refreshConversations, refreshRequests, loadMessages]);
+
   // Realtime subscription for incoming connections and messages across all conversations
   useEffect(() => {
     if (!isConfigured || !profile) return;

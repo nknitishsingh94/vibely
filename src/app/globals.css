@@ -104,18 +104,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* WhatsApp-style mobile touch lock & smooth internal scrolling */
+/* Mobile touch behavior & smooth internal scrolling */
 .mobile-app-lock {
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
-  overscroll-behavior: none;
-  touch-action: manipulation;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
 }
 
 .scroll-touch-contain {
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }

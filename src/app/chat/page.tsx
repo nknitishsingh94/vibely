@@ -110,7 +110,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-background flex select-none overscroll-none touch-manipulation">
+    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-background flex select-none">
       {/* Left Sidebar: on mobile takes full screen 100dvh, hidden if conversation open */}
       <div
         className={`h-full max-h-[100dvh] overflow-hidden ${

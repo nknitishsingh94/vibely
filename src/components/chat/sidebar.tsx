@@ -25,6 +25,7 @@ import {
   Phone,
   Trash2,
   Loader2,
+  RotateCw,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -39,7 +40,7 @@ import { useRomanticFeatures } from '@/lib/romantic-features';
 import { useCall } from '@/context/call-context';
 
 export function Sidebar() {
-  const { profile, signOut, isConfigured } = useAuth();
+  const { profile, signOut, isConfigured, refreshProfile } = useAuth();
   const {
     conversations,
     activeConversationId,
@@ -52,6 +53,8 @@ export function Sidebar() {
     markConversationAsRead,
     partnerActivity,
     deleteFriend,
+    refreshConversations,
+    refreshRequests,
   } = useChat();
   const router = useRouter();
 
@@ -63,6 +66,73 @@ export function Sidebar() {
   const [copiedId, setCopiedId] = React.useState(false);
   const [confirmDeleteChat, setConfirmDeleteChat] = React.useState<{ friend: any; conversationId: string } | null>(null);
   const [isDeletingChat, setIsDeletingChat] = React.useState(false);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [pullDistance, setPullDistance] = React.useState(0);
+
+  const touchStartY = React.useRef(0);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        refreshConversations(),
+        refreshRequests(),
+        refreshProfile?.(),
+      ]);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 450);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (scrollContainerRef.current && scrollContainerRef.current.scrollTop <= 0) {
+      touchStartY.current = e.touches[0].clientY;
+    } else {
+      touchStartY.current = 0;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartY.current) return;
+    if (scrollContainerRef.current && scrollContainerRef.current.scrollTop > 0) return;
+
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - touchStartY.current;
+
+    if (diff > 0) {
+      const distance = Math.min(diff * 0.45, 80);
+      setPullDistance(distance);
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (pullDistance >= 50) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(15); } catch {}
+      }
+      setPullDistance(46);
+      setIsRefreshing(true);
+      try {
+        await Promise.allSettled([
+          refreshConversations(),
+          refreshRequests(),
+          refreshProfile?.(),
+        ]);
+      } finally {
+        setTimeout(() => {
+          setPullDistance(0);
+          setIsRefreshing(false);
+        }, 450);
+      }
+    } else {
+      setPullDistance(0);
+    }
+    touchStartY.current = 0;
+  };
 
   const myUsername = profile?.username ? `@${profile.username}` : '';
 
@@ -143,7 +213,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="w-full md:w-80 lg:w-92 flex flex-col h-full max-h-[100dvh] bg-sidebar-bg border-r border-border/70 select-none overflow-hidden overscroll-none">
+      <aside className="w-full md:w-80 lg:w-92 flex flex-col h-full max-h-[100dvh] bg-sidebar-bg border-r border-border/70 select-none overflow-hidden">
         {/* Brand Header */}
         <div className="shrink-0 p-3.5 sm:p-4 border-b border-border/50 flex flex-col gap-2 pt-[max(env(safe-area-inset-top),0.875rem)]">
           <div className="flex items-center justify-between">
@@ -157,6 +227,17 @@ export function Sidebar() {
             />
 
             <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                title="Refresh chats"
+                aria-label="Refresh chats"
+              >
+                <RotateCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-emerald-600 dark:text-emerald-400")} />
+              </button>
+
               <NotificationBell onOpenConnect={() => setIsInviteOpen(true)} />
 
               <Button
@@ -258,8 +339,35 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Conversations List (WhatsApp Chat Feed) */}
-        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y divide-y divide-border/30">
+        {/* Conversations List (WhatsApp Chat Feed with Touch Pull-to-Refresh) */}
+        <div
+          ref={scrollContainerRef}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="flex-1 overflow-y-auto overscroll-y-auto touch-pan-y divide-y divide-border/30 relative"
+        >
+          {/* Mobile Pull-to-Refresh Banner */}
+          {(pullDistance > 0 || isRefreshing) && (
+            <div
+              style={{ height: isRefreshing ? 44 : pullDistance }}
+              className="flex items-center justify-center overflow-hidden transition-all duration-150 bg-emerald-500/10 border-b border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-400 gap-2 shrink-0 select-none"
+            >
+              <RotateCw
+                className={cn(
+                  'w-3.5 h-3.5 transition-transform duration-200',
+                  isRefreshing ? 'animate-spin' : pullDistance >= 50 ? 'rotate-180' : ''
+                )}
+              />
+              <span className="font-medium text-[11px]">
+                {isRefreshing
+                  ? 'Refreshing...'
+                  : pullDistance >= 50
+                  ? 'Release to refresh'
+                  : 'Pull down to refresh'}
+              </span>
+            </div>
+          )}
           {/* Pending Connection Requests Banner in Sidebar */}
           {incomingRequests.length > 0 && (
             <div className="p-2 space-y-1.5 bg-card/60">

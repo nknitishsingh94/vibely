@@ -16,6 +16,7 @@ import {
   Phone,
   Video,
   MoreVertical,
+  RotateCw,
 } from 'lucide-react';
 import { useChat } from '@/context/chat-context';
 import { Avatar } from '@/components/ui/avatar';
@@ -42,6 +43,7 @@ export function ConversationHeader() {
     typingUsers,
     deleteFriend,
     partnerActivity,
+    refreshConversations,
   } = useChat();
 
   const { startCall } = useCall();
@@ -280,6 +282,17 @@ export function ConversationHeader() {
                     onClick={() => setIsMoreMenuOpen(false)}
                   />
                   <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-2xl bg-card/95 border border-border/80 shadow-xl backdrop-blur-md p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-100">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsMoreMenuOpen(false);
+                        await refreshConversations();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                    >
+                      <RotateCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Refresh Chat</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
