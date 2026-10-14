@@ -1,13 +1,15 @@
 'use client';
 
 import * as React from 'react';
+import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
 import { MessageBubble } from './message-bubble';
 import { formatMessageDate } from '@/lib/utils';
-import { Heart, Search, Sparkles, Lock } from 'lucide-react';
+import { Heart, Search, Sparkles, Lock, Camera, Save, Download } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 
 export function MessageList() {
+  const { profile } = useAuth();
   const {
     messages,
     isLoadingMessages,
@@ -17,6 +19,7 @@ export function MessageList() {
     partnerActivity,
     friendPresence,
     isUserOnline,
+    sessionSecurityAlerts,
   } = useChat();
 
   const partnerId = activeConversation?.otherUser?.id;
@@ -25,11 +28,19 @@ export function MessageList() {
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Filter messages based on search query
+  // Filter messages based on search query and exclude persistent security alerts so reopening chat is 100% clean
   const filteredMessages = React.useMemo(() => {
-    if (!searchQuery.trim()) return messages;
+    const cleanList = messages.filter(
+      m =>
+        !m.body?.startsWith('[📸 Screenshot]') &&
+        !m.body?.startsWith('[💾 Video Saved]') &&
+        !m.body?.startsWith('[🖼️ Photo Saved]') &&
+        !m.body?.startsWith('[📥 File Downloaded]')
+    );
+
+    if (!searchQuery.trim()) return cleanList;
     const q = searchQuery.toLowerCase();
-    return messages.filter(
+    return cleanList.filter(
       m =>
         (m.body && m.body.toLowerCase().includes(q)) ||
         (m.original_filename && m.original_filename.toLowerCase().includes(q))
@@ -184,6 +195,46 @@ export function MessageList() {
           </div>
         </div>
       ) : null}
+
+      {/* Ephemeral Session Security Alerts (Only active during current chat session; vanished when exiting) */}
+      {sessionSecurityAlerts.map(alert => {
+        const isSelf = alert.userId === profile?.id;
+        const isScreenshot = alert.type === 'screenshot';
+        const isVideo = alert.type === 'video_saved';
+        const isPhoto = alert.type === 'media_saved';
+
+        let text = isSelf ? 'You took a screenshot' : `${alert.userName} took a screenshot`;
+        let icon = <Camera className="w-3.5 h-3.5 text-amber-500 animate-pulse" />;
+        let badgeColor = 'bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-200';
+
+        if (isVideo) {
+          text = isSelf ? 'You saved a video' : `${alert.userName} saved a video`;
+          icon = <Save className="w-3.5 h-3.5 text-emerald-500" />;
+          badgeColor = 'bg-emerald-500/10 border-emerald-500/25 text-emerald-900 dark:text-emerald-200';
+        } else if (isPhoto) {
+          text = isSelf ? 'You saved a photo' : `${alert.userName} saved a photo`;
+          icon = <Download className="w-3.5 h-3.5 text-sky-500" />;
+          badgeColor = 'bg-sky-500/10 border-sky-500/25 text-sky-900 dark:text-sky-200';
+        } else if (alert.type === 'file_downloaded') {
+          text = isSelf ? 'You saved a file' : `${alert.userName} saved a file`;
+          icon = <Download className="w-3.5 h-3.5 text-indigo-500" />;
+          badgeColor = 'bg-indigo-500/10 border-indigo-500/25 text-indigo-900 dark:text-indigo-200';
+        }
+
+        return (
+          <div
+            key={alert.id}
+            className="flex items-center justify-center my-2.5 px-4 select-none animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div
+              className={`max-w-md px-3.5 py-1.5 rounded-full border text-center text-xs font-semibold shadow-xs flex items-center justify-center gap-2 backdrop-blur-xs transition-all ${badgeColor}`}
+            >
+              {icon}
+              <span>{text}</span>
+            </div>
+          </div>
+        );
+      })}
 
       <div ref={bottomRef} className="h-1" />
     </div>

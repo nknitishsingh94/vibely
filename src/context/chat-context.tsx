@@ -88,6 +88,7 @@ export interface ChatContextType {
   notifySecurityEvent: (type: SecurityEventType, filename?: string) => Promise<void>;
   securityAlert: SecurityEventAlert | null;
   dismissSecurityAlert: () => void;
+  sessionSecurityAlerts: SecurityEventAlert[];
 }
 
 export interface ConnectionRequestItem {
@@ -164,6 +165,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [partnerActivity, setPartnerActivity] = useState<PartnerActivity | null>(null);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [securityAlert, setSecurityAlert] = useState<SecurityEventAlert | null>(null);
+  const [sessionSecurityAlerts, setSessionSecurityAlerts] = useState<SecurityEventAlert[]>([]);
   const lastSecurityEventRef = useRef<{ type: string; time: number; key?: string }>({ type: '', time: 0 });
   const isSelectMode = selectedMessageIds.length > 0;
 
@@ -588,6 +590,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       .on('broadcast', { event: 'chat_security_alert' }, ({ payload }: any) => {
         if (payload && payload.userId !== profile?.id) {
           setSecurityAlert(payload);
+          setSessionSecurityAlerts(prev => [...prev, payload]);
           playSecurityAlertSound();
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try { navigator.vibrate([50, 70, 50]); } catch {}
@@ -981,6 +984,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Handle active conversation change
   useEffect(() => {
     setSelectedMessageIds([]);
+    setSecurityAlert(null);
+    setSessionSecurityAlerts([]);
     if (activeConversationId) {
       loadMessages(activeConversationId);
       markConversationAsRead(activeConversationId);
@@ -1144,6 +1149,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     channel.on('broadcast', { event: 'chat_security_alert' }, ({ payload }: { payload: any }) => {
       if (payload && payload.conversationId === activeConversationId) {
         setSecurityAlert(payload);
+        setSessionSecurityAlerts(prev => [...prev, payload]);
         playSecurityAlertSound();
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
           try { navigator.vibrate([50, 70, 50]); } catch {}
@@ -1607,6 +1613,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       // Trigger local alert & sound immediately
       setSecurityAlert(alert);
+      setSessionSecurityAlerts(prev => [...prev, alert]);
       playSecurityAlertSound();
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         try { navigator.vibrate([40, 60, 40]); } catch {}
@@ -1633,36 +1640,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         try {
           const supabase = getSupabaseBrowserClient();
           const targetChan = supabase.channel(`user-notifications:${otherUserId}`);
-          targetChan.send({
-            type: 'broadcast',
-            event: 'chat_security_alert',
-            payload: alert,
-          }).catch(() => {});
+          targetChan.subscribe((status: any) => {
+            if (status === 'SUBSCRIBED') {
+              targetChan.send({
+                type: 'broadcast',
+                event: 'chat_security_alert',
+                payload: alert,
+              }).finally(() => {
+                supabase.removeChannel(targetChan);
+              });
+            }
+          });
         } catch {}
       }
-
-      // Construct persistent Snapchat system message
-      let eventText = '';
-      if (type === 'screenshot') {
-        eventText = `[📸 Screenshot] ${profile.display_name} took a screenshot`;
-      } else if (type === 'video_saved') {
-        eventText = `[💾 Video Saved] ${profile.display_name} saved a video`;
-      } else if (type === 'media_saved') {
-        eventText = `[🖼️ Photo Saved] ${profile.display_name} saved a photo`;
-      } else if (type === 'file_downloaded') {
-        eventText = `[📥 File Downloaded] ${profile.display_name} saved a file`;
-      }
-
-      try {
-        await sendMessage({
-          messageType: 'text',
-          body: eventText,
-        });
-      } catch (err) {
-        console.warn('Failed to insert security event message:', err);
-      }
     },
-    [profile, conversations, sendMessage]
+    [profile, conversations]
   );
 
   // Edit message
@@ -2111,6 +2103,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         notifySecurityEvent,
         securityAlert,
         dismissSecurityAlert,
+        sessionSecurityAlerts,
       }}
     >
       {children}
