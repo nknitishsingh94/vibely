@@ -287,33 +287,111 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  // Helper to acquire local media stream with crisp audio constraints
-  const acquireLocalMedia = async (callType: 'voice' | 'video') => {
+  // Helper to acquire local media stream with crisp audio constraints & robust progressive fallbacks
+  const acquireLocalMedia = async (callType: 'voice' | 'video'): Promise<MediaStream | null> => {
+    // 1. If we already have a stream, check if it has the required tracks
     if (localStreamRef.current) {
-      // Ensure all tracks are enabled
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      const hasLiveAudio = audioTracks.some(t => t.readyState === 'live');
+      const hasLiveVideo = videoTracks.some(t => t.readyState === 'live');
+
+      if (callType === 'video' && !hasLiveVideo) {
+        try {
+          let videoStream: MediaStream | null = null;
+          try {
+            videoStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user',
+              },
+            });
+          } catch {
+            videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          }
+
+          if (videoStream) {
+            videoStream.getVideoTracks().forEach(t => {
+              t.enabled = true;
+              localStreamRef.current?.addTrack(t);
+            });
+          }
+        } catch (err) {
+          console.warn('Could not add video track to existing stream:', err);
+        }
+      }
+
+      // Re-enable existing audio & video tracks
       localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = true; });
-      return localStreamRef.current;
+      if (callType === 'video') {
+        localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = true; });
+      }
+
+      const freshStream = new MediaStream(localStreamRef.current.getTracks());
+      localStreamRef.current = freshStream;
+      setLocalStream(freshStream);
+      return freshStream;
     }
+
+    const audioConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    };
+
+    // 2. Video call media acquisition with graceful multi-tier fallbacks
+    if (callType === 'video') {
+      // Step A: Attempt optimal audio + video
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user',
+          },
+        });
+        stream.getAudioTracks().forEach(t => { t.enabled = true; });
+        stream.getVideoTracks().forEach(t => { t.enabled = true; });
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        return stream;
+      } catch (errA) {
+        console.warn('Optimal audio+video acquisition failed, falling back to basic video:', errA);
+      }
+
+      // Step B: Attempt basic audio + video without complex constraints
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: true,
+        });
+        stream.getAudioTracks().forEach(t => { t.enabled = true; });
+        stream.getVideoTracks().forEach(t => { t.enabled = true; });
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        return stream;
+      } catch (errB) {
+        console.warn('Basic audio+video acquisition failed, falling back to audio only:', errB);
+      }
+    }
+
+    // Step C: Audio-only fallback (or voice call)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: callType === 'video' ? {
-          facingMode: 'user',
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-        } : false,
+        audio: audioConstraints,
+        video: false,
+      }).catch(async () => {
+        return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       });
 
       stream.getAudioTracks().forEach(t => { t.enabled = true; });
       localStreamRef.current = stream;
       setLocalStream(stream);
       return stream;
-    } catch (err) {
-      console.warn('Error acquiring media devices:', err);
+    } catch (errC) {
+      console.error('All media acquisition failed (Microphone/Camera blocked):', errC);
       return null;
     }
   };
@@ -328,42 +406,55 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const pc = new RTCPeerConnection(RTC_CONFIG);
     peerConnectionsRef.current.set(remoteUser.id, pc);
 
-    // Setup ontrack
+    // Setup ontrack with reliable fresh MediaStream creation
     pc.ontrack = (event) => {
-      if (event.streams && event.streams[0]) {
-        const remoteMediaStream = event.streams[0];
-        remoteMediaStream.getAudioTracks().forEach(t => { t.enabled = true; });
-
-        remoteStreamsRef.current.set(remoteUser.id, remoteMediaStream);
-        setRemoteStream(remoteMediaStream);
-
-        setParticipants(prev => {
-          const idx = prev.findIndex(p => p.id === remoteUser.id);
-          if (idx >= 0) {
-            const updated = [...prev];
-            updated[idx] = { ...updated[idx], stream: remoteMediaStream, status: 'connected' };
-            return updated;
-          }
-          return [
-            ...prev,
-            { id: remoteUser.id, profile: remoteUser, stream: remoteMediaStream, status: 'connected' },
-          ];
-        });
+      let currentStream = remoteStreamsRef.current.get(remoteUser.id);
+      if (!currentStream) {
+        currentStream = event.streams?.[0] || new MediaStream();
       }
+      if (event.track && !currentStream.getTracks().some(t => t.id === event.track.id)) {
+        currentStream.addTrack(event.track);
+      }
+
+      currentStream.getAudioTracks().forEach(t => { t.enabled = true; });
+      currentStream.getVideoTracks().forEach(t => { t.enabled = true; });
+
+      // Always create a new MediaStream instance so React state updates trigger video element playback
+      const freshStream = new MediaStream(currentStream.getTracks());
+      remoteStreamsRef.current.set(remoteUser.id, freshStream);
+      setRemoteStream(freshStream);
+
+      setParticipants(prev => {
+        const idx = prev.findIndex(p => p.id === remoteUser.id);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], stream: freshStream, status: 'connected' };
+          return updated;
+        }
+        return [
+          ...prev,
+          { id: remoteUser.id, profile: remoteUser, stream: freshStream, status: 'connected' },
+        ];
+      });
     };
 
-    // Setup onicecandidate
+    // Setup onicecandidate with dual channel dispatch (room channel + direct signaling)
     pc.onicecandidate = (event) => {
-      if (event.candidate && callRoomChannelRef.current) {
-        callRoomChannelRef.current.send({
-          type: 'broadcast',
-          event: 'ice_candidate',
-          payload: {
-            fromUserId: profile?.id,
-            toUserId: remoteUser.id,
-            candidate: event.candidate,
-          },
-        });
+      if (event.candidate) {
+        const candPayload = {
+          fromUserId: profile?.id,
+          toUserId: remoteUser.id,
+          candidate: event.candidate,
+        };
+
+        if (callRoomChannelRef.current) {
+          callRoomChannelRef.current.send({
+            type: 'broadcast',
+            event: 'ice_candidate',
+            payload: candPayload,
+          });
+        }
+        sendSignalToUser(remoteUser.id, 'ice_candidate', candPayload, outgoingCallRef.current?.conversationId, roomId);
       }
     };
 
@@ -371,19 +462,35 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => {
         track.enabled = true;
-        pc.addTrack(track, localStreamRef.current!);
+        try {
+          pc.addTrack(track, localStreamRef.current!);
+        } catch (e) {
+          console.warn('Track already added to pc:', e);
+        }
       });
     }
 
     return pc;
-  }, [profile?.id]);
+  }, [profile?.id, sendSignalToUser]);
 
   // Initiate an offer to a remote peer (with auto-retry)
   const initiatePeerOffer = useCallback(async (remoteUser: Profile, channel: any) => {
     if (!remoteUser?.id || remoteUser.id === profile?.id) return;
 
-    await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
+    const stream = await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
     const pc = createPeerConnection(remoteUser, outgoingCallRef.current?.roomId || 'default');
+
+    // Attach all tracks to PC if not already attached
+    if (stream) {
+      const senders = pc.getSenders();
+      stream.getTracks().forEach(track => {
+        if (!senders.some(s => s.track?.id === track.id)) {
+          try {
+            pc.addTrack(track, stream);
+          } catch {}
+        }
+      });
+    }
 
     const sendOffer = async () => {
       if (pc.signalingState === 'closed') return;
@@ -394,16 +501,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         });
         await pc.setLocalDescription(offer);
 
-        channel.send({
-          type: 'broadcast',
-          event: 'webrtc_offer',
-          payload: {
-            fromUserId: profile?.id,
-            toUserId: remoteUser.id,
-            sdp: offer,
-            senderProfile: profile,
-          },
-        });
+        const offerPayload = {
+          fromUserId: profile?.id,
+          toUserId: remoteUser.id,
+          sdp: offer,
+          senderProfile: profile,
+        };
+
+        if (channel) {
+          channel.send({
+            type: 'broadcast',
+            event: 'webrtc_offer',
+            payload: offerPayload,
+          });
+        }
+        sendSignalToUser(remoteUser.id, 'webrtc_offer', offerPayload, outgoingCallRef.current?.conversationId, outgoingCallRef.current?.roomId);
       } catch (err) {
         console.warn('Failed to send offer:', err);
       }
@@ -425,7 +537,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       sendOffer();
     }, 1500);
-  }, [profile, createPeerConnection]);
+  }, [profile, createPeerConnection, sendSignalToUser]);
 
   // Handle incoming offer from a remote peer
   const handleReceiveOffer = useCallback(async (payload: any, channel: any) => {
@@ -448,11 +560,22 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
+    const stream = await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
     const pc = createPeerConnection(
       senderProfile || ({ id: fromUserId, display_name: 'Partner' } as any),
       outgoingCallRef.current?.roomId || 'default'
     );
+
+    if (stream) {
+      const senders = pc.getSenders();
+      stream.getTracks().forEach(track => {
+        if (!senders.some(s => s.track?.id === track.id)) {
+          try {
+            pc.addTrack(track, stream);
+          } catch {}
+        }
+      });
+    }
 
     try {
       if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
@@ -465,20 +588,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         });
         await pc.setLocalDescription(answer);
 
-        channel.send({
-          type: 'broadcast',
-          event: 'webrtc_answer',
-          payload: {
-            fromUserId: profile?.id,
-            toUserId: fromUserId,
-            sdp: answer,
-          },
-        });
+        const answerPayload = {
+          fromUserId: profile?.id,
+          toUserId: fromUserId,
+          sdp: answer,
+        };
+
+        if (channel) {
+          channel.send({
+            type: 'broadcast',
+            event: 'webrtc_answer',
+            payload: answerPayload,
+          });
+        }
+        sendSignalToUser(fromUserId, 'webrtc_answer', answerPayload, outgoingCallRef.current?.conversationId, outgoingCallRef.current?.roomId);
       }
     } catch (err) {
       console.warn('Error handling received offer:', err);
     }
-  }, [profile, createPeerConnection, flushPendingIceCandidates]);
+  }, [profile, createPeerConnection, flushPendingIceCandidates, sendSignalToUser]);
 
   // Handle incoming answer from remote peer
   const handleReceiveAnswer = useCallback(async (payload: any) => {
@@ -814,6 +942,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       .on('broadcast', { event: 'call_accepted' }, async ({ payload }: any) => handleCallAccepted(payload))
       .on('broadcast', { event: 'call_declined' }, ({ payload }: any) => handleCallDeclined(payload))
       .on('broadcast', { event: 'call_cancelled' }, ({ payload }: any) => handleCallCancelled(payload))
+      .on('broadcast', { event: 'ice_candidate' }, ({ payload }: any) => handleReceiveIceCandidate(payload))
+      .on('broadcast', { event: 'webrtc_offer' }, async ({ payload }: any) => handleReceiveOffer(payload, callRoomChannelRef.current))
+      .on('broadcast', { event: 'webrtc_answer' }, async ({ payload }: any) => handleReceiveAnswer(payload))
       .subscribe();
 
     notifChannel
@@ -822,13 +953,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       .on('broadcast', { event: 'call_accepted' }, async ({ payload }: any) => handleCallAccepted(payload))
       .on('broadcast', { event: 'call_declined' }, ({ payload }: any) => handleCallDeclined(payload))
       .on('broadcast', { event: 'call_cancelled' }, ({ payload }: any) => handleCallCancelled(payload))
+      .on('broadcast', { event: 'ice_candidate' }, ({ payload }: any) => handleReceiveIceCandidate(payload))
+      .on('broadcast', { event: 'webrtc_offer' }, async ({ payload }: any) => handleReceiveOffer(payload, callRoomChannelRef.current))
+      .on('broadcast', { event: 'webrtc_answer' }, async ({ payload }: any) => handleReceiveAnswer(payload))
       .subscribe();
 
     return () => {
       supabase.removeChannel(callChannel);
       supabase.removeChannel(notifChannel);
     };
-  }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal, joinCallRoom, handlePeerLeft, flushPendingIceCandidates]);
+  }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal, joinCallRoom, handlePeerLeft, flushPendingIceCandidates, handleReceiveIceCandidate, handleReceiveOffer, handleReceiveAnswer]);
 
   // Handle call duration timer when status === 'connected'
   useEffect(() => {
@@ -1116,13 +1250,27 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       duration: 0,
       isGroup: isMerge || (existingParticipants && existingParticipants.length > 1),
     });
+    setIsVideoEnabled(callType === 'video');
+    setIsMuted(false);
     setIncomingCall(null);
 
     // 1. Acquire local media tracks
-    await acquireLocalMedia(callType);
+    const stream = await acquireLocalMedia(callType);
 
     // 2. Pre-create connection for caller
     const pc = createPeerConnection(caller, roomId);
+
+    // Ensure tracks are added to peer connection
+    if (stream) {
+      const senders = pc.getSenders();
+      stream.getTracks().forEach(track => {
+        if (!senders.some(s => s.track?.id === track.id)) {
+          try {
+            pc.addTrack(track, stream);
+          } catch {}
+        }
+      });
+    }
 
     // 3. Join room channel
     await joinCallRoom(roomId, callType, false);
@@ -1134,11 +1282,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         await pc.setRemoteDescription(new RTCSessionDescription(initialOffer));
         await flushPendingIceCandidates(caller.id, pc);
 
-        answerSdp = await pc.createAnswer({
+        const answer = await pc.createAnswer({
           offerToReceiveAudio: true,
           offerToReceiveVideo: callType === 'video',
         });
-        await pc.setLocalDescription(answerSdp);
+        await pc.setLocalDescription(answer);
+        answerSdp = answer;
       } catch (err) {
         console.warn('Error answering initial offer:', err);
       }
@@ -1288,15 +1437,84 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Controls: Video
-  const toggleVideo = () => {
+  // Controls: Video (Dynamic camera hardware acquisition & WebRTC renegotiation)
+  const toggleVideo = async () => {
     const nextVideo = !isVideoEnabled;
-    if (localStreamRef.current) {
-      const videoTracks = localStreamRef.current.getVideoTracks();
-      videoTracks.forEach(track => {
-        track.enabled = nextVideo;
-      });
+
+    if (nextVideo) {
+      // Turning camera ON
+      let stream = localStreamRef.current;
+      const existingVideoTracks = stream ? stream.getVideoTracks() : [];
+      const hasLiveTrack = existingVideoTracks.some(t => t.readyState === 'live');
+
+      if (!hasLiveTrack) {
+        try {
+          let newVideoStream: MediaStream | null = null;
+          try {
+            newVideoStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user',
+              },
+            });
+          } catch {
+            newVideoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          }
+
+          const newVideoTrack = newVideoStream?.getVideoTracks()[0];
+          if (newVideoTrack) {
+            newVideoTrack.enabled = true;
+            if (!stream) {
+              stream = new MediaStream([newVideoTrack]);
+              localStreamRef.current = stream;
+            } else {
+              stream.addTrack(newVideoTrack);
+            }
+
+            // Add or replace track on all active peer connections
+            peerConnectionsRef.current.forEach(pc => {
+              if (pc.signalingState !== 'closed') {
+                const senders = pc.getSenders();
+                const videoSender = senders.find(s => s.track?.kind === 'video');
+                if (videoSender) {
+                  videoSender.replaceTrack(newVideoTrack).catch(err => {
+                    console.warn('Error replacing video track:', err);
+                  });
+                } else {
+                  try {
+                    pc.addTrack(newVideoTrack, stream!);
+                  } catch (e) {
+                    console.warn('Error adding video track to pc:', e);
+                  }
+                }
+              }
+            });
+
+            const fresh = new MediaStream(stream.getTracks());
+            localStreamRef.current = fresh;
+            setLocalStream(fresh);
+          }
+        } catch (err) {
+          console.warn('Failed to turn on camera:', err);
+          return;
+        }
+      } else {
+        existingVideoTracks.forEach(t => { t.enabled = true; });
+        const fresh = new MediaStream(stream!.getTracks());
+        setLocalStream(fresh);
+      }
+    } else {
+      // Turning camera OFF
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach(track => {
+          track.enabled = false;
+        });
+        const fresh = new MediaStream(localStreamRef.current.getTracks());
+        setLocalStream(fresh);
+      }
     }
+
     setIsVideoEnabled(nextVideo);
 
     if (callRoomChannelRef.current && profile) {

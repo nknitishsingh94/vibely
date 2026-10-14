@@ -217,3 +217,7 @@ body {
   box-shadow: 0 0 35px -5px rgba(12, 59, 46, 0.35);
 }
 
+.mirror-mode {
+  transform: scaleX(-1);
+}
+

@@ -35,16 +35,31 @@ function RemoteParticipantAudio({
 }) {
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
+  const handleAudioRef = React.useCallback(
+    (node: HTMLAudioElement | null) => {
+      audioRef.current = node;
+      if (node && stream) {
+        node.srcObject = stream;
+        node.muted = !isSpeakerOn;
+        node.play().catch(err => {
+          console.warn('Remote participant audio play warning:', err);
+        });
+      }
+    },
+    [stream, isSpeakerOn]
+  );
+
   React.useEffect(() => {
     if (audioRef.current && stream) {
       audioRef.current.srcObject = stream;
+      audioRef.current.muted = !isSpeakerOn;
       audioRef.current.play().catch(err => {
-        console.warn('Remote participant audio play warning:', err);
+        console.warn('Remote participant audio effect warning:', err);
       });
     }
-  }, [stream]);
+  }, [stream, isSpeakerOn]);
 
-  return <audio ref={audioRef} autoPlay playsInline muted={!isSpeakerOn} />;
+  return <audio ref={handleAudioRef} autoPlay playsInline muted={!isSpeakerOn} />;
 }
 
 /**
@@ -58,24 +73,42 @@ function ParticipantVideoTile({
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const stream = participant.stream;
 
+  const hasLiveVideoTrack = Boolean(
+    stream &&
+      stream.getVideoTracks().some(t => t.enabled && t.readyState === 'live') &&
+      !participant.isVideoMuted
+  );
+
+  const handleVideoRef = React.useCallback(
+    (node: HTMLVideoElement | null) => {
+      videoRef.current = node;
+      if (node && stream) {
+        node.srcObject = stream;
+        node.play().catch(err => {
+          console.warn('Participant video play error:', err);
+        });
+      }
+    },
+    [stream]
+  );
+
   React.useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(err => {
+        console.warn('Participant video effect warning:', err);
+      });
     }
-  }, [stream]);
-
-  const hasLiveVideoTrack =
-    stream &&
-    stream.getVideoTracks().some(t => t.enabled && t.readyState === 'live') &&
-    !participant.isVideoMuted;
+  }, [stream, hasLiveVideoTrack]);
 
   return (
     <div className="relative w-full h-full min-h-[140px] rounded-2xl overflow-hidden bg-zinc-900/90 border border-white/10 flex items-center justify-center shadow-lg">
       {hasLiveVideoTrack ? (
         <video
-          ref={videoRef}
+          ref={handleVideoRef}
           autoPlay
           playsInline
+          muted
           className="w-full h-full object-cover"
         />
       ) : (
@@ -130,19 +163,79 @@ export function CallModal() {
   const singleRemoteVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const primaryAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
+  const hasLocalVideo = Boolean(
+    isVideoEnabled &&
+      localStream &&
+      localStream.getVideoTracks().some(t => t.enabled && t.readyState === 'live')
+  );
+
+  const hasRemoteVideo = Boolean(
+    remoteStream &&
+      remoteStream.getVideoTracks().some(t => t.enabled && t.readyState === 'live')
+  );
+
+  // Callback ref for remote video
+  const handleRemoteVideoRef = React.useCallback(
+    (node: HTMLVideoElement | null) => {
+      singleRemoteVideoRef.current = node;
+      if (node && remoteStream) {
+        node.srcObject = remoteStream;
+        node.play().catch(err => {
+          console.warn('Single remote video callback play warning:', err);
+        });
+      }
+    },
+    [remoteStream]
+  );
+
+  // Callback ref for local self video
+  const handleLocalVideoRef = React.useCallback(
+    (node: HTMLVideoElement | null) => {
+      localVideoRef.current = node;
+      if (node && localStream) {
+        node.srcObject = localStream;
+        node.play().catch(err => {
+          console.warn('Local video callback play warning:', err);
+        });
+      }
+    },
+    [localStream]
+  );
+
+  // Callback ref for primary audio
+  const handlePrimaryAudioRef = React.useCallback(
+    (node: HTMLAudioElement | null) => {
+      primaryAudioRef.current = node;
+      if (node && remoteStream) {
+        node.srcObject = remoteStream;
+        node.muted = !isSpeakerOn;
+        node.play().catch(err => {
+          console.warn('Primary audio callback play warning:', err);
+        });
+      }
+    },
+    [remoteStream, isSpeakerOn]
+  );
+
   // Attach local media stream to local video element
   React.useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(err => {
+        console.warn('Local video effect play warning:', err);
+      });
     }
-  }, [localStream, isVideoEnabled]);
+  }, [localStream, isVideoEnabled, hasLocalVideo]);
 
   // For 1-on-1 video call fallback
   React.useEffect(() => {
     if (singleRemoteVideoRef.current && remoteStream) {
       singleRemoteVideoRef.current.srcObject = remoteStream;
+      singleRemoteVideoRef.current.play().catch(err => {
+        console.warn('Remote video effect play warning:', err);
+      });
     }
-  }, [remoteStream]);
+  }, [remoteStream, hasRemoteVideo]);
 
   // Attach remote media stream to permanent primary audio element
   React.useEffect(() => {
@@ -154,6 +247,21 @@ export function CallModal() {
       });
     }
   }, [remoteStream, isSpeakerOn]);
+
+  // Audio unlock listener: any tap on screen will trigger playback if browser autoplay policy paused it
+  React.useEffect(() => {
+    const unlockAudio = () => {
+      if (primaryAudioRef.current && remoteStream && primaryAudioRef.current.paused) {
+        primaryAudioRef.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
+  }, [remoteStream]);
 
   if (!outgoingCall) return null;
 
@@ -219,7 +327,7 @@ export function CallModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-200 select-none">
       {/* Primary Dedicated Audio Player (Permanent & unmuted for primary peer) */}
-      <audio ref={primaryAudioRef} autoPlay playsInline />
+      <audio ref={handlePrimaryAudioRef} autoPlay playsInline />
 
       {/* Additional Audio Players for secondary participants when in group/merged call */}
       {participants.slice(1).map(p => (
@@ -294,13 +402,20 @@ export function CallModal() {
 
                 {/* Self tile in multi-video */}
                 <div className="relative w-full h-full min-h-[140px] rounded-2xl overflow-hidden bg-zinc-900 border border-white/20 flex items-center justify-center shadow-lg">
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover mirror-mode"
-                  />
+                  {hasLocalVideo ? (
+                    <video
+                      ref={handleLocalVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover mirror-mode"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-3 text-center space-y-1.5">
+                      <VideoOff className="w-6 h-6 text-white/40" />
+                      <span className="text-[10px] text-white/50">Camera off</span>
+                    </div>
+                  )}
                   <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[10px] text-white font-medium border border-white/10 flex items-center gap-1">
                     <span>You</span>
                     {isMuted && <MicOff className="w-2.5 h-2.5 text-rose-400" />}
@@ -310,11 +425,12 @@ export function CallModal() {
             ) : (
               /* 1-on-1 full video stream with PiP */
               <div className="relative w-full h-full rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 flex items-center justify-center">
-                {remoteStream ? (
+                {hasRemoteVideo ? (
                   <video
-                    ref={singleRemoteVideoRef}
+                    ref={handleRemoteVideoRef}
                     autoPlay
                     playsInline
+                    muted
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -333,13 +449,20 @@ export function CallModal() {
 
                 {/* Floating Self Video Picture-in-Picture Box */}
                 <div className="absolute bottom-3 right-3 w-24 h-32 rounded-xl overflow-hidden border-2 border-white/20 bg-zinc-800 shadow-xl z-20 flex items-center justify-center">
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover mirror-mode"
-                  />
+                  {hasLocalVideo ? (
+                    <video
+                      ref={handleLocalVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover mirror-mode"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-800/90 text-white/50 text-[10px]">
+                      <VideoOff className="w-5 h-5 mb-1 text-white/40" />
+                      <span>Camera off</span>
+                    </div>
+                  )}
                   <span className="absolute bottom-1 right-1.5 text-[9px] text-white/80 bg-black/60 px-1 rounded font-medium">
                     You
                   </span>
