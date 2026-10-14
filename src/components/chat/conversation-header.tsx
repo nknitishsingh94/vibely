@@ -102,17 +102,17 @@ export function ConversationHeader() {
 
   return (
     <>
-      <div className="shrink-0 flex flex-col border-b border-border/70 bg-card/90 backdrop-blur-md z-10 select-none pt-[max(env(safe-area-inset-top),0.375rem)]">
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Mobile Back Button */}
+      <div className="shrink-0 flex flex-col border-b border-border/70 bg-card/90 backdrop-blur-md z-10 select-none pt-[max(env(safe-area-inset-top),0.375rem)] pl-[max(env(safe-area-inset-left),0rem)] pr-[max(env(safe-area-inset-right),0rem)]">
+        <div className="flex items-center justify-between px-2.5 sm:px-4 py-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Mobile Back Button - properly spaced & touch-friendly, no cut off */}
             <button
               type="button"
               onClick={handleMobileBack}
-              className="md:hidden p-2 -ml-1 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              className="md:hidden w-9 h-9 flex items-center justify-center rounded-full text-foreground/80 hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer shrink-0"
               aria-label="Back to conversations list"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5 shrink-0" />
             </button>
 
             {/* Friend Avatar with presence ring */}
@@ -259,7 +259,7 @@ export function ConversationHeader() {
               <button
                 type="button"
                 onClick={() => setIsMoreMenuOpen(prev => !prev)}
-                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
                 title="More options"
                 aria-label="More options"
               >
@@ -269,19 +269,19 @@ export function ConversationHeader() {
               {isMoreMenuOpen && (
                 <>
                   <div
-                    className="fixed inset-0 z-40 bg-black/10"
+                    className="fixed inset-0 z-40 bg-black/25"
                     onClick={() => setIsMoreMenuOpen(false)}
                   />
-                  <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-2xl bg-card/95 border border-border/80 shadow-xl backdrop-blur-md p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-48 rounded-2xl bg-white dark:bg-[#233138] border border-border/80 dark:border-white/15 shadow-2xl p-1.5 space-y-0.5 select-none animate-in fade-in zoom-in-95 duration-100">
                     <button
                       type="button"
                       onClick={async () => {
                         setIsMoreMenuOpen(false);
                         await refreshConversations();
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer text-left"
                     >
-                      <RotateCw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <RotateCw className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span>Refresh Chat</span>
                     </button>
                     <button
@@ -290,9 +290,9 @@ export function ConversationHeader() {
                         setIsSearching(!isSearching);
                         setIsMoreMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer text-left"
                     >
-                      <Search className="w-3.5 h-3.5 text-muted-foreground" />
+                      <Search className="w-4 h-4 text-zinc-600 dark:text-zinc-300 shrink-0" />
                       <span>Search messages</span>
                     </button>
                     <button
@@ -301,9 +301,9 @@ export function ConversationHeader() {
                         setIsMediaDrawerOpen(true);
                         setIsMoreMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer text-left"
                     >
-                      <FolderHeart className="w-3.5 h-3.5 text-primary" />
+                      <FolderHeart className="w-4 h-4 text-primary shrink-0" />
                       <span>Our Moments</span>
                     </button>
                     <button
@@ -313,21 +313,21 @@ export function ConversationHeader() {
                         setIsDateDialogOpen(true);
                         setIsMoreMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer text-left"
                     >
-                      <CalendarHeart className="w-3.5 h-3.5 text-rose-500" />
+                      <CalendarHeart className="w-4 h-4 text-rose-500 shrink-0" />
                       <span>Our Special Date</span>
                     </button>
-                    <div className="h-px bg-border/50 my-1" />
+                    <div className="h-px bg-zinc-200 dark:bg-zinc-700/60 my-0.5" />
                     <button
                       type="button"
                       onClick={() => {
                         setIsDeleteModalOpen(true);
                         setIsMoreMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-600 hover:bg-rose-500/10 transition-colors cursor-pointer font-medium"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-[0.98] transition-all cursor-pointer text-left"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                       <span>Delete Chat</span>
                     </button>
                   </div>
