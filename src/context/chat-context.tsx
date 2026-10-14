@@ -16,6 +16,19 @@ import {
   PartnerActivityType,
 } from '@/types/database';
 import { encryptMessage, decryptMessage } from '@/lib/e2ee';
+import { playSecurityAlertSound } from '@/lib/ringtone';
+
+export type SecurityEventType = 'screenshot' | 'video_saved' | 'media_saved' | 'file_downloaded';
+
+export interface SecurityEventAlert {
+  id: string;
+  type: SecurityEventType;
+  userId: string;
+  userName: string;
+  filename?: string;
+  conversationId: string;
+  timestamp: number;
+}
 
 export interface ChatContextType {
   conversations: ConversationWithDetails[];
@@ -72,6 +85,9 @@ export interface ChatContextType {
     friendId: string,
     conversationId?: string
   ) => Promise<{ success: boolean; error?: string; message?: string }>;
+  notifySecurityEvent: (type: SecurityEventType, filename?: string) => Promise<void>;
+  securityAlert: SecurityEventAlert | null;
+  dismissSecurityAlert: () => void;
 }
 
 export interface ConnectionRequestItem {
@@ -147,6 +163,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [incomingRequests, setIncomingRequests] = useState<ConnectionRequestItem[]>([]);
   const [partnerActivity, setPartnerActivity] = useState<PartnerActivity | null>(null);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [securityAlert, setSecurityAlert] = useState<SecurityEventAlert | null>(null);
+  const lastSecurityEventRef = useRef<{ type: string; time: number; key?: string }>({ type: '', time: 0 });
   const isSelectMode = selectedMessageIds.length > 0;
 
   const toggleSelectMessage = useCallback((id: string) => {
@@ -565,6 +583,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         refreshRequests();
         if (payload?.payload?.conversationId && payload.payload.conversationId === activeConversationId) {
           setActiveConversationId(null);
+        }
+      })
+      .on('broadcast', { event: 'chat_security_alert' }, ({ payload }: any) => {
+        if (payload && payload.userId !== profile?.id) {
+          setSecurityAlert(payload);
+          playSecurityAlertSound();
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate([50, 70, 50]); } catch {}
+          }
+          setTimeout(() => {
+            setSecurityAlert(prev => (prev?.id === payload.id ? null : prev));
+          }, 5500);
         }
       })
       .subscribe();
@@ -1110,6 +1140,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Realtime Snapchat-Style Security Event Listener (Screenshots & Media Saves)
+    channel.on('broadcast', { event: 'chat_security_alert' }, ({ payload }: { payload: any }) => {
+      if (payload && payload.conversationId === activeConversationId) {
+        setSecurityAlert(payload);
+        playSecurityAlertSound();
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          try { navigator.vibrate([50, 70, 50]); } catch {}
+        }
+        setTimeout(() => {
+          setSecurityAlert(prev => (prev?.id === payload.id ? null : prev));
+        }, 5500);
+      }
+    });
+
     // Broadcast typing indicator
     channel.on('broadcast', { event: 'typing' }, ({ payload }: { payload: any }) => {
       if (payload.userId !== profile.id) {
@@ -1533,6 +1577,93 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       return { error: errMsg };
     }
   };
+
+  // Snapchat-style Security Event Notifier (Screenshots & Media Saves)
+  const dismissSecurityAlert = useCallback(() => {
+    setSecurityAlert(null);
+  }, []);
+
+  const notifySecurityEvent = useCallback(
+    async (type: SecurityEventType, filename?: string) => {
+      if (!profile || !activeConversationIdRef.current) return;
+      const now = Date.now();
+      const dedupKey = `${type}:${filename || ''}`;
+      // Debounce: prevent duplicate trigger within 4 seconds
+      if (lastSecurityEventRef.current.key === dedupKey && now - lastSecurityEventRef.current.time < 4000) {
+        return;
+      }
+      lastSecurityEventRef.current = { type, time: now, key: dedupKey };
+
+      const convId = activeConversationIdRef.current;
+      const alert: SecurityEventAlert = {
+        id: `sec_${now}_${Math.random().toString(36).slice(2, 6)}`,
+        type,
+        userId: profile.id,
+        userName: profile.display_name,
+        filename,
+        conversationId: convId,
+        timestamp: now,
+      };
+
+      // Trigger local alert & sound immediately
+      setSecurityAlert(alert);
+      playSecurityAlertSound();
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate([40, 60, 40]); } catch {}
+      }
+      setTimeout(() => {
+        setSecurityAlert(prev => (prev?.id === alert.id ? null : prev));
+      }, 5000);
+
+      // Realtime broadcast to active conversation channel
+      if (channelRef.current) {
+        try {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'chat_security_alert',
+            payload: alert,
+          });
+        } catch {}
+      }
+
+      // Also broadcast directly to partner's user notification channel for ultra-reliability
+      const currentConv = conversations.find(c => c.id === convId);
+      const otherUserId = currentConv?.otherUser?.id;
+      if (otherUserId) {
+        try {
+          const supabase = getSupabaseBrowserClient();
+          const targetChan = supabase.channel(`user-notifications:${otherUserId}`);
+          targetChan.send({
+            type: 'broadcast',
+            event: 'chat_security_alert',
+            payload: alert,
+          }).catch(() => {});
+        } catch {}
+      }
+
+      // Construct persistent Snapchat system message
+      let eventText = '';
+      if (type === 'screenshot') {
+        eventText = `[📸 Screenshot] ${profile.display_name} took a screenshot of the chat!`;
+      } else if (type === 'video_saved') {
+        eventText = `[💾 Video Saved] ${profile.display_name} saved a video to gallery!`;
+      } else if (type === 'media_saved') {
+        eventText = `[🖼️ Photo Saved] ${profile.display_name} saved a photo to gallery!`;
+      } else if (type === 'file_downloaded') {
+        eventText = `[📥 File Downloaded] ${profile.display_name} downloaded ${filename || 'a file'}!`;
+      }
+
+      try {
+        await sendMessage({
+          messageType: 'text',
+          body: eventText,
+        });
+      } catch (err) {
+        console.warn('Failed to insert security event message:', err);
+      }
+    },
+    [profile, conversations, sendMessage]
+  );
 
   // Edit message
   const editMessage = async (messageId: string, newBody: string): Promise<{ error?: string }> => {
@@ -1977,6 +2108,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         respondToRequest,
         connectWithPartner,
         deleteFriend,
+        notifySecurityEvent,
+        securityAlert,
+        dismissSecurityAlert,
       }}
     >
       {children}

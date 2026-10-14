@@ -15,7 +15,7 @@ interface ImagePreviewProps {
 export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isZoomed, setIsZoomed] = React.useState(false);
-  const { broadcastActivity } = useChat();
+  const { broadcastActivity, notifySecurityEvent } = useChat();
 
   const handleOpen = () => {
     setIsOpen(true);
@@ -29,11 +29,16 @@ export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps
     broadcastActivity?.('in_chat');
   };
 
+  const handleDownloadNotify = () => {
+    notifySecurityEvent?.('media_saved', filename || 'vibely-photo.jpg');
+  };
+
   return (
     <>
       {/* Inline Image Thumbnail (Clean, borderless, high quality) */}
       <div
         onClick={handleOpen}
+        onContextMenu={handleDownloadNotify}
         className="relative group overflow-hidden rounded-2xl cursor-pointer select-none bg-black/10 transition-all active:scale-[0.99]"
       >
         <img
@@ -96,6 +101,7 @@ export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps
                 download={filename || 'vibely-photo.jpg'}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={handleDownloadNotify}
                 className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-all cursor-pointer shadow-md"
                 title="Download photo"
               >
@@ -112,6 +118,7 @@ export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps
             <img
               src={src}
               alt={alt || filename || 'Full size photo'}
+              onContextMenu={handleDownloadNotify}
               onClick={e => {
                 e.stopPropagation();
                 setIsZoomed(prev => !prev);

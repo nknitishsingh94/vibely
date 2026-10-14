@@ -27,6 +27,7 @@ export function MediaGalleryDrawer() {
     setIsMediaDrawerOpen,
     activeConversation,
     messages,
+    notifySecurityEvent,
   } = useChat();
 
   const { anniversary, daysTogether, updateAnniversary, favorites } = useRomanticFeatures();
@@ -273,6 +274,7 @@ export function MediaGalleryDrawer() {
                       <a
                         href={audio.signedMediaUrl!}
                         download={audio.original_filename || 'audio.mp3'}
+                        onClick={() => notifySecurityEvent?.('media_saved', audio.original_filename || 'audio.mp3')}
                         className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
                       >
                         <Download className="w-4 h-4" />
@@ -310,6 +312,7 @@ export function MediaGalleryDrawer() {
                       <a
                         href={vid.signedMediaUrl!}
                         download={vid.original_filename || 'video.mp4'}
+                        onClick={() => notifySecurityEvent?.('video_saved', vid.original_filename || 'video.mp4')}
                         className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
                       >
                         <Download className="w-4 h-4" />
@@ -349,6 +352,7 @@ export function MediaGalleryDrawer() {
                         <a
                           href={doc.signedMediaUrl}
                           download={doc.original_filename || 'document'}
+                          onClick={() => notifySecurityEvent?.('file_downloaded', doc.original_filename || 'document')}
                           className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
                         >
                           <Download className="w-4 h-4" />

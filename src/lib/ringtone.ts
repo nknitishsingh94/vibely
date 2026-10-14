@@ -191,3 +191,32 @@ export function unlockAudioSession() {
   } catch {}
 }
 
+/**
+ * Play Snapchat-style camera shutter / security event notification chime
+ */
+export function playSecurityAlertSound() {
+  try {
+    if (typeof window === 'undefined') return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(987.77, ctx.currentTime); // B5 note
+    osc.frequency.exponentialRampToValueAtTime(1318.51, ctx.currentTime + 0.08); // E6 note
+
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.22);
+  } catch {}
+}
+
+

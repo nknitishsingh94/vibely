@@ -20,6 +20,9 @@ import {
   Ban,
   CheckSquare,
   Forward,
+  Camera,
+  Save,
+  Download,
 } from 'lucide-react';
 import { MessageWithDetails } from '@/types/database';
 import { useAuth } from '@/context/auth-context';
@@ -73,6 +76,51 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const isOutgoing = message.sender_id === profile?.id;
+
+  // Check if message is a Snapchat Security Event notification
+  const isScreenshotAlert = message.body?.startsWith('[📸 Screenshot]') || false;
+  const isVideoSavedAlert = message.body?.startsWith('[💾 Video Saved]') || false;
+  const isPhotoSavedAlert = message.body?.startsWith('[🖼️ Photo Saved]') || false;
+  const isFileDownloadedAlert = message.body?.startsWith('[📥 File Downloaded]') || false;
+  const isSecurityAlert = isScreenshotAlert || isVideoSavedAlert || isPhotoSavedAlert || isFileDownloadedAlert;
+
+  if (isSecurityAlert) {
+    const senderName = message.sender?.display_name || 'Partner';
+    const timeFormatted = formatMessageTime(message.created_at);
+
+    let icon = <Camera className="w-3.5 h-3.5 text-amber-500 animate-pulse" />;
+    let text = isOutgoing ? 'You took a screenshot of the chat' : `${senderName} took a screenshot of the chat`;
+    let badgeColor = "bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-200";
+
+    if (isVideoSavedAlert) {
+      icon = <Save className="w-3.5 h-3.5 text-emerald-500" />;
+      text = isOutgoing ? 'You saved a video to gallery' : `${senderName} saved a video to gallery`;
+      badgeColor = "bg-emerald-500/10 border-emerald-500/25 text-emerald-900 dark:text-emerald-200";
+    } else if (isPhotoSavedAlert) {
+      icon = <Download className="w-3.5 h-3.5 text-sky-500" />;
+      text = isOutgoing ? 'You saved a photo to gallery' : `${senderName} saved a photo to gallery`;
+      badgeColor = "bg-sky-500/10 border-sky-500/25 text-sky-900 dark:text-sky-200";
+    } else if (isFileDownloadedAlert) {
+      icon = <Download className="w-3.5 h-3.5 text-indigo-500" />;
+      text = isOutgoing ? 'You downloaded a file' : `${senderName} downloaded a file`;
+      badgeColor = "bg-indigo-500/10 border-indigo-500/25 text-indigo-900 dark:text-indigo-200";
+    }
+
+    return (
+      <div className="flex items-center justify-center my-2.5 px-4 select-none animate-in fade-in zoom-in-95 duration-200">
+        <div
+          className={cn(
+            "max-w-md px-3.5 py-1.5 rounded-full border text-center text-xs font-medium shadow-xs flex items-center justify-center gap-2 backdrop-blur-xs transition-all",
+            badgeColor
+          )}
+        >
+          {icon}
+          <span className="font-semibold">{text}</span>
+          <span className="text-[10px] opacity-70 font-mono">• {timeFormatted}</span>
+        </div>
+      </div>
+    );
+  }
 
   // Check if message is a "Little Note"
   const isLittleNote = message.body?.startsWith('[💌 Note]') || false;

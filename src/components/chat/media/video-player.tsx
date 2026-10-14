@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Download, Film } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
+import { useChat } from '@/context/chat-context';
 
 interface VideoPlayerProps {
   src: string;
@@ -12,6 +13,12 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ src, filename, fileSize, mimeType }: VideoPlayerProps) {
+  const { notifySecurityEvent } = useChat();
+
+  const handleDownloadNotify = () => {
+    notifySecurityEvent?.('video_saved', filename || 'video.mp4');
+  };
+
   return (
     <div className="rounded-2xl overflow-hidden border border-border/40 bg-black max-w-sm sm:max-w-md shadow-xs">
       <video
@@ -19,6 +26,7 @@ export function VideoPlayer({ src, filename, fileSize, mimeType }: VideoPlayerPr
         controls
         preload="metadata"
         className="w-full max-h-80 object-contain bg-black"
+        onContextMenu={handleDownloadNotify}
       >
         Your browser does not support the video tag.
       </video>
@@ -39,7 +47,8 @@ export function VideoPlayer({ src, filename, fileSize, mimeType }: VideoPlayerPr
           download={filename || 'vibely-video.mp4'}
           target="_blank"
           rel="noopener noreferrer"
-          className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          onClick={handleDownloadNotify}
+          className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
           title="Download video"
         >
           <Download className="w-4 h-4" />

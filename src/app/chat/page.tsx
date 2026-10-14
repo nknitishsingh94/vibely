@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InviteModal } from '@/components/chat/invite-modal';
 import { TopNotificationBar } from '@/components/chat/notification-bar';
+import { ScreenshotDetector } from '@/components/chat/screenshot-detector';
+import { SecurityAlertBanner } from '@/components/chat/security-alert-banner';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { toast } from '@/components/ui/toast';
 
@@ -146,10 +148,12 @@ export default function ChatPage() {
 
       {/* Main Conversation Area: full screen on mobile when conversation selected */}
       <div
-        className={`flex-1 flex flex-col h-full max-h-[100dvh] overflow-hidden bg-background ${
+        className={`relative flex-1 flex flex-col h-full max-h-[100dvh] overflow-hidden bg-background ${
           !activeConversationId ? 'hidden md:flex' : 'flex'
         }`}
       >
+        <ScreenshotDetector />
+        <SecurityAlertBanner />
         <TopNotificationBar />
         {activeConversationId ? (
           <>

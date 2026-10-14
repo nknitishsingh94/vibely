@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { FileText, Download, FileSpreadsheet, FileArchive, FileCode, File, Image as ImageIcon } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
+import { useChat } from '@/context/chat-context';
 
 interface DocumentCardProps {
   src?: string | null;
@@ -19,6 +20,7 @@ export function DocumentCard({
   mimeType,
   isOutgoing = false,
 }: DocumentCardProps) {
+  const { notifySecurityEvent } = useChat();
   const isImage = React.useMemo(() => {
     const name = (filename || '').toLowerCase();
     return (
@@ -94,6 +96,7 @@ export function DocumentCard({
           download={filename || 'document'}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => notifySecurityEvent?.('file_downloaded', filename || 'document')}
           className={`p-2 rounded-xl shrink-0 transition-opacity cursor-pointer ${
             isOutgoing
               ? 'bg-white text-primary hover:bg-white/90'
