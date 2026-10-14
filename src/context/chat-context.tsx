@@ -1537,6 +1537,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       return {};
     }
 
+    if (mode === 'for_everyone') {
+      const targetMsg = messages.find(m => m.id === messageId);
+      if (targetMsg && targetMsg.sender_id !== profile.id) {
+        return { error: 'You can only delete your own messages for everyone' };
+      }
+    }
+
     // 1. Delete for everyone: keep message in place and mark deleted_at locally so placeholder renders right in its spot
     setMessages(prev =>
       prev.map(m =>
@@ -1604,10 +1611,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       return {};
     }
 
-    // Delete for everyone
+    // Delete for everyone - ONLY messages sent by current user can be deleted for everyone!
+    const outgoingIds = messages
+      .filter(m => messageIds.includes(m.id) && m.sender_id === profile.id && !m.deleted_at)
+      .map(m => m.id);
+
+    if (outgoingIds.length === 0) {
+      return { error: 'You can only delete your own messages for everyone' };
+    }
+
     setMessages(prev =>
       prev.map(m =>
-        messageIds.includes(m.id)
+        outgoingIds.includes(m.id)
           ? {
               ...m,
               deleted_at: nowIso,
@@ -1624,24 +1639,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const supabase = getSupabaseBrowserClient();
-      const outgoingIds = messages
-        .filter(m => messageIds.includes(m.id) && m.sender_id === profile.id)
-        .map(m => m.id);
+      await supabase
+        .from('messages')
+        .update({ deleted_at: nowIso })
+        .in('id', outgoingIds)
+        .eq('sender_id', profile.id);
 
-      if (outgoingIds.length > 0) {
-        await supabase
-          .from('messages')
-          .update({ deleted_at: nowIso })
-          .in('id', outgoingIds)
-          .eq('sender_id', profile.id);
-
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'messages_deleted',
-            payload: { messageIds: outgoingIds, deletedAt: nowIso, conversationId: activeConversationId },
-          });
-        }
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'messages_deleted',
+          payload: { messageIds: outgoingIds, deletedAt: nowIso, conversationId: activeConversationId },
+        });
       }
       return {};
     } catch (err: unknown) {

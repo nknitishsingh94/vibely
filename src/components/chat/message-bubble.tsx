@@ -264,25 +264,84 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
       <div
         id={`msg-${message.id}`}
         className={cn(
-          'flex flex-col mb-2 px-1 sm:px-2 select-none animate-in fade-in duration-200',
+          'relative flex flex-col mb-2 px-1 sm:px-2 select-none animate-in fade-in duration-200',
           isOutgoing ? 'items-end' : 'items-start'
         )}
       >
-        <div
-          className={cn(
-            'rounded-2xl px-3.5 py-2 text-xs flex items-center gap-2 border shadow-2xs italic',
-            isOutgoing
-              ? 'bg-muted/40 border-border/50 text-muted-foreground'
-              : 'bg-muted/40 border-border/50 text-muted-foreground'
+        <div className={cn('flex items-center gap-2 w-full', isOutgoing ? 'justify-end' : 'justify-start')}>
+          {/* Checkbox indicator on left for incoming deleted messages in select mode */}
+          {isSelectMode && !isOutgoing && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSelectMessage(message.id);
+              }}
+              className={cn(
+                'w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all cursor-pointer self-center',
+                isSelected
+                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                  : 'border-muted-foreground/40 bg-card hover:border-emerald-500'
+              )}
+            >
+              {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+            </div>
           )}
-        >
-          <Ban className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
-          <span>
-            {isOutgoing ? 'You deleted this message' : 'This message was deleted'}
-          </span>
-          <span className="text-[10px] ml-2 not-italic text-muted-foreground/60 font-mono">
-            {formatMessageTime(message.created_at)}
-          </span>
+
+          <div
+            onClick={() => {
+              if (isSelectMode) toggleSelectMessage(message.id);
+            }}
+            className={cn(
+              'group/del relative rounded-2xl px-3 py-1.5 text-xs flex items-center gap-2 border shadow-2xs italic transition-all',
+              isOutgoing
+                ? 'bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/60'
+                : 'bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/60',
+              isSelectMode && isSelected && 'ring-2 ring-emerald-500 bg-emerald-500/15'
+            )}
+          >
+            <Ban className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
+            <span>
+              {isOutgoing ? 'You deleted this message' : 'This message was deleted'}
+            </span>
+            <span className="text-[10px] ml-1 not-italic text-muted-foreground/60 font-mono">
+              {formatMessageTime(message.created_at)}
+            </span>
+
+            {/* Delete button to remove this deleted placeholder box from screen */}
+            {!isSelectMode && (
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  await deleteMessage(message.id, 'for_me');
+                  toast.success('Message removed');
+                }}
+                className="ml-1 p-1 rounded-lg text-muted-foreground/50 hover:text-rose-500 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                title="Delete for me"
+                aria-label="Delete for me"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Checkbox indicator on right for outgoing deleted messages in select mode */}
+          {isSelectMode && isOutgoing && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSelectMessage(message.id);
+              }}
+              className={cn(
+                'w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all cursor-pointer self-center',
+                isSelected
+                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                  : 'border-muted-foreground/40 bg-card hover:border-emerald-500'
+              )}
+            >
+              {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+            </div>
+          )}
         </div>
       </div>
     );

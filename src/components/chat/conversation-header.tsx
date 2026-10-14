@@ -71,9 +71,13 @@ export function ConversationHeader() {
   const [isDeletingMessages, setIsDeletingMessages] = React.useState(false);
   const [isForwardModalOpen, setIsForwardModalOpen] = React.useState(false);
 
-  const hasOutgoingSelected = React.useMemo(() => {
-    return messages.some(
-      m => selectedMessageIds.includes(m.id) && m.sender_id === profile?.id && !m.deleted_at
+  // Only allow "Delete for everyone" if ALL selected messages were sent by current user and not already deleted
+  const canDeleteForEveryone = React.useMemo(() => {
+    if (selectedMessageIds.length === 0) return false;
+    const selected = messages.filter(m => selectedMessageIds.includes(m.id));
+    return (
+      selected.length > 0 &&
+      selected.every(m => m.sender_id === profile?.id && !m.deleted_at)
     );
   }, [messages, selectedMessageIds, profile?.id]);
 
@@ -613,7 +617,7 @@ export function ConversationHeader() {
             >
               Delete for me
             </Button>
-            {hasOutgoingSelected && (
+            {canDeleteForEveryone && (
               <Button
                 variant="destructive"
                 size="sm"
