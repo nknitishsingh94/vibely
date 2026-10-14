@@ -64,6 +64,8 @@ interface CallContextType {
   toggleMute: () => void;
   toggleVideo: () => void;
   toggleSpeaker: () => void;
+  flipCamera: () => Promise<void>;
+  facingMode: 'user' | 'environment';
 }
 
 const CallContext = createContext<CallContextType>({
@@ -75,6 +77,7 @@ const CallContext = createContext<CallContextType>({
   isMuted: false,
   isVideoEnabled: true,
   isSpeakerOn: true,
+  facingMode: 'user',
   callHistory: [],
   clearCallHistory: () => {},
   deleteCallLog: () => {},
@@ -86,6 +89,7 @@ const CallContext = createContext<CallContextType>({
   toggleMute: () => {},
   toggleVideo: () => {},
   toggleSpeaker: () => {},
+  flipCamera: async () => {},
 });
 
 const RTC_CONFIG: RTCConfiguration = {
@@ -1593,6 +1597,54 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setIsSpeakerOn(prev => !prev);
   };
 
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+
+  // Controls: Flip Camera (Snapchat / FaceTime front & rear camera switch)
+  const flipCamera = async () => {
+    if (!localStreamRef.current) return;
+    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    try {
+      let newStream: MediaStream | null = null;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: nextMode } },
+        });
+      } catch {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: nextMode },
+        });
+      }
+
+      const newVideoTrack = newStream?.getVideoTracks()[0];
+      if (newVideoTrack) {
+        newVideoTrack.enabled = isVideoEnabled;
+        const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (oldVideoTrack) {
+          oldVideoTrack.stop();
+          localStreamRef.current.removeTrack(oldVideoTrack);
+        }
+        localStreamRef.current.addTrack(newVideoTrack);
+
+        // Replace track on all active peer connections
+        peerConnectionsRef.current.forEach(pc => {
+          if (pc.signalingState !== 'closed') {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) {
+              sender.replaceTrack(newVideoTrack).catch(() => {});
+            }
+          }
+        });
+
+        const fresh = new MediaStream(localStreamRef.current.getTracks());
+        localStreamRef.current = fresh;
+        setLocalStream(fresh);
+        setFacingMode(nextMode);
+      }
+    } catch (err) {
+      console.warn('Flip camera error:', err);
+    }
+  };
+
   return (
     <CallContext.Provider
       value={{
@@ -1604,6 +1656,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         isMuted,
         isVideoEnabled,
         isSpeakerOn,
+        facingMode,
+        flipCamera,
         callHistory,
         clearCallHistory,
         deleteCallLog,
