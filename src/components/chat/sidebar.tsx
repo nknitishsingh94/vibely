@@ -520,14 +520,6 @@ export function Sidebar() {
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1 animate-pulse">
                             typing...
                           </span>
-                        ) : isOtherOnline && isActive && partnerActivity?.activity === 'viewing_image' ? (
-                          <span className="text-purple-600 dark:text-purple-400 font-medium text-xs flex items-center gap-1 animate-pulse">
-                            📸 viewing photo...
-                          </span>
-                        ) : isOtherOnline && isActive && partnerActivity?.activity === 'in_chat' ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1">
-                            👀 in chat
-                          </span>
                         ) : (
                           <span
                             className={cn(

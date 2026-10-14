@@ -138,7 +138,7 @@ export function ConversationHeader() {
               </div>
 
               <div className="flex items-center gap-2 text-xs truncate">
-                {/* Snapchat-Style Live Activity Status - ONLY when partner is ACTUALLY online */}
+                {/* Live Activity Status - ONLY when partner is ACTUALLY online */}
                 {isOnline && (partnerActivity?.activity === 'typing' || typingUsers.length > 0) ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 animate-pulse">
                     <span className="flex items-center gap-0.5">
@@ -147,16 +147,6 @@ export function ConversationHeader() {
                       <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce" />
                     </span>
                     <span>typing...</span>
-                  </span>
-                ) : isOnline && partnerActivity?.activity === 'viewing_image' ? (
-                  <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-pulse">
-                    <span>📸</span>
-                    <span>viewing photo...</span>
-                  </span>
-                ) : isOnline && partnerActivity?.activity === 'in_chat' ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-0.5" />
-                    <span>👀 In chat</span>
                   </span>
                 ) : isOnline ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">

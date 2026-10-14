@@ -163,7 +163,7 @@ export function MessageList() {
         </div>
       ))}
 
-      {/* Snapchat-Style Live Activity Indicators - strictly when partner is online */}
+      {/* Live Activity Typing Indicator */}
       {isPartnerOnline && (partnerActivity?.activity === 'typing' || typingUsers.length > 0) ? (
         <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200">
           <Avatar
@@ -181,30 +181,6 @@ export function MessageList() {
               className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"
               style={{ animationDelay: '0.3s' }}
             />
-          </div>
-        </div>
-      ) : isPartnerOnline && partnerActivity?.activity === 'viewing_image' ? (
-        <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200 select-none">
-          <Avatar
-            name={activeConversation?.otherUser?.display_name || 'Partner'}
-            size="xs"
-            src={activeConversation?.otherUser?.avatar_path}
-          />
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-600 dark:text-purple-300 text-xs font-medium shadow-xs">
-            <span>📸</span>
-            <span>{activeConversation?.otherUser?.display_name || 'Partner'} is viewing photo</span>
-          </div>
-        </div>
-      ) : isPartnerOnline && partnerActivity?.activity === 'in_chat' ? (
-        <div className="flex items-center gap-2 pl-2 animate-in fade-in duration-200 select-none">
-          <Avatar
-            name={activeConversation?.otherUser?.display_name || 'Partner'}
-            size="xs"
-            src={activeConversation?.otherUser?.avatar_path}
-          />
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-medium shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>{activeConversation?.otherUser?.display_name || 'Partner'} is in the chat</span>
           </div>
         </div>
       ) : null}
