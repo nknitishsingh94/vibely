@@ -40,8 +40,16 @@ export const metadata: Metadata = {
   title: 'Vibely — Where two souls sync. Pure private connection.',
   description: 'An intimate, modern private messaging sanctuary created especially for two. Share daily thoughts, photos, songs, voice notes, and treasured memories with zero noise.',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-icon.png', sizes: '192x192', type: 'image/png' },
+    ],
   },
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
