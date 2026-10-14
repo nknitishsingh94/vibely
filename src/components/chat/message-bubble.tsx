@@ -437,17 +437,17 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                   }}
                 />
                 <div
-                  className="absolute z-50 top-full mt-1.5 w-48 rounded-2xl bg-card border border-border/90 shadow-2xl backdrop-blur-md p-1.5 space-y-1 animate-in fade-in zoom-in-95 text-foreground select-none right-0"
+                  className="absolute z-50 top-full mt-1.5 w-36 rounded-2xl bg-white dark:bg-[#233138] border border-border/80 dark:border-white/15 shadow-2xl p-1.5 space-y-0.5 text-zinc-900 dark:text-zinc-100 select-none right-0 animate-in fade-in zoom-in-95"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Quick Emojis Bar */}
-                  <div className="flex items-center justify-between px-1.5 py-1 border-b border-border/50 mb-1">
+                  <div className="flex items-center justify-between px-1 py-1 border-b border-border/50 dark:border-white/10 mb-1">
                     {COMMON_EMOJIS.slice(0, 5).map(emoji => (
                       <button
                         key={emoji}
                         type="button"
                         onClick={e => handleReactionClick(emoji, e)}
-                        className="p-1 hover:scale-125 transition-transform text-sm cursor-pointer"
+                        className="p-0.5 hover:scale-125 transition-transform text-sm cursor-pointer"
                       >
                         {emoji}
                       </button>
@@ -461,9 +461,9 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                       setReplyingTo(message);
                       setShowMobileMenu(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
                   >
-                    <Reply className="w-3.5 h-3.5 text-muted-foreground" />
+                    <Reply className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
                     <span>Reply</span>
                   </button>
 
@@ -472,14 +472,14 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                     <button
                       type="button"
                       onClick={handleCopy}
-                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
                     >
                       {isCopied ? (
                         <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
                       ) : (
-                        <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                        <Copy className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
                       )}
-                      <span>{isCopied ? 'Copied!' : 'Copy text'}</span>
+                      <span>{isCopied ? 'Copied' : 'Copy'}</span>
                     </button>
                   )}
 
@@ -487,10 +487,10 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                   <button
                     type="button"
                     onClick={handleToggleFavorite}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
                   >
-                    <Bookmark className={cn('w-3.5 h-3.5', isBookmarked ? 'text-amber-500 fill-current' : 'text-muted-foreground')} />
-                    <span>{isBookmarked ? 'Unsave moment' : 'Save to Moments'}</span>
+                    <Bookmark className={cn('w-3.5 h-3.5', isBookmarked ? 'text-amber-500 fill-current' : 'text-zinc-600 dark:text-zinc-300')} />
+                    <span>{isBookmarked ? 'Unsave' : 'Save'}</span>
                   </button>
 
                   {/* Edit (if available) */}
@@ -502,12 +502,14 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                         setEditText(displayBody || '');
                         setShowMobileMenu(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-muted transition-colors cursor-pointer text-left"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span>Edit message</span>
+                      <Edit2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
+                      <span>Edit</span>
                     </button>
                   )}
+
+                  <div className="h-px bg-zinc-200 dark:bg-zinc-700/60 my-0.5" />
 
                   {/* Delete Option with Red Trash Icon */}
                   <button
@@ -516,10 +518,10 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                       setShowMobileMenu(false);
                       setShowDeleteModal(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs rounded-xl hover:bg-destructive/10 text-destructive font-medium transition-colors cursor-pointer text-left"
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer text-left"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                    <span>Delete message</span>
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </>

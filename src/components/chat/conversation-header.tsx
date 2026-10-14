@@ -252,18 +252,6 @@ export function ConversationHeader() {
               </Button>
             </div>
 
-            {/* Delete Chat Button with Icon & Text */}
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer shrink-0"
-              title="Delete Chat"
-              aria-label="Delete Chat"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              <span>Delete Chat</span>
-            </button>
-
             {/* Mobile More Options Dropdown Toggle */}
             <div className="sm:hidden relative">
               <button
