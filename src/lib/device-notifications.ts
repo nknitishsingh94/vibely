@@ -1,5 +1,6 @@
 // Vibely Native Device & Mobile Notification System (Call & Message Notifications)
 import { getAudioContext, unlockAudioSession } from './ringtone';
+import { env } from './env';
 
 /**
  * Play a pleasant mobile message chime using Web Audio API
@@ -77,6 +78,51 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
     return permission;
   } catch {
     return Notification.permission;
+  }
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
+ * Register device for Background Web Push with VAPID key
+ */
+export async function registerPushSubscription(userId: string) {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (!isNotificationSupported() || Notification.permission !== 'granted' || !userId) return;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg || !reg.pushManager) return;
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const vapidKey = env.vapidPublicKey;
+      if (!vapidKey) return;
+      const convertedKey = urlBase64ToUint8Array(vapidKey);
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedKey,
+      });
+    }
+
+    if (sub) {
+      await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, subscription: sub.toJSON() }),
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to register push subscription:', err);
   }
 }
 

@@ -137,3 +137,80 @@ self.addEventListener('notificationclose', (event) => {
     });
   }
 });
+
+// Background OS Push Wake-up (Handles calls and messages when phone is locked or app is closed)
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: 'Vibely', body: event.data ? event.data.text() : '' };
+  }
+
+  const eventType = data.event || data.type;
+  const payload = data.payload || {};
+
+  if (eventType === 'incoming_call') {
+    const callerName = payload.caller?.display_name || 'Someone';
+    const isVideo = payload.callType === 'video';
+    const title = `📞 Incoming ${isVideo ? 'Video' : 'Voice'} Call`;
+    const body = `${callerName} is calling you on Vibely... Tap to answer`;
+
+    const options = {
+      body,
+      icon: payload.caller?.avatar_path || '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `call-${payload.callId || 'active'}`,
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [800, 400, 800, 400, 800, 400, 800, 400],
+      data: {
+        type: 'call',
+        callId: payload.callId,
+        conversationId: payload.conversationId,
+        url: payload.conversationId ? `/chat/${payload.conversationId}` : '/chat',
+      },
+      actions: [
+        { action: 'answer', title: '📞 Answer' },
+        { action: 'decline', title: '❌ Decline' },
+      ],
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+  } else if (eventType === 'call_cancelled') {
+    event.waitUntil(
+      self.registration.getNotifications().then((notifications) => {
+        notifications.forEach((n) => {
+          if (n.tag && n.tag.startsWith('call-')) {
+            n.close();
+          }
+        });
+      })
+    );
+  } else if (eventType === 'new_message') {
+    const senderName = payload.sender?.display_name || 'New Message';
+    let snippet = payload.body || '';
+    if (!snippet) {
+      if (payload.messageType === 'image') snippet = '📷 Sent a photo';
+      else if (payload.messageType === 'audio') snippet = '🎤 Voice message';
+      else snippet = 'Sent a message';
+    }
+
+    const options = {
+      body: snippet,
+      icon: payload.sender?.avatar_path || '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `msg-${payload.conversationId || Date.now()}`,
+      renotify: true,
+      vibrate: [150, 80, 150],
+      data: {
+        type: 'chat',
+        conversationId: payload.conversationId,
+        url: payload.conversationId ? `/chat/${payload.conversationId}` : '/chat',
+      },
+    };
+
+    event.waitUntil(self.registration.showNotification(senderName, options));
+  }
+});
+

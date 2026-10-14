@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import { BellRing, Volume2, X, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/context/auth-context';
 import {
   isNotificationSupported,
   getNotificationPermission,
   requestNotificationPermission,
   playMessageNotificationSound,
+  registerPushSubscription,
 } from '@/lib/device-notifications';
 import { unlockAudioSession } from '@/lib/ringtone';
 import { toast } from '@/components/ui/toast';
@@ -20,6 +22,7 @@ export function NotificationPermissionBanner({
   className = '',
   compact = false,
 }: NotificationPermissionBannerProps) {
+  const { profile } = useAuth();
   const [permission, setPermission] = React.useState<NotificationPermission>('granted');
   const [isDismissed, setIsDismissed] = React.useState(false);
   const [isRequesting, setIsRequesting] = React.useState(false);
@@ -31,6 +34,10 @@ export function NotificationPermissionBanner({
     const current = getNotificationPermission();
     setPermission(current);
 
+    if (current === 'granted' && profile?.id) {
+      registerPushSubscription(profile.id);
+    }
+
     // If dismissed in this session, check sessionStorage
     try {
       const dismissed = sessionStorage.getItem('vibely_notif_banner_dismissed');
@@ -38,7 +45,7 @@ export function NotificationPermissionBanner({
         setIsDismissed(true);
       }
     } catch {}
-  }, []);
+  }, [profile?.id]);
 
   if (permission === 'granted' || isDismissed) {
     return null;
@@ -53,6 +60,9 @@ export function NotificationPermissionBanner({
       setPermission(result);
 
       if (result === 'granted') {
+        if (profile?.id) {
+          registerPushSubscription(profile.id);
+        }
         // Play gentle chime to confirm audio & notification readiness
         playMessageNotificationSound();
         toast.success('🔔 Real-time calling ringtone & notifications enabled!');

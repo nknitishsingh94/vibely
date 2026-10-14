@@ -5,7 +5,7 @@ import { useAuth } from './auth-context';
 import { useChat } from './chat-context';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { startOutgoingRing, startIncomingRing, stopAllRingtones, unlockAudioSession } from '@/lib/ringtone';
-import { showIncomingCallNotification, dismissCallNotification } from '@/lib/device-notifications';
+import { showIncomingCallNotification, dismissCallNotification, registerPushSubscription } from '@/lib/device-notifications';
 import {
   addCallLog,
   updateCallLog,
@@ -1318,6 +1318,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [outgoingCall?.status, profile?.id]);
+
+  // Auto-register device for background OS push wake-up when authenticated
+  useEffect(() => {
+    if (
+      profile?.id &&
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted'
+    ) {
+      registerPushSubscription(profile.id);
+    }
+  }, [profile?.id]);
 
   // 1. Start Call (Caller initiates 1-on-1 call with instant WebRTC setup)
   const startCall = async (partner: Profile, type: 'voice' | 'video', convId?: string) => {

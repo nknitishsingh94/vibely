@@ -9,13 +9,22 @@ function cleanSupabaseUrl(rawUrl?: string): string {
   return rawUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 }
 
+const DEFAULT_VAPID_PUBLIC_KEY =
+  'BM4v9_GSyjKScSEDkirCFySJu4MM-Fm3HQUjhkzlQtJf3BHGWzXHP_UqkVEs-49YgHUAIz3K_HY6ygG17qf5E2U';
+const DEFAULT_VAPID_PRIVATE_KEY = 'DapsM_J2u6RQrI-mkHAJFlcF4mtvfk5rkUmjeRx8VWo';
+const DEFAULT_VAPID_SUBJECT = 'mailto:admin@vibely.com';
+
 export const env = {
   supabaseUrl: cleanSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL),
   supabaseAnonKey: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_ANON_KEY).trim(),
   supabaseServiceRoleKey: (process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SERVICE_ROLE_KEY).trim(),
   appUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://vibely-sigma-roan.vercel.app',
+  vapidPublicKey: (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY).trim(),
+  vapidPrivateKey: (process.env.VAPID_PRIVATE_KEY || DEFAULT_VAPID_PRIVATE_KEY).trim(),
+  vapidSubject: (process.env.VAPID_SUBJECT || DEFAULT_VAPID_SUBJECT).trim(),
 };
 
 export const isSupabaseConfigured = (): boolean => {
   return true;
 };
+

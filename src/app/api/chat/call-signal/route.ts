@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { sendWebPushToUser } from '@/lib/push-sender';
 
 export async function POST(req: Request) {
   try {
@@ -45,14 +46,19 @@ export async function POST(req: Request) {
       broadcastPromises.push(sendToChannel(`call-user:${targetUserId}`));
       // 2. Direct user notification channel
       broadcastPromises.push(sendToChannel(`user-notifications:${targetUserId}`));
+
+      // 3. High-Priority Background Web Push (Wakes up mobile phone when app is closed / locked)
+      if (event === 'incoming_call' || event === 'new_message' || event === 'call_cancelled') {
+        broadcastPromises.push(sendWebPushToUser(targetUserId, event, enrichedPayload));
+      }
     }
 
-    // 3. Conversation channel (if present)
+    // 4. Conversation channel (if present)
     if (conversationId) {
       broadcastPromises.push(sendToChannel(`conversation:${conversationId}`));
     }
 
-    // 4. Room channel (if present)
+    // 5. Room channel (if present)
     if (roomId) {
       broadcastPromises.push(sendToChannel(`call-room:${roomId}`));
     }
