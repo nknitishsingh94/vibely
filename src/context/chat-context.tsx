@@ -45,6 +45,13 @@ export interface ChatContextType {
   }) => Promise<{ error?: string }>;
   editMessage: (messageId: string, newBody: string) => Promise<{ error?: string }>;
   deleteMessage: (messageId: string, mode?: 'for_me' | 'for_everyone') => Promise<{ error?: string }>;
+  deleteMessages: (messageIds: string[], mode?: 'for_me' | 'for_everyone') => Promise<{ error?: string }>;
+  selectedMessageIds: string[];
+  setSelectedMessageIds: React.Dispatch<React.SetStateAction<string[]>>;
+  isSelectMode: boolean;
+  toggleSelectMessage: (id: string) => void;
+  clearSelectedMessages: () => void;
+  selectAllMessages: () => void;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   broadcastTyping: (isTyping: boolean) => void;
   partnerActivity: PartnerActivity | null;
@@ -92,6 +99,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<ConnectionRequestItem[]>([]);
   const [partnerActivity, setPartnerActivity] = useState<PartnerActivity | null>(null);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const isSelectMode = selectedMessageIds.length > 0;
+
+  const toggleSelectMessage = useCallback((id: string) => {
+    setSelectedMessageIds(prev =>
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    );
+  }, []);
+
+  const clearSelectedMessages = useCallback(() => {
+    setSelectedMessageIds([]);
+  }, []);
+
+  const selectAllMessages = useCallback(() => {
+    setSelectedMessageIds(messages.map(m => m.id));
+  }, [messages]);
+
   const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const onlineUserIdsRef = useRef<Set<string>>(onlineUserIds);
@@ -885,6 +909,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // Handle active conversation change
   useEffect(() => {
+    setSelectedMessageIds([]);
     if (activeConversationId) {
       loadMessages(activeConversationId);
       markConversationAsRead(activeConversationId);
@@ -955,6 +980,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setMessages(prev =>
           prev.map(m =>
             m.id === payload.messageId
+              ? {
+                  ...m,
+                  deleted_at: payload.deletedAt || new Date().toISOString(),
+                  body: null,
+                  storage_path: null,
+                  signedMediaUrl: null,
+                }
+              : m
+          )
+        );
+      }
+    });
+
+    // Broadcast listener for multiple messages deletion by partner
+    channel.on('broadcast', { event: 'messages_deleted' }, ({ payload }: { payload: any }) => {
+      if (Array.isArray(payload?.messageIds) && payload.messageIds.length > 0) {
+        const deletedIds = new Set(payload.messageIds);
+        setMessages(prev =>
+          prev.map(m =>
+            deletedIds.has(m.id)
               ? {
                   ...m,
                   deleted_at: payload.deletedAt || new Date().toISOString(),
@@ -1534,6 +1579,75 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Delete multiple messages (bulk delete)
+  const deleteMessages = async (
+    messageIds: string[],
+    mode: 'for_me' | 'for_everyone' = 'for_me'
+  ): Promise<{ error?: string }> => {
+    if (!profile || messageIds.length === 0) return {};
+    const nowIso = new Date().toISOString();
+
+    if (mode === 'for_me') {
+      try {
+        if (typeof window !== 'undefined') {
+          const key = `vibely_deleted_for_me_${profile.id}`;
+          const stored: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const updated = Array.from(new Set([...stored, ...messageIds]));
+          localStorage.setItem(key, JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.error('Failed to save delete-for-me to storage:', e);
+      }
+      setMessages(prev => prev.filter(m => !messageIds.includes(m.id)));
+      setSelectedMessageIds([]);
+      return {};
+    }
+
+    // Delete for everyone
+    setMessages(prev =>
+      prev.map(m =>
+        messageIds.includes(m.id)
+          ? {
+              ...m,
+              deleted_at: nowIso,
+              body: null,
+              storage_path: null,
+              signedMediaUrl: null,
+            }
+          : m
+      )
+    );
+    setSelectedMessageIds([]);
+
+    if (!isConfigured) return {};
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const outgoingIds = messages
+        .filter(m => messageIds.includes(m.id) && m.sender_id === profile.id)
+        .map(m => m.id);
+
+      if (outgoingIds.length > 0) {
+        await supabase
+          .from('messages')
+          .update({ deleted_at: nowIso })
+          .in('id', outgoingIds)
+          .eq('sender_id', profile.id);
+
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'messages_deleted',
+            payload: { messageIds: outgoingIds, deletedAt: nowIso, conversationId: activeConversationId },
+          });
+        }
+      }
+      return {};
+    } catch (err: unknown) {
+      return { error: (err as Error)?.message || 'Failed to delete messages' };
+    }
+  };
+
   // Toggle emoji reaction
   const toggleReaction = async (messageId: string, emoji: string) => {
     if (!profile) return;
@@ -1659,6 +1773,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         sendMessage,
         editMessage,
         deleteMessage,
+        deleteMessages,
+        selectedMessageIds,
+        setSelectedMessageIds,
+        isSelectMode,
+        toggleSelectMessage,
+        clearSelectedMessages,
+        selectAllMessages,
         toggleReaction,
         broadcastTyping,
         partnerActivity,

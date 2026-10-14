@@ -17,7 +17,10 @@ import {
   Video,
   MoreVertical,
   RotateCw,
+  Copy,
+  CheckSquare,
 } from 'lucide-react';
+import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -30,6 +33,7 @@ import { useRouter } from 'next/navigation';
 import { useCall } from '@/context/call-context';
 
 export function ConversationHeader() {
+  const { profile } = useAuth();
   const {
     activeConversation,
     setActiveConversationId,
@@ -45,6 +49,12 @@ export function ConversationHeader() {
     deleteFriend,
     partnerActivity,
     refreshConversations,
+    messages,
+    selectedMessageIds,
+    isSelectMode,
+    clearSelectedMessages,
+    selectAllMessages,
+    deleteMessages,
   } = useChat();
 
   const { startCall } = useCall();
@@ -55,6 +65,29 @@ export function ConversationHeader() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isDeletingFriend, setIsDeletingFriend] = React.useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = React.useState(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = React.useState(false);
+  const [isDeletingMessages, setIsDeletingMessages] = React.useState(false);
+
+  const hasOutgoingSelected = React.useMemo(() => {
+    return messages.some(
+      m => selectedMessageIds.includes(m.id) && m.sender_id === profile?.id && !m.deleted_at
+    );
+  }, [messages, selectedMessageIds, profile?.id]);
+
+  const handleCopySelected = async () => {
+    const selectedTexts = messages
+      .filter(m => selectedMessageIds.includes(m.id) && m.body && !m.deleted_at)
+      .map(m => m.body?.replace(/^\[💌 Note\]\s*/, ''))
+      .filter(Boolean);
+
+    if (selectedTexts.length > 0) {
+      await navigator.clipboard.writeText(selectedTexts.join('\n'));
+      toast.success(`${selectedTexts.length} ${selectedTexts.length === 1 ? 'message' : 'messages'} copied!`);
+      clearSelectedMessages();
+    } else {
+      toast.error('No text in selected messages');
+    }
+  };
 
   const friend = activeConversation?.otherUser;
   const isOnline = friend?.id ? isUserOnline(friend.id) || friendPresence.online : friendPresence.online;
@@ -103,7 +136,55 @@ export function ConversationHeader() {
   return (
     <>
       <div className="shrink-0 flex flex-col border-b border-border/70 bg-card/90 backdrop-blur-md z-10 select-none pt-[max(env(safe-area-inset-top),0.375rem)] pl-[max(env(safe-area-inset-left),0rem)] pr-[max(env(safe-area-inset-right),0rem)]">
-        <div className="flex items-center justify-between px-2.5 sm:px-4 py-2">
+        {isSelectMode ? (
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-emerald-600/10 dark:bg-[#182229] border-b border-emerald-500/20 text-foreground animate-in fade-in duration-150">
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={clearSelectedMessages}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all cursor-pointer text-foreground"
+                aria-label="Cancel selection"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-1.5 font-semibold text-sm sm:text-base">
+                <span>{selectedMessageIds.length}</span>
+                <span className="text-xs text-muted-foreground font-normal">selected</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleCopySelected}
+                className="p-2 rounded-xl hover:bg-muted text-foreground transition-colors cursor-pointer"
+                title="Copy selected text"
+                aria-label="Copy selected"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={selectAllMessages}
+                className="p-2 rounded-xl hover:bg-muted text-foreground transition-colors cursor-pointer"
+                title="Select all"
+                aria-label="Select all"
+              >
+                <CheckSquare className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBulkDeleteModalOpen(true)}
+                className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                title="Delete selected"
+                aria-label="Delete selected"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between px-2.5 sm:px-4 py-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile Back Button - properly spaced & touch-friendly, no cut off */}
             <button
@@ -336,6 +417,7 @@ export function ConversationHeader() {
             </div>
           </div>
         </div>
+        )}
 
         {/* In-conversation Search Bar when toggled */}
         {isSearching && (
@@ -476,6 +558,69 @@ export function ConversationHeader() {
               )}
               <span>Delete Chat</span>
             </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Bulk Delete Modal */}
+      <Dialog
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => !isDeletingMessages && setIsBulkDeleteModalOpen(false)}
+        title={`Delete ${selectedMessageIds.length} ${selectedMessageIds.length === 1 ? 'message' : 'messages'}?`}
+        size="sm"
+      >
+        <div className="space-y-4 pt-1">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Are you sure you want to delete {selectedMessageIds.length} selected {selectedMessageIds.length === 1 ? 'message' : 'messages'}?
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-border/50">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isDeletingMessages}
+              onClick={() => setIsBulkDeleteModalOpen(false)}
+              className="text-xs rounded-xl cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isDeletingMessages}
+              onClick={async () => {
+                setIsDeletingMessages(true);
+                try {
+                  await deleteMessages(selectedMessageIds, 'for_me');
+                  setIsBulkDeleteModalOpen(false);
+                } finally {
+                  setIsDeletingMessages(false);
+                }
+              }}
+              className="text-xs rounded-xl cursor-pointer text-foreground hover:bg-muted"
+            >
+              Delete for me
+            </Button>
+            {hasOutgoingSelected && (
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isDeletingMessages}
+                onClick={async () => {
+                  setIsDeletingMessages(true);
+                  try {
+                    await deleteMessages(selectedMessageIds, 'for_everyone');
+                    setIsBulkDeleteModalOpen(false);
+                  } finally {
+                    setIsDeletingMessages(false);
+                  }
+                }}
+                className="text-xs rounded-xl bg-rose-600 hover:bg-rose-700 text-white cursor-pointer font-medium"
+              >
+                {isDeletingMessages ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                <span>Delete for everyone</span>
+              </Button>
+            )}
           </div>
         </div>
       </Dialog>

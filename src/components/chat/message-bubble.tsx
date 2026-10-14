@@ -18,6 +18,7 @@ import {
   Sparkles,
   ChevronDown,
   Ban,
+  CheckSquare,
 } from 'lucide-react';
 import { MessageWithDetails } from '@/types/database';
 import { useAuth } from '@/context/auth-context';
@@ -48,7 +49,12 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     editMessage,
     deleteMessage,
     friendPresence,
+    selectedMessageIds,
+    isSelectMode,
+    toggleSelectMessage,
   } = useChat();
+
+  const isSelected = selectedMessageIds.includes(message.id);
 
   const { isFavorite, toggleFav } = useRomanticFeatures();
   const isBookmarked = isFavorite(message.id);
@@ -58,6 +64,8 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
   const [showReactionPicker, setShowReactionPicker] = React.useState(false);
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
   const [showMobileMenu, setShowMobileMenu] = React.useState(false);
+  const [menuPos, setMenuPos] = React.useState<{ top: number; left: number } | null>(null);
+  const chevronBtnRef = React.useRef<HTMLButtonElement | null>(null);
   const [isCopied, setIsCopied] = React.useState(false);
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -200,10 +208,33 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     setShowMobileMenu(false);
   };
 
-  // Touch handlers for mobile long-press
+  const handleOpenMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (showMobileMenu) {
+      setShowMobileMenu(false);
+      setMenuPos(null);
+      return;
+    }
+    if (chevronBtnRef.current) {
+      const rect = chevronBtnRef.current.getBoundingClientRect();
+      const menuWidth = 148;
+      let left = isOutgoing ? rect.right - menuWidth : rect.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+      const top = rect.bottom + 4;
+      setMenuPos({ top, left });
+      setShowMobileMenu(true);
+    }
+  };
+
+  // Touch handlers for mobile long-press: enters multi-select mode!
   const handleTouchStart = () => {
     longPressTimerRef.current = setTimeout(() => {
-      setShowMobileMenu(true);
+      toggleSelectMessage(message.id);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try {
+          navigator.vibrate(40);
+        } catch {}
+      }
     }, 450);
   };
 
@@ -390,144 +421,184 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
         </div>
       )}
 
-      {/* Main Bubble Content */}
-      <div
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        className={cn(
-          'relative max-w-[85%] sm:max-w-md rounded-2xl shadow-xs transition-all',
-          isImageOnly ? 'p-1 sm:p-1.5' : 'p-3 sm:p-3.5 pr-7 sm:pr-8',
-          isLittleNote
-            ? 'little-note-card rounded-2xl'
-            : isOutgoing
-            ? 'bg-[#005C4B] text-white rounded-br-xs shadow-sm shadow-[#005C4B]/20'
-            : 'bg-white dark:bg-[#202C33] text-foreground border border-border/70 rounded-bl-xs shadow-2xs'
+      {/* Main Bubble Content with Selection Checkbox */}
+      <div className={cn('flex items-center gap-2 w-full', isOutgoing ? 'justify-end' : 'justify-start')}>
+        {/* Checkbox indicator on left for incoming messages */}
+        {isSelectMode && !isOutgoing && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSelectMessage(message.id);
+            }}
+            className={cn(
+              'w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all cursor-pointer self-center',
+              isSelected
+                ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                : 'border-muted-foreground/40 bg-card hover:border-emerald-500'
+            )}
+          >
+            {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+          </div>
         )}
-      >
-        {/* Subtle Dropdown Chevron & Context Menu */}
-        {!isEditing && (
-          <div className="absolute top-2 right-2 z-30">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMobileMenu(prev => !prev);
-              }}
-              className={cn(
-                'p-1 rounded-full text-xs transition-all cursor-pointer flex items-center justify-center',
-                isOutgoing
-                  ? 'text-white/80 hover:text-white hover:bg-white/20 bg-black/15'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted bg-muted/60',
-                'opacity-90 hover:opacity-100 shadow-xs'
-              )}
-              title="Message options"
-              aria-label="Message options"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
 
-            {/* Action Menu Popup (Anchored directly under Chevron) */}
-            {showMobileMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMobileMenu(false);
-                  }}
-                />
-                <div
-                  className="absolute z-50 top-full mt-1.5 w-36 rounded-2xl bg-white dark:bg-[#233138] border border-border/80 dark:border-white/15 shadow-2xl p-1.5 space-y-0.5 text-zinc-900 dark:text-zinc-100 select-none right-0 animate-in fade-in zoom-in-95"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Quick Emojis Bar */}
-                  <div className="flex items-center justify-between px-1 py-1 border-b border-border/50 dark:border-white/10 mb-1">
-                    {COMMON_EMOJIS.slice(0, 5).map(emoji => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={e => handleReactionClick(emoji, e)}
-                        className="p-0.5 hover:scale-125 transition-transform text-sm cursor-pointer"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onClick={() => {
+            if (isSelectMode) toggleSelectMessage(message.id);
+          }}
+          className={cn(
+            'relative max-w-[85%] sm:max-w-md rounded-2xl shadow-xs transition-all',
+            isImageOnly ? 'p-1 sm:p-1.5' : 'p-2 px-3 pb-1.5 sm:p-2.5 sm:px-3.5 sm:pb-2 pr-7 sm:pr-8',
+            isLittleNote
+              ? 'little-note-card rounded-2xl'
+              : isOutgoing
+              ? 'bg-[#005C4B] text-white rounded-br-xs shadow-sm shadow-[#005C4B]/20'
+              : 'bg-white dark:bg-[#202C33] text-foreground border border-border/70 rounded-bl-xs shadow-2xs',
+            isSelectMode && isSelected && 'ring-2 ring-emerald-500 bg-emerald-500/15 dark:bg-emerald-500/25'
+          )}
+        >
+          {/* Subtle Dropdown Chevron & Context Menu */}
+          {!isEditing && (
+            <div className="absolute top-1.5 right-1.5 z-20">
+              <button
+                ref={chevronBtnRef}
+                type="button"
+                onClick={handleOpenMenu}
+                className={cn(
+                  'p-1 rounded-full text-xs transition-all cursor-pointer flex items-center justify-center',
+                  isOutgoing
+                    ? 'text-white/80 hover:text-white hover:bg-white/20 bg-black/15'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted bg-muted/60',
+                  'opacity-80 hover:opacity-100 shadow-xs'
+                )}
+                title="Message options"
+                aria-label="Message options"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
 
-                  {/* Reply */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReplyingTo(message);
+              {/* Action Menu Popup (Anchored directly under Chevron, never cut off!) */}
+              {showMobileMenu && menuPos && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setShowMobileMenu(false);
+                      setMenuPos(null);
                     }}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
+                  />
+                  <div
+                    className="fixed z-50 w-36 rounded-2xl bg-white dark:bg-[#233138] border border-border/80 dark:border-white/15 shadow-2xl p-1.5 space-y-0.5 text-zinc-900 dark:text-zinc-100 select-none animate-in fade-in zoom-in-95"
+                    style={{ top: `${menuPos.top}px`, left: `${menuPos.left}px` }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <Reply className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
-                    <span>Reply</span>
-                  </button>
+                    {/* Quick Emojis Bar */}
+                    <div className="flex items-center justify-between px-1 py-1 border-b border-border/50 dark:border-white/10 mb-1">
+                      {COMMON_EMOJIS.slice(0, 5).map(emoji => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={e => handleReactionClick(emoji, e)}
+                          className="p-0.5 hover:scale-125 transition-transform text-sm cursor-pointer"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
 
-                  {/* Copy */}
-                  {displayBody && (
-                    <button
-                      type="button"
-                      onClick={handleCopy}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
-                    >
-                      {isCopied ? (
-                        <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
-                      )}
-                      <span>{isCopied ? 'Copied' : 'Copy'}</span>
-                    </button>
-                  )}
-
-                  {/* Save to Moments */}
-                  <button
-                    type="button"
-                    onClick={handleToggleFavorite}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
-                  >
-                    <Bookmark className={cn('w-3.5 h-3.5', isBookmarked ? 'text-amber-500 fill-current' : 'text-zinc-600 dark:text-zinc-300')} />
-                    <span>{isBookmarked ? 'Unsave' : 'Save'}</span>
-                  </button>
-
-                  {/* Edit (if available) */}
-                  {isEditAvailable && (
+                    {/* Reply */}
                     <button
                       type="button"
                       onClick={() => {
-                        setIsEditing(true);
-                        setEditText(displayBody || '');
+                        setReplyingTo(message);
                         setShowMobileMenu(false);
+                        setMenuPos(null);
                       }}
                       className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
-                      <span>Edit</span>
+                      <Reply className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
+                      <span>Reply</span>
                     </button>
-                  )}
 
-                  <div className="h-px bg-zinc-200 dark:bg-zinc-700/60 my-0.5" />
+                    {/* Select */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleSelectMessage(message.id);
+                        setShowMobileMenu(false);
+                        setMenuPos(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
+                    >
+                      <CheckSquare className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
+                      <span>Select</span>
+                    </button>
 
-                  {/* Delete Option with Red Trash Icon */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMobileMenu(false);
-                      setShowDeleteModal(true);
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer text-left"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                    {/* Copy */}
+                    {displayBody && (
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
+                      >
+                        {isCopied ? (
+                          <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
+                        )}
+                        <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    )}
+
+                    {/* Save to Moments */}
+                    <button
+                      type="button"
+                      onClick={handleToggleFavorite}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
+                    >
+                      <Bookmark className={cn('w-3.5 h-3.5', isBookmarked ? 'text-amber-500 fill-current' : 'text-zinc-600 dark:text-zinc-300')} />
+                      <span>{isBookmarked ? 'Unsave' : 'Save'}</span>
+                    </button>
+
+                    {/* Edit (if available) */}
+                    {isEditAvailable && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditText(displayBody || '');
+                          setShowMobileMenu(false);
+                          setMenuPos(null);
+                        }}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+
+                    <div className="h-px bg-zinc-200 dark:bg-zinc-700/60 my-0.5" />
+
+                    {/* Delete Option with Red Trash Icon */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMobileMenu(false);
+                        setMenuPos(null);
+                        setShowDeleteModal(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer text-left"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
         {/* Little Note Header Badge */}
         {isLittleNote && (
@@ -624,29 +695,46 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           </div>
         ) : (
           displayBody && (
-            <p
-              className={cn(
-                'leading-relaxed whitespace-pre-wrap break-words',
-                isLittleNote
-                  ? 'font-serif text-sm italic text-foreground tracking-wide'
-                  : 'text-sm font-sans'
-              )}
-            >
-              {displayBody}
-            </p>
+            <div className="text-sm font-sans leading-relaxed break-words">
+              <span
+                className={cn(
+                  'whitespace-pre-wrap',
+                  isLittleNote && 'font-serif italic text-foreground tracking-wide'
+                )}
+              >
+                {displayBody}
+              </span>
+
+              {/* Inline Timestamp aligned right & slightly down, saving vertical space */}
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 float-right align-bottom ml-2.5 translate-y-1 select-none text-[10px] leading-none shrink-0 pointer-events-none',
+                  isLittleNote
+                    ? 'text-muted-foreground'
+                    : isOutgoing
+                    ? 'text-white/75'
+                    : 'text-muted-foreground'
+                )}
+              >
+                {isBookmarked && (
+                  <span title="Saved in Our Moments" className="text-amber-400 mr-0.5">
+                    <Bookmark className="w-2.5 h-2.5 fill-current" />
+                  </span>
+                )}
+                {message.edited_at && <span className="italic opacity-80 text-[9px]">(edited)</span>}
+                <span>{formatMessageTime(message.created_at)}</span>
+                {renderStatus()}
+              </span>
+            </div>
           )
         )}
 
-        {/* Timestamp & Status Metadata (shown if not image-only) */}
-        {!isImageOnly && (
+        {/* Timestamp for media-only messages without text caption */}
+        {!displayBody && !isImageOnly && (
           <div
             className={cn(
-              'flex items-center gap-1.5 mt-1.5 text-[10px] select-none',
-              isLittleNote
-                ? 'justify-end text-muted-foreground'
-                : isOutgoing
-                ? 'justify-end text-white/75'
-                : 'justify-end text-muted-foreground'
+              'flex items-center gap-1.5 mt-1 text-[10px] select-none justify-end',
+              isOutgoing ? 'text-white/75' : 'text-muted-foreground'
             )}
           >
             {isBookmarked && (
@@ -654,12 +742,31 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                 <Bookmark className="w-2.5 h-2.5 fill-current" />
               </span>
             )}
-            {message.edited_at && <span className="italic opacity-80">(edited)</span>}
+            {message.edited_at && <span className="italic opacity-80 text-[9px]">(edited)</span>}
             <span>{formatMessageTime(message.created_at)}</span>
             {renderStatus()}
           </div>
         )}
       </div>
+
+      {/* Checkbox indicator on right for outgoing messages in select mode */}
+      {isSelectMode && isOutgoing && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleSelectMessage(message.id);
+          }}
+          className={cn(
+            'w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all cursor-pointer self-center',
+            isSelected
+              ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+              : 'border-muted-foreground/40 bg-card hover:border-emerald-500'
+          )}
+        >
+          {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+        </div>
+      )}
+    </div>
 
       {/* Emoji Reactions Badges */}
       {Object.keys(groupedReactions).length > 0 && (
