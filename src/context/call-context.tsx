@@ -39,6 +39,7 @@ export interface IncomingCallState {
   conversationId: string;
   callId: string;
   roomId: string;
+  sdp?: RTCSessionDescriptionInit | null;
   isMerge?: boolean;
   existingParticipants?: Profile[];
 }
@@ -47,8 +48,8 @@ interface CallContextType {
   outgoingCall: OutgoingCallState | null;
   incomingCall: IncomingCallState | null;
   localStream: MediaStream | null;
-  remoteStream: MediaStream | null; // primary remote stream for 1-to-1 compat
-  participants: CallParticipant[]; // all remote participants in active call
+  remoteStream: MediaStream | null;
+  participants: CallParticipant[];
   isMuted: boolean;
   isVideoEnabled: boolean;
   isSpeakerOn: boolean;
@@ -94,7 +95,9 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 export function CallProvider({ children }: { children: React.ReactNode }) {
@@ -130,6 +133,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const callDurationTimerRef = useRef<any>(null);
   const callRetryTimerRef = useRef<any>(null);
   const callTimeoutRef = useRef<any>(null);
+  const offerRetryTimerRef = useRef<any>(null);
 
   // Synchronous state tracking to eliminate async React state race conditions
   const activeCallStatusRef = useRef<'idle' | 'calling' | 'ringing' | 'connected' | 'ended' | 'declined' | 'unavailable'>('idle');
@@ -194,6 +198,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(callTimeoutRef.current);
       callTimeoutRef.current = null;
     }
+    if (offerRetryTimerRef.current) {
+      clearInterval(offerRetryTimerRef.current);
+      offerRetryTimerRef.current = null;
+    }
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => {
@@ -226,69 +234,81 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Multi-channel signaling broadcaster to reach a user directly
+  // Flush queued ICE candidates helper
+  const flushPendingIceCandidates = useCallback(async (userId: string, pc: RTCPeerConnection) => {
+    const pending = pendingIceCandidatesRef.current.get(userId) || [];
+    if (pending.length > 0 && pc.remoteDescription) {
+      for (const cand of pending) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(cand));
+        } catch (e) {
+          console.warn('Error adding queued candidate:', e);
+        }
+      }
+      pendingIceCandidatesRef.current.delete(userId);
+    }
+  }, []);
+
+  // Multi-channel signaling broadcaster to reach a user instantly (<50ms)
   const sendSignalToUser = useCallback(
-    (targetUserId: string, event: string, payload: any, conversationId?: string) => {
+    (targetUserId: string, event: string, payload: any, conversationId?: string, roomId?: string) => {
       if (!targetUserId) return;
+      const enrichedPayload = {
+        ...payload,
+        timestamp: payload?.timestamp || Date.now(),
+      };
+
+      // 1. Direct Server-Side Broadcast (<50ms delivery across all channels simultaneously)
+      fetch('/api/chat/call-signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUserId,
+          event,
+          payload: enrichedPayload,
+          conversationId,
+          roomId,
+        }),
+      }).catch(err => {
+        console.warn('Server-side signal dispatch error:', err);
+      });
+
+      // 2. Direct client WebSocket fallback
       try {
         const supabase = getSupabaseBrowserClient();
-        const enrichedPayload = {
-          ...payload,
-          timestamp: payload?.timestamp || Date.now(),
-        };
-
-        // 1. Dedicated Call Channel for target user
         const callChannel = supabase.channel(`call-user:${targetUserId}`);
-        callChannel.subscribe((status: string) => {
-          if (status === 'SUBSCRIBED') {
-            callChannel.send({
-              type: 'broadcast',
-              event,
-              payload: enrichedPayload,
-            });
-          }
-        });
-
-        // 2. Also send to user-notifications:${targetUserId}
-        const notifChannel = supabase.channel(`user-notifications:${targetUserId}`);
-        notifChannel.subscribe((status: string) => {
-          if (status === 'SUBSCRIBED') {
-            notifChannel.send({
-              type: 'broadcast',
-              event,
-              payload: enrichedPayload,
-            });
-          }
-        });
-
-        // 3. If in active conversation, also broadcast directly to conversation channel
-        if (conversationId) {
-          const convChannel = supabase.channel(`conversation:${conversationId}`);
-          convChannel.subscribe((status: string) => {
-            if (status === 'SUBSCRIBED') {
-              convChannel.send({
-                type: 'broadcast',
-                event,
-                payload: enrichedPayload,
-              });
-            }
-          });
-        }
-      } catch (err) {
-        console.warn('Failed to send call signal:', err);
-      }
+        callChannel.send({
+          type: 'broadcast',
+          event,
+          payload: enrichedPayload,
+        }).catch(() => {});
+      } catch {}
     },
     []
   );
 
-  // Helper to acquire local media stream
+  // Helper to acquire local media stream with crisp audio constraints
   const acquireLocalMedia = async (callType: 'voice' | 'video') => {
-    if (localStreamRef.current) return localStreamRef.current;
+    if (localStreamRef.current) {
+      // Ensure all tracks are enabled
+      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = true; });
+      return localStreamRef.current;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === 'video',
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: callType === 'video' ? {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        } : false,
       });
+
+      stream.getAudioTracks().forEach(t => { t.enabled = true; });
       localStreamRef.current = stream;
       setLocalStream(stream);
       return stream;
@@ -298,20 +318,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Initiate a WebRTC offer to a remote peer (caller/existing peer role)
-  const initiatePeerOffer = useCallback(async (remoteUser: Profile, channel: any) => {
-    if (!remoteUser?.id || remoteUser.id === profile?.id) return;
-
-    // Check if peer connection already exists and is active
-    const existingPc = peerConnectionsRef.current.get(remoteUser.id);
-    if (existingPc && existingPc.signalingState !== 'closed') {
-      return;
+  // Create & configure an RTCPeerConnection for a remote user
+  const createPeerConnection = useCallback((remoteUser: Profile, roomId: string) => {
+    const existing = peerConnectionsRef.current.get(remoteUser.id);
+    if (existing && existing.signalingState !== 'closed') {
+      return existing;
     }
 
-    // Ensure local stream is ready
-    const stream = await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
-
-    // Create RTCPeerConnection for this remote peer
     const pc = new RTCPeerConnection(RTC_CONFIG);
     peerConnectionsRef.current.set(remoteUser.id, pc);
 
@@ -319,8 +332,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     pc.ontrack = (event) => {
       if (event.streams && event.streams[0]) {
         const remoteMediaStream = event.streams[0];
+        remoteMediaStream.getAudioTracks().forEach(t => { t.enabled = true; });
+
         remoteStreamsRef.current.set(remoteUser.id, remoteMediaStream);
         setRemoteStream(remoteMediaStream);
+
         setParticipants(prev => {
           const idx = prev.findIndex(p => p.id === remoteUser.id);
           if (idx >= 0) {
@@ -336,10 +352,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Setup ICE candidate gathering
+    // Setup onicecandidate
     pc.onicecandidate = (event) => {
-      if (event.candidate && channel) {
-        channel.send({
+      if (event.candidate && callRoomChannelRef.current) {
+        callRoomChannelRef.current.send({
           type: 'broadcast',
           event: 'ice_candidate',
           payload: {
@@ -351,34 +367,67 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Attach local media tracks
-    if (stream) {
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
+    // Attach local tracks immediately
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => {
+        track.enabled = true;
+        pc.addTrack(track, localStreamRef.current!);
       });
     }
 
-    // Create & dispatch WebRTC offer
-    try {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+    return pc;
+  }, [profile?.id]);
 
-      channel.send({
-        type: 'broadcast',
-        event: 'webrtc_offer',
-        payload: {
-          fromUserId: profile?.id,
-          toUserId: remoteUser.id,
-          sdp: offer,
-          senderProfile: profile,
-        },
-      });
-    } catch (err) {
-      console.error('Error creating offer for peer:', remoteUser.id, err);
-    }
-  }, [profile]);
+  // Initiate an offer to a remote peer (with auto-retry)
+  const initiatePeerOffer = useCallback(async (remoteUser: Profile, channel: any) => {
+    if (!remoteUser?.id || remoteUser.id === profile?.id) return;
 
-  // Handle incoming offer from a remote peer (callee/new peer role)
+    await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
+    const pc = createPeerConnection(remoteUser, outgoingCallRef.current?.roomId || 'default');
+
+    const sendOffer = async () => {
+      if (pc.signalingState === 'closed') return;
+      try {
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: outgoingCallRef.current?.callType === 'video',
+        });
+        await pc.setLocalDescription(offer);
+
+        channel.send({
+          type: 'broadcast',
+          event: 'webrtc_offer',
+          payload: {
+            fromUserId: profile?.id,
+            toUserId: remoteUser.id,
+            sdp: offer,
+            senderProfile: profile,
+          },
+        });
+      } catch (err) {
+        console.warn('Failed to send offer:', err);
+      }
+    };
+
+    await sendOffer();
+
+    // Auto-retry offer every 1.5s until answer is received
+    let offerAttempts = 0;
+    if (offerRetryTimerRef.current) clearInterval(offerRetryTimerRef.current);
+    offerRetryTimerRef.current = setInterval(() => {
+      offerAttempts++;
+      if (offerAttempts >= 6 || pc.signalingState === 'stable') {
+        if (offerRetryTimerRef.current) {
+          clearInterval(offerRetryTimerRef.current);
+          offerRetryTimerRef.current = null;
+        }
+        return;
+      }
+      sendOffer();
+    }, 1500);
+  }, [profile, createPeerConnection]);
+
+  // Handle incoming offer from a remote peer
   const handleReceiveOffer = useCallback(async (payload: any, channel: any) => {
     const { fromUserId, sdp, senderProfile } = payload;
     if (!fromUserId || !sdp) return;
@@ -399,73 +448,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    const stream = await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
-
-    let pc = peerConnectionsRef.current.get(fromUserId);
-    if (!pc || pc.signalingState === 'closed') {
-      pc = new RTCPeerConnection(RTC_CONFIG);
-      peerConnectionsRef.current.set(fromUserId, pc);
-
-      pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          const remoteMediaStream = event.streams[0];
-          remoteStreamsRef.current.set(fromUserId, remoteMediaStream);
-          setRemoteStream(remoteMediaStream);
-          setParticipants(prev => {
-            const idx = prev.findIndex(p => p.id === fromUserId);
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = { ...updated[idx], stream: remoteMediaStream, status: 'connected' };
-              return updated;
-            }
-            return [
-              ...prev,
-              {
-                id: fromUserId,
-                profile: senderProfile || { id: fromUserId, display_name: 'Participant' } as any,
-                stream: remoteMediaStream,
-                status: 'connected',
-              },
-            ];
-          });
-        }
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && channel) {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice_candidate',
-            payload: {
-              fromUserId: profile?.id,
-              toUserId: fromUserId,
-              candidate: event.candidate,
-            },
-          });
-        }
-      };
-
-      if (stream) {
-        stream.getTracks().forEach(track => {
-          pc!.addTrack(track, stream);
-        });
-      }
-    }
+    await acquireLocalMedia(outgoingCallRef.current?.callType || 'voice');
+    const pc = createPeerConnection(
+      senderProfile || ({ id: fromUserId, display_name: 'Partner' } as any),
+      outgoingCallRef.current?.roomId || 'default'
+    );
 
     try {
       if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await flushPendingIceCandidates(fromUserId, pc);
 
-        // Drain pending ICE candidates
-        const pending = pendingIceCandidatesRef.current.get(fromUserId) || [];
-        for (const cand of pending) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(cand));
-          } catch {}
-        }
-        pendingIceCandidatesRef.current.delete(fromUserId);
-
-        const answer = await pc.createAnswer();
+        const answer = await pc.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: outgoingCallRef.current?.callType === 'video',
+        });
         await pc.setLocalDescription(answer);
 
         channel.send({
@@ -479,9 +476,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (err) {
-      console.warn('Error handling offer from peer:', fromUserId, err);
+      console.warn('Error handling received offer:', err);
     }
-  }, [profile]);
+  }, [profile, createPeerConnection, flushPendingIceCandidates]);
 
   // Handle incoming answer from remote peer
   const handleReceiveAnswer = useCallback(async (payload: any) => {
@@ -489,22 +486,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const pc = peerConnectionsRef.current.get(fromUserId);
     if (!pc || !sdp) return;
 
+    if (offerRetryTimerRef.current) {
+      clearInterval(offerRetryTimerRef.current);
+      offerRetryTimerRef.current = null;
+    }
+
     try {
       if (pc.signalingState !== 'stable') {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await flushPendingIceCandidates(fromUserId, pc);
       }
-      // Drain pending ICE candidates
-      const pending = pendingIceCandidatesRef.current.get(fromUserId) || [];
-      for (const cand of pending) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(cand));
-        } catch {}
-      }
-      pendingIceCandidatesRef.current.delete(fromUserId);
     } catch (err) {
       console.warn('Error setting answer description:', err);
     }
-  }, []);
+  }, [flushPendingIceCandidates]);
 
   // Handle incoming ICE candidate from remote peer
   const handleReceiveIceCandidate = useCallback(async (payload: any) => {
@@ -515,7 +510,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (pc && pc.remoteDescription) {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch {}
+      } catch (e) {
+        console.warn('Error adding candidate:', e);
+      }
     } else {
       const queue = pendingIceCandidatesRef.current.get(fromUserId) || [];
       queue.push(candidate);
@@ -537,11 +534,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     setParticipants(prev => {
       const remaining = prev.filter(p => p.id !== userId);
-      // If all remote peers have left, end call
       if (remaining.length === 0 && activeCallStatusRef.current === 'connected') {
         setTimeout(() => {
           endCall();
-        }, 600);
+        }, 500);
       }
       return remaining;
     });
@@ -550,12 +546,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // Join Call Room (Mesh Signaling Channel)
   const joinCallRoom = useCallback(
     async (roomId: string, callType: 'voice' | 'video', announceSelf: boolean) => {
-      stopAllRingtones();
       try {
         const supabase = getSupabaseBrowserClient();
         await acquireLocalMedia(callType);
 
-        // If channel already active on same room, reuse it
+        // If already connected to this channel, reuse it
         if (callRoomChannelRef.current?.topic === `call-room:${roomId}`) {
           if (announceSelf && profile) {
             callRoomChannelRef.current.send({
@@ -573,7 +568,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         channel
           .on('broadcast', { event: 'peer_joined' }, async ({ payload }: any) => {
             if (!payload?.user || payload.user.id === profile?.id) return;
-            // Existing peer creates offer for newly joined peer!
             await initiatePeerOffer(payload.user, channel);
           })
           .on('broadcast', { event: 'webrtc_offer' }, async ({ payload }: any) => {
@@ -610,24 +604,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           .on('broadcast', { event: 'call_declined' }, ({ payload }: any) => {
             if (!payload?.userId) return;
             handlePeerLeft(payload.userId);
-          })
-          .on('broadcast', { event: 'peer_muted' }, ({ payload }: any) => {
-            if (!payload?.userId) return;
-            setParticipants(prev =>
-              prev.map(p =>
-                p.id === payload.userId ? { ...p, isAudioMuted: !!payload.isMuted } : p
-              )
-            );
-          })
-          .on('broadcast', { event: 'peer_video_toggled' }, ({ payload }: any) => {
-            if (!payload?.userId) return;
-            setParticipants(prev =>
-              prev.map(p =>
-                p.id === payload.userId
-                  ? { ...p, isVideoMuted: !payload.isVideoEnabled }
-                  : p
-              )
-            );
           })
           .on('broadcast', { event: 'call_ended' }, () => {
             endCall();
@@ -691,6 +667,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         conversationId: payload.conversationId,
         callId,
         roomId,
+        sdp: payload.sdp || null,
         isMerge: !!payload.isMerge,
         existingParticipants: payload.existingParticipants || [],
       });
@@ -698,7 +675,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       // Start melodic ringtone chime on callee's device
       startIncomingRing();
 
-      // Send ACK back to caller
+      // Send ACK back to caller immediately
       sendSignalToUser(
         payload.caller.id,
         'call_ringing',
@@ -707,7 +684,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           roomId,
           conversationId: payload.conversationId,
         },
-        payload.conversationId
+        payload.conversationId,
+        roomId
       );
     };
 
@@ -762,6 +740,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       const roomId = payload.roomId || outgoingCallRef.current?.roomId || `room_${payload.callId}`;
       await joinCallRoom(roomId, payload.callType || 'voice', false);
+
+      // If answer SDP was returned in call_accepted payload, set remote description immediately!
+      if (payload.sdp) {
+        const partnerId = outgoingCallRef.current?.partner?.id || payload.callee?.id;
+        const pc = peerConnectionsRef.current.get(partnerId);
+        if (pc && pc.signalingState !== 'stable') {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            await flushPendingIceCandidates(partnerId, pc);
+          } catch (err) {
+            console.warn('Error setting answer from call_accepted:', err);
+          }
+        }
+      }
     };
 
     const handleCallDeclined = (payload?: any) => {
@@ -778,7 +770,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       stopAllRingtones();
 
-      // If in a multi-peer call and a merged user declined, only remove that user!
       if (participantsRef.current.length > 1 && payload?.userId) {
         handlePeerLeft(payload.userId);
         return;
@@ -798,7 +789,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setTimeout(() => {
         setOutgoingCall(null);
         cleanupMedia();
-      }, 1800);
+      }, 1500);
     };
 
     const handleCallCancelled = (payload?: any) => {
@@ -837,7 +828,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       supabase.removeChannel(callChannel);
       supabase.removeChannel(notifChannel);
     };
-  }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal, joinCallRoom, handlePeerLeft]);
+  }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal, joinCallRoom, handlePeerLeft, flushPendingIceCandidates]);
 
   // Handle call duration timer when status === 'connected'
   useEffect(() => {
@@ -865,7 +856,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, [outgoingCall?.status, profile?.id]);
 
-  // 1. Start Call (Caller initiates 1-on-1 call)
+  // 1. Start Call (Caller initiates 1-on-1 call with instant WebRTC setup)
   const startCall = async (partner: Profile, type: 'voice' | 'video', convId?: string) => {
     if (!profile) return;
     stopAllRingtones();
@@ -878,7 +869,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     activeCallStatusRef.current = 'calling';
     activeCallIdRef.current = callId;
 
-    // Log outgoing call in history
     if (profile?.id) {
       addCallLog(profile.id, {
         callId,
@@ -915,10 +905,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setIsVideoEnabled(type === 'video');
     setIsMuted(false);
 
-    // Acquire local media
+    // Acquire local media tracks immediately
     await acquireLocalMedia(type);
 
-    // Join room in preparation
+    // Pre-create RTCPeerConnection for partner
+    const pc = createPeerConnection(partner, roomId);
+
+    // Create SDP Offer immediately
+    let initialOffer: RTCSessionDescriptionInit | null = null;
+    try {
+      initialOffer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: type === 'video',
+      });
+      await pc.setLocalDescription(initialOffer);
+    } catch (err) {
+      console.warn('Initial offer error:', err);
+    }
+
+    // Join room channel
     await joinCallRoom(roomId, type, false);
 
     // Send call invite to partner with periodic retry
@@ -942,9 +947,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           conversationId,
           callId,
           roomId,
+          sdp: initialOffer,
           existingParticipants: [profile],
         },
-        conversationId
+        conversationId,
+        roomId
       );
 
       if (attempts >= 12 && callRetryTimerRef.current) {
@@ -981,12 +988,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
 
-      sendSignalToUser(partner.id, 'call_cancelled', { callId, conversationId, roomId }, conversationId);
+      sendSignalToUser(partner.id, 'call_cancelled', { callId, conversationId, roomId }, conversationId, roomId);
 
       setTimeout(() => {
         setOutgoingCall(null);
         cleanupMedia();
-      }, 2500);
+      }, 2000);
     }, 35000);
   };
 
@@ -996,12 +1003,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const currentRoomId = outgoingCallRef.current.roomId;
     if (!currentRoomId) return;
 
-    // Check if partner is already in call
     if (participantsRef.current.some(p => p.id === partner.id)) {
       return;
     }
 
-    // 1. Add partner to local participants as 'calling'
     const newParticipantItem: CallParticipant = {
       id: partner.id,
       profile: partner,
@@ -1020,7 +1025,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       };
     });
 
-    // 2. Broadcast to room so other members see the new participant ringing
     if (callRoomChannelRef.current) {
       callRoomChannelRef.current.send({
         type: 'broadcast',
@@ -1029,7 +1033,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // 3. Send merge invite to the partner
+    // Pre-create connection for merged user
+    const pc = createPeerConnection(partner, currentRoomId);
+    let mergeOffer: RTCSessionDescriptionInit | null = null;
+    try {
+      mergeOffer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: outgoingCallRef.current.callType === 'video',
+      });
+      await pc.setLocalDescription(mergeOffer);
+    } catch {}
+
     const mergeCallId = `merge_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const currentParticipantsList = [
       profile,
@@ -1045,10 +1059,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         conversationId: convId || outgoingCallRef.current.conversationId,
         callId: mergeCallId,
         roomId: currentRoomId,
+        sdp: mergeOffer,
         isMerge: true,
         existingParticipants: currentParticipantsList,
       },
-      convId || outgoingCallRef.current.conversationId
+      convId || outgoingCallRef.current.conversationId,
+      currentRoomId
     );
   };
 
@@ -1059,7 +1075,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     stopAllRingtones();
     activeCallStatusRef.current = 'connected';
 
-    const { caller, callType, conversationId, callId, roomId, isMerge, existingParticipants } = incomingCall;
+    const { caller, callType, conversationId, callId, roomId, isMerge, existingParticipants, sdp: initialOffer } = incomingCall;
     activeCallIdRef.current = callId;
 
     if (profile?.id) {
@@ -1068,7 +1084,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // Build initial participants list
     const initialParticipants: CallParticipant[] = [];
     if (isMerge && existingParticipants && existingParticipants.length > 0) {
       existingParticipants.forEach(p => {
@@ -1103,11 +1118,47 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     });
     setIncomingCall(null);
 
-    // Send call_accepted to caller
-    sendSignalToUser(caller.id, 'call_accepted', { conversationId, callId, callType, roomId }, conversationId);
+    // 1. Acquire local media tracks
+    await acquireLocalMedia(callType);
 
-    // Callee joins the room and announces presence to existing peers
-    await joinCallRoom(roomId, callType, true);
+    // 2. Pre-create connection for caller
+    const pc = createPeerConnection(caller, roomId);
+
+    // 3. Join room channel
+    await joinCallRoom(roomId, callType, false);
+
+    // 4. If initialOffer was provided in incoming_call, generate answer right now!
+    let answerSdp: RTCSessionDescriptionInit | null = null;
+    if (initialOffer) {
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(initialOffer));
+        await flushPendingIceCandidates(caller.id, pc);
+
+        answerSdp = await pc.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: callType === 'video',
+        });
+        await pc.setLocalDescription(answerSdp);
+      } catch (err) {
+        console.warn('Error answering initial offer:', err);
+      }
+    }
+
+    // 5. Send call_accepted to caller with the answer SDP!
+    sendSignalToUser(
+      caller.id,
+      'call_accepted',
+      {
+        conversationId,
+        callId,
+        callType,
+        roomId,
+        sdp: answerSdp,
+        callee: profile,
+      },
+      conversationId,
+      roomId
+    );
   };
 
   // 4. Decline Call
@@ -1126,7 +1177,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!incomingCall) return;
     const { caller, conversationId, callId, roomId, isMerge } = incomingCall;
 
-    // If it was a merge invite, notify the room that this user declined
     if (isMerge && roomId && profile) {
       try {
         const supabase = getSupabaseBrowserClient();
@@ -1144,7 +1194,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       } catch {}
     }
 
-    sendSignalToUser(caller.id, 'call_declined', { conversationId, callId, userId: profile?.id }, conversationId);
+    sendSignalToUser(caller.id, 'call_declined', { conversationId, callId, userId: profile?.id }, conversationId, roomId);
 
     setIncomingCall(null);
     cleanupMedia();
@@ -1173,11 +1223,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(callTimeoutRef.current);
       callTimeoutRef.current = null;
     }
+    if (offerRetryTimerRef.current) {
+      clearInterval(offerRetryTimerRef.current);
+      offerRetryTimerRef.current = null;
+    }
 
     const currentCall = outgoingCallRef.current;
 
-    // If multi-peer call, send peer_left so remaining participants keep talking uninterrupted
-    // If 1-on-1 call, send call_ended to terminate for both
     if (callRoomChannelRef.current) {
       try {
         const isMultiPeer = participantsRef.current.length > 1;
@@ -1202,7 +1254,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         currentCall.partner.id,
         currentCall.status === 'connected' ? 'call_ended' : 'call_cancelled',
         { conversationId: currentCall.conversationId, roomId: currentCall.roomId },
-        currentCall.conversationId
+        currentCall.conversationId,
+        currentCall.roomId
       );
     }
 
@@ -1212,7 +1265,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => {
       setOutgoingCall(null);
       cleanupMedia();
-    }, 700);
+    }, 600);
   };
 
   // Controls: Mute

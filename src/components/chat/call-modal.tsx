@@ -128,6 +128,7 @@ export function CallModal() {
 
   const localVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const singleRemoteVideoRef = React.useRef<HTMLVideoElement | null>(null);
+  const primaryAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
   // Attach local media stream to local video element
   React.useEffect(() => {
@@ -142,6 +143,17 @@ export function CallModal() {
       singleRemoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
+
+  // Attach remote media stream to permanent primary audio element
+  React.useEffect(() => {
+    if (primaryAudioRef.current && remoteStream) {
+      primaryAudioRef.current.srcObject = remoteStream;
+      primaryAudioRef.current.muted = !isSpeakerOn;
+      primaryAudioRef.current.play().catch(err => {
+        console.warn('Primary audio playback error:', err);
+      });
+    }
+  }, [remoteStream, isSpeakerOn]);
 
   if (!outgoingCall) return null;
 
@@ -206,14 +218,13 @@ export function CallModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-200 select-none">
-      {/* Dynamic Multi-Peer Audio Elements: one per remote participant for uninterrupted sound */}
-      {participants.map(p => (
+      {/* Primary Dedicated Audio Player (Permanent & unmuted for primary peer) */}
+      <audio ref={primaryAudioRef} autoPlay playsInline />
+
+      {/* Additional Audio Players for secondary participants when in group/merged call */}
+      {participants.slice(1).map(p => (
         <RemoteParticipantAudio key={p.id} stream={p.stream} isSpeakerOn={isSpeakerOn} />
       ))}
-      {/* 1-on-1 fallback audio if participants array hasn't updated yet */}
-      {participants.length === 0 && remoteStream && (
-        <RemoteParticipantAudio stream={remoteStream} isSpeakerOn={isSpeakerOn} />
-      )}
 
       {/* Background ambient lighting */}
       <div className="absolute inset-0 bg-radial from-emerald-950/40 via-transparent to-black pointer-events-none" />
