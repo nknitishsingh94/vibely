@@ -9,6 +9,7 @@ import { CallModal } from '@/components/chat/call-modal';
 import { IncomingCallModal } from '@/components/chat/incoming-call-modal';
 import { FloatingHeartsOverlay } from '@/components/ui/floating-hearts';
 import { Toaster } from '@/components/ui/toast';
+import { PwaRegister } from '@/components/pwa-register';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -39,6 +40,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'Vibely — Where two souls sync. Pure private connection.',
   description: 'An intimate, modern private messaging sanctuary created especially for two. Share daily thoughts, photos, songs, voice notes, and treasured memories with zero noise.',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Vibely',
+  },
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
@@ -74,6 +80,7 @@ export default function RootLayout({
           <AuthProvider>
             <ChatProvider>
               <CallProvider>
+                <PwaRegister />
                 {children}
                 <CallModal />
                 <IncomingCallModal />

@@ -27,6 +27,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { AvatarPickerModal } from '@/components/chat/avatar-picker-modal';
+import { PwaInstallCard } from '@/components/pwa-install-card';
 
 export default function SettingsHubPage() {
   const { user, profile, signOut } = useAuth();
@@ -159,6 +160,9 @@ export default function SettingsHubPage() {
           </Link>
         </div>
       </div>
+
+      {/* PWA Download / Install App Card */}
+      <PwaInstallCard />
 
       {/* WhatsApp Settings Options List */}
       <div className="rounded-3xl bg-card border border-border/80 shadow-xs divide-y divide-border/40 overflow-hidden">
