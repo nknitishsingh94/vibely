@@ -141,6 +141,63 @@ const RTC_CONFIG: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
+// HD Video Quality Constraints for Crystal-Clear Calls (720p / 1080p @ 30fps)
+const HD_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 1280, max: 1920, min: 640 },
+  height: { ideal: 720, max: 1080, min: 480 },
+  frameRate: { ideal: 30, max: 60, min: 24 },
+  facingMode: 'user',
+};
+
+const BALANCED_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 960, min: 480 },
+  height: { ideal: 540, min: 360 },
+  frameRate: { ideal: 30, min: 20 },
+  facingMode: 'user',
+};
+
+/**
+ * Optimizes WebRTC video sender encoding parameters:
+ * Sets 2.5 Mbps max bitrate, 30 FPS, and maintain-resolution degradation preference
+ * to prevent pixelation, blockiness, and blurry video.
+ */
+function optimizeVideoSender(pc: RTCPeerConnection) {
+  try {
+    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+    if (sender) {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+      params.encodings[0].maxBitrate = 2_500_000; // 2.5 Mbps crystal-clear HD bitrate
+      params.encodings[0].maxFramerate = 30; // Smooth 30 FPS
+      params.degradationPreference = 'maintain-resolution'; // Prioritize sharp resolution over dropping frames
+      sender.setParameters(params).catch(() => {});
+    }
+
+    // Prefer hardware-accelerated H.264 video codec if available on device
+    try {
+      const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+      const videoTransceiver = transceivers.find(t => t.sender.track?.kind === 'video');
+      if (
+        videoTransceiver &&
+        'setCodecPreferences' in videoTransceiver &&
+        typeof RTCRtpReceiver !== 'undefined' &&
+        typeof RTCRtpReceiver.getCapabilities === 'function'
+      ) {
+        const capabilities = RTCRtpReceiver.getCapabilities('video');
+        if (capabilities && capabilities.codecs) {
+          const h264Codecs = capabilities.codecs.filter(c => c.mimeType.toLowerCase() === 'video/h264');
+          const otherCodecs = capabilities.codecs.filter(c => c.mimeType.toLowerCase() !== 'video/h264');
+          videoTransceiver.setCodecPreferences([...h264Codecs, ...otherCodecs]);
+        }
+      }
+    } catch {}
+  } catch (err) {
+    console.warn('Could not optimize video sender parameters:', err);
+  }
+}
+
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
   const { activeConversationId } = useChat();
@@ -364,14 +421,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           let videoStream: MediaStream | null = null;
           try {
             videoStream = await navigator.mediaDevices.getUserMedia({
-              video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: 'user',
-              },
+              video: HD_VIDEO_CONSTRAINTS,
             });
           } catch {
-            videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            try {
+              videoStream = await navigator.mediaDevices.getUserMedia({
+                video: BALANCED_VIDEO_CONSTRAINTS,
+              });
+            } catch {
+              videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            }
           }
 
           if (videoStream) {
@@ -415,17 +474,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           autoGainControl: true,
         };
 
-    // 2. Video call media acquisition with graceful multi-tier fallbacks
+    // 2. Video call media acquisition with graceful multi-tier fallbacks (HD 720p/1080p)
     if (callType === 'video') {
-      // Step A: Attempt optimal audio + video
+      // Step A: Attempt optimal HD 720p/1080p audio + video
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: audioConstraints,
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'user',
-          },
+          video: HD_VIDEO_CONSTRAINTS,
         });
         stream.getAudioTracks().forEach(t => { t.enabled = true; });
         stream.getVideoTracks().forEach(t => { t.enabled = true; });
@@ -433,10 +488,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setLocalStream(stream);
         return stream;
       } catch (errA) {
-        console.warn('Optimal audio+video acquisition failed, falling back to basic video:', errA);
+        console.warn('Optimal HD audio+video acquisition failed, trying balanced HD fallback:', errA);
       }
 
-      // Step B: Attempt basic audio + video without complex constraints
+      // Step B: Attempt balanced HD (960x540) fallback
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: BALANCED_VIDEO_CONSTRAINTS,
+        });
+        stream.getAudioTracks().forEach(t => { t.enabled = true; });
+        stream.getVideoTracks().forEach(t => { t.enabled = true; });
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        return stream;
+      } catch (errB) {
+        console.warn('Balanced HD fallback failed, falling back to basic video:', errB);
+      }
+
+      // Step C: Basic video fallback
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
@@ -447,8 +517,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         localStreamRef.current = stream;
         setLocalStream(stream);
         return stream;
-      } catch (errB) {
-        console.warn('Basic audio+video acquisition failed, falling back to audio only:', errB);
+      } catch (errC) {
+        console.warn('Basic video acquisition failed, falling back to audio only:', errC);
       }
     }
 
@@ -494,6 +564,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     pc.onconnectionstatechange = () => {
       console.log(`[WebRTC Connection State ${remoteUser.id}]:`, pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        optimizeVideoSender(pc);
+      }
       if (pc.connectionState === 'failed') {
         console.warn('Connection failed, restarting ICE...');
         try {
@@ -571,6 +644,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           console.warn('Track already added to pc:', e);
         }
       });
+      optimizeVideoSender(pc);
     }
 
     return pc;
@@ -603,6 +677,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           offerToReceiveVideo: true,
         });
         await pc.setLocalDescription(offer);
+        optimizeVideoSender(pc);
 
         const offerPayload = {
           fromUserId: profile?.id,
@@ -678,6 +753,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           } catch {}
         }
       });
+      optimizeVideoSender(pc);
     }
 
     try {
@@ -695,6 +771,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           offerToReceiveVideo: true,
         });
         await pc.setLocalDescription(answer);
+        optimizeVideoSender(pc);
 
         const answerPayload = {
           fromUserId: profile?.id,
@@ -731,6 +808,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (pc.signalingState !== 'stable') {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
         await flushPendingIceCandidates(fromUserId, pc);
+        optimizeVideoSender(pc);
       }
     } catch (err) {
       console.warn('Error setting answer description:', err);
@@ -1650,14 +1728,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           let newVideoStream: MediaStream | null = null;
           try {
             newVideoStream = await navigator.mediaDevices.getUserMedia({
-              video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: 'user',
-              },
+              video: HD_VIDEO_CONSTRAINTS,
             });
           } catch {
-            newVideoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            try {
+              newVideoStream = await navigator.mediaDevices.getUserMedia({
+                video: BALANCED_VIDEO_CONSTRAINTS,
+              });
+            } catch {
+              newVideoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            }
           }
 
           const newVideoTrack = newVideoStream?.getVideoTracks()[0];
@@ -1765,12 +1845,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       let newStream: MediaStream | null = null;
       try {
         newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: nextMode } },
+          video: { ...HD_VIDEO_CONSTRAINTS, facingMode: { exact: nextMode } },
         });
       } catch {
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: nextMode },
-        });
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: { ...HD_VIDEO_CONSTRAINTS, facingMode: nextMode },
+          });
+        } catch {
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: nextMode },
+          });
+        }
       }
 
       const newVideoTrack = newStream?.getVideoTracks()[0];
@@ -1788,7 +1874,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           if (pc.signalingState !== 'closed') {
             const sender = pc.getSenders().find(s => s.track?.kind === 'video');
             if (sender) {
-              sender.replaceTrack(newVideoTrack).catch(() => {});
+              sender.replaceTrack(newVideoTrack).then(() => {
+                optimizeVideoSender(pc);
+              }).catch(() => {});
             }
           }
         });
@@ -1998,19 +2086,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     let replacementTrack: MediaStreamTrack | null = null;
 
     if (wasCameraActive) {
-      // Re-acquire camera
+      // Re-acquire camera in HD quality
       try {
         let newCamStream: MediaStream | null = null;
         try {
           newCamStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 640 },
-              height: { ideal: 480 },
-              facingMode: facingMode || 'user',
-            },
+            video: { ...HD_VIDEO_CONSTRAINTS, facingMode: facingMode || 'user' },
           });
         } catch {
-          newCamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          try {
+            newCamStream = await navigator.mediaDevices.getUserMedia({
+              video: { ...BALANCED_VIDEO_CONSTRAINTS, facingMode: facingMode || 'user' },
+            });
+          } catch {
+            newCamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          }
         }
         replacementTrack = newCamStream?.getVideoTracks()[0] || null;
       } catch (err) {
@@ -2035,7 +2125,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (pc.signalingState !== 'closed') {
         const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
         if (videoSender) {
-          videoSender.replaceTrack(replacementTrack).catch(err => {
+          videoSender.replaceTrack(replacementTrack).then(() => {
+            optimizeVideoSender(pc);
+          }).catch(err => {
             console.warn('Error replacing screen track with camera:', err);
           });
         }

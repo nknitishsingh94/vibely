@@ -21,6 +21,7 @@ import {
   Zap,
   ScreenShare,
   ScreenShareOff,
+  Sparkles,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { useCall, type CallParticipant } from '@/context/call-context';
@@ -74,8 +75,10 @@ function RemoteParticipantAudio({
  */
 function ParticipantVideoTile({
   participant,
+  isBeautyFilterActive = true,
 }: {
   participant: CallParticipant;
+  isBeautyFilterActive?: boolean;
 }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const stream = participant.stream;
@@ -118,8 +121,10 @@ function ParticipantVideoTile({
           muted
           className={cn(
             "w-full h-full",
-            participant.isScreenSharing ? "object-contain bg-black" : "object-cover"
+            participant.isScreenSharing ? "object-contain bg-black" : "object-cover",
+            !participant.isScreenSharing && isBeautyFilterActive && "contrast-[1.04] saturate-[1.08] brightness-[1.02]"
           )}
+          style={{ imageRendering: '-webkit-optimize-contrast' as any }}
         />
       ) : (
         <div className="flex flex-col items-center justify-center p-3 text-center space-y-1.5">
@@ -185,6 +190,7 @@ export function CallModal() {
   const [showControls, setShowControls] = React.useState(true);
   const [isPipExpanded, setIsPipExpanded] = React.useState(false);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [isBeautyFilterActive, setIsBeautyFilterActive] = React.useState(true);
   const callContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   const toggleFullscreen = () => {
@@ -401,7 +407,7 @@ export function CallModal() {
             /* Multi-user video grid */
             <div className="absolute inset-0 w-full h-full grid grid-cols-2 gap-2 p-3 pt-20 pb-28 overflow-y-auto bg-zinc-950 z-0">
               {participants.map(p => (
-                <ParticipantVideoTile key={p.id} participant={p} />
+                <ParticipantVideoTile key={p.id} participant={p} isBeautyFilterActive={isBeautyFilterActive} />
               ))}
 
               {/* Self tile in multi-video */}
@@ -416,8 +422,10 @@ export function CallModal() {
                       'w-full h-full',
                       isScreenSharing
                         ? 'object-contain bg-black'
-                        : facingMode === 'user' ? 'object-cover -scale-x-100' : 'object-cover'
+                        : facingMode === 'user' ? 'object-cover -scale-x-100' : 'object-cover',
+                      !isScreenSharing && isBeautyFilterActive && 'contrast-[1.04] saturate-[1.08] brightness-[1.02]'
                     )}
+                    style={{ imageRendering: '-webkit-optimize-contrast' as any }}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center p-3 text-center space-y-1.5">
@@ -448,8 +456,10 @@ export function CallModal() {
                     'w-full h-full transition-all duration-200',
                     isRemoteScreenSharing || isScreenSharing
                       ? 'object-contain bg-black'
-                      : 'object-cover'
+                      : 'object-cover',
+                    !isRemoteScreenSharing && !isScreenSharing && isBeautyFilterActive && 'contrast-[1.04] saturate-[1.08] brightness-[1.02]'
                   )}
+                  style={{ imageRendering: '-webkit-optimize-contrast' as any }}
                 />
               ) : (
                 /* Connecting / Camera waiting backdrop */
@@ -585,8 +595,10 @@ export function CallModal() {
                   'w-full h-full',
                   isScreenSharing
                     ? 'object-contain bg-black'
-                    : facingMode === 'user' ? 'object-cover -scale-x-100' : 'object-cover'
+                    : facingMode === 'user' ? 'object-cover -scale-x-100' : 'object-cover',
+                  !isScreenSharing && isBeautyFilterActive && 'contrast-[1.04] saturate-[1.08] brightness-[1.02]'
                 )}
+                style={{ imageRendering: '-webkit-optimize-contrast' as any }}
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900/95 text-white/60 text-[10px] p-2 text-center">
@@ -694,6 +706,23 @@ export function CallModal() {
                   <ShieldCheck className="w-2.5 h-2.5" />
                   <span>Encrypted</span>
                 </span>
+                {isVideo && isVideoEnabled && !isScreenActive && (
+                  <span
+                    className={cn(
+                      "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-xs transition-colors",
+                      isBeautyFilterActive
+                        ? isLightScreen
+                          ? "bg-amber-500/15 border border-amber-500/30 text-amber-800"
+                          : "bg-amber-400/20 border border-amber-400/40 text-amber-300 ring-1 ring-amber-400/30"
+                        : isLightScreen
+                        ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-800"
+                        : "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
+                    )}
+                  >
+                    <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                    <span>{isBeautyFilterActive ? "HD Glow" : "HD 1080p"}</span>
+                  </span>
+                )}
               </div>
               <p
                 className={cn(
@@ -863,6 +892,25 @@ export function CallModal() {
                 title="Flip camera (Front / Rear)"
               >
                 <SwitchCamera className="w-5 h-5 text-emerald-600" />
+              </button>
+            )}
+
+            {/* HD Beauty Filter (Glow & Crisp HD) */}
+            {isVideo && isVideoEnabled && !isScreenSharing && (
+              <button
+                type="button"
+                onClick={() => setIsBeautyFilterActive(prev => !prev)}
+                className={cn(
+                  "w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95 border",
+                  isBeautyFilterActive
+                    ? "bg-amber-500/25 hover:bg-amber-500/35 text-amber-400 border-amber-400/60 ring-2 ring-amber-400/40 backdrop-blur-md shadow-amber-500/20"
+                    : isLightScreen
+                    ? "bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200/90"
+                    : "bg-white/10 hover:bg-white/20 text-white/50 border border-white/15 backdrop-blur-md"
+                )}
+                title={isBeautyFilterActive ? "HD Beauty Filter: ON (Glowing skin & sharp clarity)" : "HD Beauty Filter: OFF"}
+              >
+                <Sparkles className={cn("w-5 h-5", isBeautyFilterActive ? "text-amber-400 fill-amber-400/30" : "")} />
               </button>
             )}
 
