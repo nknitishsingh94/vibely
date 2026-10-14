@@ -256,117 +256,113 @@ export function MessageComposer() {
         </div>
       )}
 
-      {/* Main Composer Row matching user photo */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* 1. Black circular Camera button on left */}
-        <button
-          type="button"
-          onClick={() => {
-            if (fileInputRef.current) {
-              fileInputRef.current.accept = 'image/*';
-              fileInputRef.current.capture = 'environment';
-              fileInputRef.current.click();
-            }
-          }}
-          className="w-10 h-10 rounded-full bg-black dark:bg-[#202C33] text-white flex items-center justify-center shrink-0 cursor-pointer shadow-xs hover:scale-105 active:scale-95 transition-all"
-          title="Open camera"
-          aria-label="Camera"
-        >
-          <Camera className="w-5 h-5" />
-        </button>
-
-        {/* 2. Middle input pill */}
+      {/* Main Composer Row matching WhatsApp - 100% Mobile Responsive */}
+      <div className="flex items-end gap-1.5 sm:gap-2">
+        {/* Input pill */}
         <div
           className={cn(
-            'flex-1 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-card dark:bg-[#202C33] border border-border/80 dark:border-white/10 shadow-xs transition-all relative focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15',
+            'flex-1 min-w-0 flex items-end gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-[22px] bg-card dark:bg-[#202C33] border border-border/80 dark:border-white/10 shadow-xs transition-all relative focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15',
             isLittleNoteMode && 'ring-2 ring-amber-500/30 border-amber-500/40 bg-amber-50/20 dark:bg-amber-950/20'
           )}
         >
+          {/* Emoji button inside pill on left */}
+          <div className="relative shrink-0 mb-1">
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(prev => !prev)}
+              className="p-1 rounded-full text-muted-foreground/80 hover:text-foreground transition-colors cursor-pointer"
+              title="Insert emoji"
+              aria-label="Insert emoji"
+            >
+              <Smile className="w-5 h-5" />
+            </button>
+
+            {/* Quick Emoji Popover */}
+            {showEmojiPicker && (
+              <div className="absolute bottom-full mb-3 left-0 flex items-center gap-1 p-2 rounded-2xl bg-card dark:bg-[#202C33] border border-border/80 shadow-2xl z-30 animate-in zoom-in-95 backdrop-blur-md">
+                {QUICK_EMOJIS.map(emoji => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      setText(prev => prev + emoji);
+                      setShowEmojiPicker(false);
+                      textareaRef.current?.focus();
+                      if (emoji === '❤️' || emoji === '💕') {
+                        spawnFloatingHearts(window.innerWidth / 2, window.innerHeight - 100, 4);
+                      }
+                    }}
+                    className="p-1 text-base hover:scale-125 transition-transform cursor-pointer"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder={isLittleNoteMode ? 'Write your Little Note...' : 'Send chat'}
+            onFocus={() => {
+              setTimeout(() => {
+                const scrollEl = document.querySelector('.message-scroll-container');
+                if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+              }, 150);
+            }}
+            placeholder={isLittleNoteMode ? 'Write your Little Note...' : 'Message'}
             rows={1}
             className={cn(
-              'flex-1 min-h-[36px] max-h-28 px-1 py-1.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none placeholder:text-muted-foreground leading-normal',
+              'flex-1 min-w-0 min-h-[36px] max-h-28 px-1 py-1.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none placeholder:text-muted-foreground leading-normal',
               isLittleNoteMode && 'font-serif italic text-amber-900 dark:text-amber-100'
             )}
           />
 
-          {/* Voice note / audio waveform button inside the pill on right */}
+          {/* Media Attach (Gallery) button */}
           <button
             type="button"
-            onClick={() => setIsRecordingVoice(true)}
-            className="p-1 rounded-full text-muted-foreground hover:text-emerald-500 transition-colors cursor-pointer shrink-0"
-            title="Record voice note"
-            aria-label="Record voice note"
+            onClick={() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.accept = 'image/*,video/*,audio/*';
+                fileInputRef.current.removeAttribute('capture');
+                fileInputRef.current.click();
+              }
+            }}
+            className="p-1 mb-1 rounded-full text-muted-foreground/80 hover:text-foreground transition-colors cursor-pointer shrink-0"
+            title="Attach photos & media"
+            aria-label="Attach photos"
           >
-            <Mic className="w-4.5 h-4.5" />
+            <ImageIcon className="w-5 h-5" />
+          </button>
+
+          {/* Quick Camera button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.accept = 'image/*';
+                fileInputRef.current.capture = 'environment';
+                fileInputRef.current.click();
+              }
+            }}
+            className="p-1 mb-1 rounded-full text-muted-foreground/80 hover:text-foreground transition-colors cursor-pointer shrink-0"
+            title="Open camera"
+            aria-label="Camera"
+          >
+            <Camera className="w-5 h-5" />
           </button>
         </div>
 
-        {/* 3. Sticker / Emoji icon button */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker(prev => !prev)}
-            className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            title="Insert emoji"
-            aria-label="Insert emoji"
-          >
-            <Smile className="w-5 h-5" />
-          </button>
-
-          {/* Quick Emoji Popover */}
-          {showEmojiPicker && (
-            <div className="absolute bottom-full mb-2.5 right-0 flex items-center gap-1 p-2 rounded-2xl bg-card dark:bg-[#202C33] border border-border/80 shadow-xl z-30 animate-in zoom-in-95 backdrop-blur-md">
-              {QUICK_EMOJIS.map(emoji => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => {
-                    setText(prev => prev + emoji);
-                    setShowEmojiPicker(false);
-                    textareaRef.current?.focus();
-                    if (emoji === '❤️' || emoji === '💕') {
-                      spawnFloatingHearts(window.innerWidth / 2, window.innerHeight - 100, 4);
-                    }
-                  }}
-                  className="p-1 text-base hover:scale-130 transition-transform cursor-pointer"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 4. Gallery Photos button */}
-        <button
-          type="button"
-          onClick={() => {
-            if (fileInputRef.current) {
-              fileInputRef.current.accept = 'image/*,video/*,audio/*';
-              fileInputRef.current.removeAttribute('capture');
-              fileInputRef.current.click();
-            }
-          }}
-          className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
-          title="Attach photos & media"
-          aria-label="Attach photos"
-        >
-          <ImageIcon className="w-5 h-5" />
-        </button>
-
-        {/* 5. Circular Send Button (shown when text or file is present) */}
-        {(text.trim() || selectedFile) && (
+        {/* Right Action Button: Always fixed 40px in the exact same spot on any mobile device */}
+        {text.trim() || selectedFile ? (
           <button
             type="button"
             onClick={handleSend}
             disabled={isSending}
-            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-[#1D9BF0] hover:bg-[#1A8CD8] dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white shadow-md active:scale-90 hover:scale-105 transition-all cursor-pointer animate-in zoom-in-75"
+            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-md transition-all cursor-pointer"
             title="Send chat"
             aria-label="Send"
           >
@@ -375,6 +371,16 @@ export function MessageComposer() {
             ) : (
               <Send className="w-4 h-4 ml-0.5 fill-current" />
             )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsRecordingVoice(true)}
+            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-md transition-all cursor-pointer"
+            title="Record voice note"
+            aria-label="Record voice note"
+          >
+            <Mic className="w-5 h-5 text-white" />
           </button>
         )}
       </div>

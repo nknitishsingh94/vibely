@@ -25,6 +25,27 @@ export default function ChatPage() {
   const [copied, setCopied] = React.useState(false);
   const [partnerInput, setPartnerInput] = React.useState('');
   const [isConnecting, setIsConnecting] = React.useState(false);
+  const [viewportHeight, setViewportHeight] = React.useState<number | null>(null);
+
+  // Dynamic visualViewport tracking so mobile keyboard shrinks container without covering composer
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleResize = () => {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height);
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+    handleResize();
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+    };
+  }, []);
 
   // Handle mobile hardware back button / swipe-back gesture so user returns to user list instead of exiting the webapp
   React.useEffect(() => {
@@ -110,7 +131,10 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-background flex select-none">
+    <div
+      style={viewportHeight ? { height: `${viewportHeight}px`, maxHeight: `${viewportHeight}px` } : undefined}
+      className="fixed inset-0 h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-background flex select-none"
+    >
       {/* Left Sidebar: on mobile takes full screen 100dvh, hidden if conversation open */}
       <div
         className={`h-full max-h-[100dvh] overflow-hidden ${

@@ -33,6 +33,7 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: 'cover',
   themeColor: '#0C3B2E',
+  interactiveWidget: 'resizes-content',
 };
 
 export const metadata: Metadata = {

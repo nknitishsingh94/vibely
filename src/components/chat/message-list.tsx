@@ -56,6 +56,22 @@ export function MessageList() {
     }
   }, [messages.length, searchQuery]);
 
+  // Keep latest messages in view when mobile virtual keyboard opens or resizes
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleViewportResize = () => {
+      if (!searchQuery) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleViewportResize);
+    };
+  }, [searchQuery]);
+
   if (isLoadingMessages) {
     return (
       <div className="flex-1 p-4 sm:p-6 space-y-4 overflow-y-auto romantic-wallpaper">
