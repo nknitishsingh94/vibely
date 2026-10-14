@@ -20,6 +20,20 @@ export function Avatar({
 }: AvatarProps) {
   const [imageError, setImageError] = React.useState(false);
 
+  // Clean and validate source string
+  const validSrc = React.useMemo(() => {
+    if (!src) return null;
+    if (typeof src !== 'string') return null;
+    const trimmed = src.trim();
+    if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') return null;
+    return trimmed;
+  }, [src]);
+
+  // Reset error state whenever src changes so newly selected/uploaded images render immediately
+  React.useEffect(() => {
+    setImageError(false);
+  }, [validSrc]);
+
   const initials = name
     ? name
         .split(' ')
@@ -57,14 +71,14 @@ export function Avatar({
           sizeClasses[size]
         )}
         style={{
-          backgroundColor: src && !imageError ? undefined : `hsl(${hue} 65% 45%)`,
-          color: src && !imageError ? undefined : '#ffffff',
+          backgroundColor: validSrc && !imageError ? undefined : `hsl(${hue} 65% 45%)`,
+          color: validSrc && !imageError ? undefined : '#ffffff',
         }}
       >
-        {src && !imageError ? (
-          // Using standard img for external blob/signed storage urls
+        {validSrc && !imageError ? (
+          // Using standard img for external blob/signed storage urls or base64 data URLs
           <img
-            src={src}
+            src={validSrc}
             alt={name}
             onError={() => setImageError(true)}
             className="w-full h-full object-cover"

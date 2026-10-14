@@ -26,8 +26,9 @@ export async function POST(req: Request) {
     let finalAvatarUrl: string | null = null;
 
     if (avatarData) {
-      // If it's a data URL, try uploading to Supabase Storage, or fallback to data URL directly
+      // If it's a data URL, try uploading to public Supabase Storage 'avatars' bucket, or fallback to data URL directly
       if (typeof avatarData === 'string' && avatarData.startsWith('data:image/')) {
+        let uploadedUrl: string | null = null;
         try {
           const match = avatarData.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
           if (match) {
@@ -35,11 +36,27 @@ export async function POST(req: Request) {
             const base64Data = match[2];
             const buffer = Buffer.from(base64Data, 'base64');
             const fileExt = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
-            const storagePath = `avatars/${userId}_${Date.now()}.${fileExt}`;
+            const storagePath = `${userId}_${Date.now()}.${fileExt}`;
 
-            // Try uploading to 'chat-media' bucket
+            // Ensure public 'avatars' bucket exists in Supabase Storage
+            try {
+              const { data: bucketData } = await adminClient.storage.getBucket('avatars');
+              if (!bucketData) {
+                await adminClient.storage.createBucket('avatars', {
+                  public: true,
+                  fileSizeLimit: 5242880,
+                  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+                });
+              } else if (!bucketData.public) {
+                await adminClient.storage.updateBucket('avatars', { public: true });
+              }
+            } catch (bErr) {
+              console.warn('Avatars bucket check/create notice:', bErr);
+            }
+
+            // Upload to public 'avatars' bucket
             const { error: uploadError } = await adminClient.storage
-              .from('chat-media')
+              .from('avatars')
               .upload(storagePath, buffer, {
                 contentType: mimeType,
                 upsert: true,
@@ -47,22 +64,22 @@ export async function POST(req: Request) {
 
             if (!uploadError) {
               const { data: publicUrlData } = adminClient.storage
-                .from('chat-media')
+                .from('avatars')
                 .getPublicUrl(storagePath);
 
               if (publicUrlData?.publicUrl) {
-                finalAvatarUrl = publicUrlData.publicUrl;
+                uploadedUrl = publicUrlData.publicUrl;
               }
+            } else {
+              console.warn('Avatars upload error, will use direct data URL fallback:', uploadError.message);
             }
           }
         } catch (storageErr) {
           console.warn('Supabase storage upload error, falling back to data URL:', storageErr);
         }
 
-        // If storage didn't succeed, use avatarData directly
-        if (!finalAvatarUrl) {
-          finalAvatarUrl = avatarData;
-        }
+        // If storage upload succeeded, use that URL; otherwise, fallback directly to the data URL
+        finalAvatarUrl = uploadedUrl || avatarData;
       } else {
         // Direct URL or null
         finalAvatarUrl = avatarData;

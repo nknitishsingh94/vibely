@@ -353,7 +353,7 @@ export function AvatarPickerModal({ isOpen, onClose }: AvatarPickerModalProps) {
                     playsInline
                     muted
                     className={`w-full h-full object-cover ${
-                      cameraFacing === 'user' ? 'mirror-mode' : ''
+                      cameraFacing === 'user' ? '-scale-x-100' : ''
                     }`}
                   />
                   {/* Subtle target circle guide */}
