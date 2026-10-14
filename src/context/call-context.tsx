@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useRef, useCallb
 import { useAuth } from './auth-context';
 import { useChat } from './chat-context';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { startOutgoingRing, startIncomingRing, stopAllRingtones } from '@/lib/ringtone';
+import { startOutgoingRing, startIncomingRing, stopAllRingtones, unlockAudioSession } from '@/lib/ringtone';
 import {
   addCallLog,
   updateCallLog,
@@ -624,7 +624,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
+      if (pc.signalingState === 'have-local-offer') {
+        try {
+          await pc.setLocalDescription({ type: 'rollback' });
+        } catch {}
+      }
+      if (pc.signalingState === 'stable' || pc.signalingState === 'have-remote-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
         await flushPendingIceCandidates(fromUserId, pc);
 
@@ -778,6 +783,26 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 },
               ];
             });
+          })
+          .on('broadcast', { event: 'peer_muted' }, ({ payload }: any) => {
+            if (!payload?.userId) return;
+            setParticipants(prev =>
+              prev.map(p =>
+                p.id === payload.userId
+                  ? { ...p, isAudioMuted: Boolean(payload.isMuted) }
+                  : p
+              )
+            );
+          })
+          .on('broadcast', { event: 'peer_video_toggled' }, ({ payload }: any) => {
+            if (!payload?.userId) return;
+            setParticipants(prev =>
+              prev.map(p =>
+                p.id === payload.userId
+                  ? { ...p, isVideoMuted: !payload.isVideoEnabled }
+                  : p
+              )
+            );
           })
           .on('broadcast', { event: 'peer_left' }, ({ payload }: any) => {
             if (!payload?.userId) return;
@@ -1047,6 +1072,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // 1. Start Call (Caller initiates 1-on-1 call with instant WebRTC setup)
   const startCall = async (partner: Profile, type: 'voice' | 'video', convId?: string) => {
     if (!profile) return;
+    unlockAudioSession();
     stopAllRingtones();
     cleanupMedia();
 

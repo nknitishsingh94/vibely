@@ -334,7 +334,7 @@ export function CallModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black select-none sm:bg-black/95 sm:backdrop-blur-xl sm:p-4 animate-in fade-in duration-200">
       {/* Primary Dedicated Audio Player (Permanent & unmuted for primary peer) */}
-      <audio ref={handlePrimaryAudioRef} autoPlay playsInline />
+      <audio ref={handlePrimaryAudioRef} autoPlay playsInline muted={!isSpeakerOn} />
 
       {/* Additional Audio Players for secondary participants when in group/merged call */}
       {participants.slice(1).map(p => (

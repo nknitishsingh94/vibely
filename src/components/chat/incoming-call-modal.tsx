@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Phone, PhoneOff, Video, Sparkles, Users } from 'lucide-react';
 import { useCall } from '@/context/call-context';
 import { Avatar } from '@/components/ui/avatar';
+import { unlockAudioSession } from '@/lib/ringtone';
 
 export function IncomingCallModal() {
   const { incomingCall, acceptCall, declineCall } = useCall();
@@ -24,6 +25,7 @@ export function IncomingCallModal() {
   const handleAccept = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
+    unlockAudioSession();
     await acceptCall();
   };
 

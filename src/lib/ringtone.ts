@@ -178,3 +178,16 @@ export function stopAllRingtones() {
     activeOscillators = [];
   }
 }
+
+/**
+ * Unlock Audio Context on mobile touch / click user gesture
+ */
+export function unlockAudioSession() {
+  try {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+  } catch {}
+}
+
