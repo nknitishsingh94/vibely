@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { FileText, Download, FileSpreadsheet, FileArchive, FileCode, File } from 'lucide-react';
+import { FileText, Download, FileSpreadsheet, FileArchive, FileCode, File, Image as ImageIcon } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 
 interface DocumentCardProps {
@@ -19,8 +19,24 @@ export function DocumentCard({
   mimeType,
   isOutgoing = false,
 }: DocumentCardProps) {
+  const isImage = React.useMemo(() => {
+    const name = (filename || '').toLowerCase();
+    return (
+      name.endsWith('.jpg') ||
+      name.endsWith('.jpeg') ||
+      name.endsWith('.png') ||
+      name.endsWith('.webp') ||
+      name.endsWith('.gif') ||
+      name.endsWith('.heic') ||
+      Boolean(mimeType?.startsWith('image/'))
+    );
+  }, [filename, mimeType]);
+
   const getFileIcon = () => {
     const name = (filename || '').toLowerCase();
+    if (isImage) {
+      return <ImageIcon className="w-5 h-5 text-emerald-500" />;
+    }
     if (name.endsWith('.pdf') || mimeType?.includes('pdf')) {
       return <FileText className="w-5 h-5 text-rose-500" />;
     }
@@ -46,18 +62,28 @@ export function DocumentCard({
     >
       <div className="flex items-center gap-3 min-w-0">
         <div
-          className={`p-2.5 rounded-xl shrink-0 ${
-            isOutgoing ? 'bg-white/20' : 'bg-muted'
+          className={`shrink-0 overflow-hidden ${
+            isImage && src
+              ? 'w-10 h-10 rounded-xl'
+              : `p-2.5 rounded-xl ${isOutgoing ? 'bg-white/20' : 'bg-muted'}`
           }`}
         >
-          {getFileIcon()}
+          {isImage && src ? (
+            <img
+              src={src}
+              alt={filename || 'Photo document'}
+              className="w-full h-full object-cover rounded-xl border border-black/10 dark:border-white/10"
+            />
+          ) : (
+            getFileIcon()
+          )}
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold truncate leading-snug">
-            {filename || 'Document'}
+            {filename || (isImage ? 'Photo (Document)' : 'Document')}
           </p>
           <p className="text-[11px] opacity-70 mt-0.5 font-mono">
-            {fileSize ? formatBytes(fileSize) : 'Document file'}
+            {fileSize ? formatBytes(fileSize) : (isImage ? 'Raw Photo' : 'Document file')}
           </p>
         </div>
       </div>

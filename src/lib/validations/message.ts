@@ -22,33 +22,44 @@ export const ALLOWED_MIME_TYPES = {
   ],
 };
 
-export function validateFileAttachment(file: File): { valid: boolean; error?: string; category: 'image' | 'video' | 'audio' | 'document' } {
+export function validateFileAttachment(
+  file: File,
+  forcedCategory?: 'image' | 'video' | 'audio' | 'document'
+): { valid: boolean; error?: string; category: 'image' | 'video' | 'audio' | 'document' } {
+  // If the user deliberately selected "Document", treat any file (including raw photos/videos) as a document
+  if (forcedCategory === 'document') {
+    if (file.size > FILE_SIZE_LIMITS.document) {
+      return { valid: false, error: `${file.name} exceeds maximum document size of 25 MB`, category: 'document' };
+    }
+    return { valid: true, category: 'document' };
+  }
+
   const mimeType = file.type;
 
   if (ALLOWED_MIME_TYPES.image.includes(mimeType) || mimeType.startsWith('image/')) {
     if (file.size > FILE_SIZE_LIMITS.image) {
-      return { valid: false, error: 'Image exceeds maximum size of 10 MB', category: 'image' };
+      return { valid: false, error: `${file.name} exceeds maximum image size of 10 MB`, category: 'image' };
     }
     return { valid: true, category: 'image' };
   }
 
   if (ALLOWED_MIME_TYPES.video.includes(mimeType) || mimeType.startsWith('video/')) {
     if (file.size > FILE_SIZE_LIMITS.video) {
-      return { valid: false, error: 'Video exceeds maximum size of 100 MB', category: 'video' };
+      return { valid: false, error: `${file.name} exceeds maximum video size of 100 MB`, category: 'video' };
     }
     return { valid: true, category: 'video' };
   }
 
   if (ALLOWED_MIME_TYPES.audio.includes(mimeType) || mimeType.startsWith('audio/')) {
     if (file.size > FILE_SIZE_LIMITS.audio) {
-      return { valid: false, error: 'Audio exceeds maximum size of 25 MB', category: 'audio' };
+      return { valid: false, error: `${file.name} exceeds maximum audio size of 25 MB`, category: 'audio' };
     }
     return { valid: true, category: 'audio' };
   }
 
   // Document fallback
   if (file.size > FILE_SIZE_LIMITS.document) {
-    return { valid: false, error: 'Document exceeds maximum size of 25 MB', category: 'document' };
+    return { valid: false, error: `${file.name} exceeds maximum document size of 25 MB`, category: 'document' };
   }
 
   return { valid: true, category: 'document' };
