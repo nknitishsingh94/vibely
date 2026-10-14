@@ -7,10 +7,27 @@ import { Avatar } from '@/components/ui/avatar';
 
 export function IncomingCallModal() {
   const { incomingCall, acceptCall, declineCall } = useCall();
+  const [isProcessing, setIsProcessing] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsProcessing(false);
+  }, [incomingCall?.callId]);
 
   if (!incomingCall) return null;
 
   const isVideo = incomingCall.callType === 'video';
+
+  const handleAccept = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    await acceptCall();
+  };
+
+  const handleDecline = () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    declineCall();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200 select-none">
@@ -46,7 +63,7 @@ export function IncomingCallModal() {
         )}
 
         <p className="text-xs text-emerald-400 font-medium tracking-wide mt-2 animate-pulse">
-          Ringing...
+          {isProcessing ? 'Connecting...' : 'Ringing...'}
         </p>
 
         {/* Action Buttons: Accept & Decline */}
@@ -55,8 +72,9 @@ export function IncomingCallModal() {
           <div className="flex flex-col items-center gap-1.5">
             <button
               type="button"
-              onClick={declineCall}
-              className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-rose-600/40 transition-all cursor-pointer"
+              disabled={isProcessing}
+              onClick={handleDecline}
+              className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-lg shadow-rose-600/40 transition-all cursor-pointer"
               title="Decline"
             >
               <PhoneOff className="w-6 h-6" />
@@ -68,13 +86,16 @@ export function IncomingCallModal() {
           <div className="flex flex-col items-center gap-1.5">
             <button
               type="button"
-              onClick={acceptCall}
-              className="w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 transition-all cursor-pointer animate-bounce"
+              disabled={isProcessing}
+              onClick={handleAccept}
+              className="w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 transition-all cursor-pointer animate-bounce"
               title="Accept"
             >
               {isVideo ? <Video className="w-6 h-6" /> : <Phone className="w-6 h-6" />}
             </button>
-            <span className="text-[11px] text-emerald-400 font-semibold">Accept</span>
+            <span className="text-[11px] text-emerald-400 font-semibold">
+              {isProcessing ? 'Connecting' : 'Accept'}
+            </span>
           </div>
         </div>
       </div>

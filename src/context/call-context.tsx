@@ -84,19 +84,53 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const callTimeoutRef = useRef<any>(null);
   const offerRetryTimerRef = useRef<any>(null);
 
+  // Synchronous state tracking to eliminate async React state race conditions
+  const activeCallStatusRef = useRef<'idle' | 'calling' | 'ringing' | 'connected' | 'ended' | 'declined' | 'unavailable'>('idle');
+  const activeCallIdRef = useRef<string | null>(null);
+  const processedSignals = useRef<Map<string, number>>(new Map());
+
+  const isDuplicateSignal = useCallback((event: string, payload: any) => {
+    const now = Date.now();
+    // Prune entries older than 8 seconds
+    processedSignals.current.forEach((time, key) => {
+      if (now - time > 8000) processedSignals.current.delete(key);
+    });
+
+    const callId = payload?.callId || payload?.conversationId || '';
+    const ts = payload?.timestamp || '';
+    const sigKey = `${event}:${callId}:${ts}`;
+    if (callId && processedSignals.current.has(sigKey)) {
+      return true;
+    }
+    processedSignals.current.set(sigKey, now);
+    return false;
+  }, []);
+
   const outgoingCallRef = useRef<OutgoingCallState | null>(null);
   useEffect(() => {
     outgoingCallRef.current = outgoingCall;
+    if (outgoingCall?.status) {
+      activeCallStatusRef.current = outgoingCall.status;
+    } else if (!incomingCallRef.current) {
+      activeCallStatusRef.current = 'idle';
+    }
   }, [outgoingCall]);
 
   const incomingCallRef = useRef<IncomingCallState | null>(null);
   useEffect(() => {
     incomingCallRef.current = incomingCall;
+    if (incomingCall) {
+      activeCallStatusRef.current = 'ringing';
+    } else if (!outgoingCallRef.current) {
+      activeCallStatusRef.current = 'idle';
+    }
   }, [incomingCall]);
 
   // Stop media tracks and clear timers helper
   const cleanupMedia = useCallback(() => {
     stopAllRingtones();
+    activeCallStatusRef.current = 'idle';
+    activeCallIdRef.current = null;
 
     if (callDurationTimerRef.current) {
       clearInterval(callDurationTimerRef.current);
@@ -148,6 +182,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (!targetUserId) return;
       try {
         const supabase = getSupabaseBrowserClient();
+        const enrichedPayload = {
+          ...payload,
+          timestamp: payload?.timestamp || Date.now(),
+        };
 
         // 1. Dedicated Call Channel for target user
         const callChannel = supabase.channel(`call-user:${targetUserId}`);
@@ -156,7 +194,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             callChannel.send({
               type: 'broadcast',
               event,
-              payload,
+              payload: enrichedPayload,
             });
           }
         });
@@ -168,7 +206,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             notifChannel.send({
               type: 'broadcast',
               event,
-              payload,
+              payload: enrichedPayload,
             });
           }
         });
@@ -181,7 +219,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               convChannel.send({
                 type: 'broadcast',
                 event,
-                payload,
+                payload: enrichedPayload,
               });
             }
           });
@@ -195,6 +233,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // Setup WebRTC as Caller
   const setupWebRTCAsCaller = async (conversationId: string, callType: 'voice' | 'video') => {
+    stopAllRingtones();
     try {
       const supabase = getSupabaseBrowserClient();
       const channel = supabase.channel(`call-room:${conversationId || 'default'}`);
@@ -305,6 +344,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // Setup WebRTC as Callee
   const setupWebRTCAsCallee = async (conversationId: string, callType: 'voice' | 'video') => {
+    stopAllRingtones();
     try {
       const supabase = getSupabaseBrowserClient();
       const channel = supabase.channel(`call-room:${conversationId || 'default'}`);
@@ -398,10 +438,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const handleIncomingCall = (payload: any) => {
       if (!payload || !payload.caller) return;
-      // Don't accept if already in another call
+      if (isDuplicateSignal('incoming_call', payload)) return;
+
+      // Don't accept or ring if already in any active call state
+      if (activeCallStatusRef.current !== 'idle') return;
       if (outgoingCallRef.current || incomingCallRef.current) return;
 
       const callId = payload.callId || `call_${Date.now()}`;
+      activeCallStatusRef.current = 'ringing';
+      activeCallIdRef.current = callId;
+
       setIncomingCall({
         caller: payload.caller,
         callType: payload.callType || 'voice',
@@ -424,23 +470,39 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       );
     };
 
-    const handleCallRinging = () => {
+    const handleCallRinging = (payload?: any) => {
+      if (isDuplicateSignal('call_ringing', payload)) return;
+
       // Caller receives confirmation that partner's phone is actually ringing!
       if (callRetryTimerRef.current) {
         clearInterval(callRetryTimerRef.current);
         callRetryTimerRef.current = null;
       }
+
+      // CRITICAL: Only ring if caller is still waiting in 'calling' state!
+      // If the call is already connected, ended, or idle, NEVER ring!
+      if (activeCallStatusRef.current !== 'calling') {
+        return;
+      }
+
+      activeCallStatusRef.current = 'ringing';
+
       setOutgoingCall(prev => {
-        if (prev && (prev.status === 'calling' || prev.status === 'ringing')) {
+        if (prev && prev.status === 'calling') {
           return { ...prev, status: 'ringing' };
         }
         return prev;
       });
-      // Start outgoing telephone ring tone ONLY NOW!
-      startOutgoingRing();
+
+      // Start outgoing telephone ring tone ONLY when in ringing state
+      if (activeCallStatusRef.current === 'ringing') {
+        startOutgoingRing();
+      }
     };
 
     const handleCallAccepted = async (payload: any) => {
+      if (isDuplicateSignal('call_accepted', payload)) return;
+
       if (callRetryTimerRef.current) {
         clearInterval(callRetryTimerRef.current);
         callRetryTimerRef.current = null;
@@ -449,12 +511,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
       }
+
+      // Stop all ringtones immediately!
       stopAllRingtones();
+      activeCallStatusRef.current = 'connected';
+
       setOutgoingCall(prev => (prev ? { ...prev, status: 'connected' } : null));
       await setupWebRTCAsCaller(payload.conversationId, payload.callType || 'voice');
     };
 
-    const handleCallDeclined = () => {
+    const handleCallDeclined = (payload?: any) => {
+      if (isDuplicateSignal('call_declined', payload)) return;
+
       if (callRetryTimerRef.current) {
         clearInterval(callRetryTimerRef.current);
         callRetryTimerRef.current = null;
@@ -463,7 +531,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
       }
+
       stopAllRingtones();
+      activeCallStatusRef.current = 'ended';
+      activeCallIdRef.current = null;
+
       setOutgoingCall(prev => (prev ? { ...prev, status: 'declined' } : null));
       setTimeout(() => {
         setOutgoingCall(null);
@@ -471,32 +543,37 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }, 1800);
     };
 
-    const handleCallCancelled = () => {
+    const handleCallCancelled = (payload?: any) => {
+      if (isDuplicateSignal('call_cancelled', payload)) return;
+
       stopAllRingtones();
+      activeCallStatusRef.current = 'idle';
+      activeCallIdRef.current = null;
       setIncomingCall(null);
     };
 
     // Attach handlers & SUBSCRIBE
     callChannel
       .on('broadcast', { event: 'incoming_call' }, ({ payload }: any) => handleIncomingCall(payload))
-      .on('broadcast', { event: 'call_ringing' }, () => handleCallRinging())
+      .on('broadcast', { event: 'call_ringing' }, ({ payload }: any) => handleCallRinging(payload))
       .on('broadcast', { event: 'call_accepted' }, async ({ payload }: any) => handleCallAccepted(payload))
-      .on('broadcast', { event: 'call_declined' }, () => handleCallDeclined())
-      .on('broadcast', { event: 'call_cancelled' }, () => handleCallCancelled())
+      .on('broadcast', { event: 'call_declined' }, ({ payload }: any) => handleCallDeclined(payload))
+      .on('broadcast', { event: 'call_cancelled' }, ({ payload }: any) => handleCallCancelled(payload))
       .subscribe();
 
     notifChannel
       .on('broadcast', { event: 'incoming_call' }, ({ payload }: any) => handleIncomingCall(payload))
-      .on('broadcast', { event: 'call_ringing' }, () => handleCallRinging())
+      .on('broadcast', { event: 'call_ringing' }, ({ payload }: any) => handleCallRinging(payload))
       .on('broadcast', { event: 'call_accepted' }, async ({ payload }: any) => handleCallAccepted(payload))
-      .on('broadcast', { event: 'call_declined' }, () => handleCallDeclined())
-      .on('broadcast', { event: 'call_cancelled' }, () => handleCallCancelled())
+      .on('broadcast', { event: 'call_declined' }, ({ payload }: any) => handleCallDeclined(payload))
+      .on('broadcast', { event: 'call_cancelled' }, ({ payload }: any) => handleCallCancelled(payload))
       .subscribe();
 
     return () => {
       supabase.removeChannel(callChannel);
+      supabase.removeChannel(notifChannel);
     };
-  }, [profile?.id, sendSignalToUser, cleanupMedia]);
+  }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal]);
 
   // Handle call duration timer when status === 'connected'
   useEffect(() => {
@@ -522,6 +599,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const conversationId = convId || activeConversationId || '';
     const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    activeCallStatusRef.current = 'calling';
+    activeCallIdRef.current = callId;
 
     // Set status to 'calling' initially ("Calling...") - NOT ringing yet!
     setOutgoingCall({
@@ -549,6 +629,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     // Send call invite to partner with periodic retry
     let attempts = 0;
     const sendInvite = () => {
+      // Don't send more invites if no longer calling
+      if (activeCallStatusRef.current !== 'calling') {
+        if (callRetryTimerRef.current) {
+          clearInterval(callRetryTimerRef.current);
+          callRetryTimerRef.current = null;
+        }
+        return;
+      }
+
       attempts++;
       sendSignalToUser(
         partner.id,
@@ -580,6 +669,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         callRetryTimerRef.current = null;
       }
       stopAllRingtones();
+      activeCallStatusRef.current = 'ended';
+      activeCallIdRef.current = null;
+
       setOutgoingCall(prev => {
         if (prev && prev.status !== 'connected') {
           return { ...prev, status: 'unavailable' };
@@ -600,9 +692,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // 2. Accept Call (Callee accepts)
   const acceptCall = async () => {
     if (!incomingCall || !profile) return;
+    
+    // Stop ringing IMMEDIATELY
     stopAllRingtones();
+    activeCallStatusRef.current = 'connected';
 
     const { caller, callType, conversationId, callId } = incomingCall;
+    activeCallIdRef.current = callId;
 
     // Switch callee into outgoingCall state with 'connected' status
     setOutgoingCall({
@@ -623,9 +719,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // 3. Decline Call
   const declineCall = () => {
-    if (!incomingCall) return;
     stopAllRingtones();
+    activeCallStatusRef.current = 'idle';
+    activeCallIdRef.current = null;
 
+    if (!incomingCall) return;
     const { caller, conversationId, callId } = incomingCall;
 
     // Notify caller that call was declined
@@ -638,6 +736,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // 4. End Call
   const endCall = () => {
     stopAllRingtones();
+    activeCallStatusRef.current = 'ended';
+    activeCallIdRef.current = null;
 
     if (callRetryTimerRef.current) {
       clearInterval(callRetryTimerRef.current);
