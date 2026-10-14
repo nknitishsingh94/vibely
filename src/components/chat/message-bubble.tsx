@@ -292,129 +292,10 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     <div
       id={`msg-${message.id}`}
       className={cn(
-        'group relative flex flex-col mb-2.5 px-1 sm:px-2 transition-all duration-150',
+        'relative flex flex-col mb-2.5 px-1 sm:px-2 transition-all duration-150',
         isOutgoing ? 'items-end' : 'items-start'
       )}
     >
-      {/* Quick Action Floating Toolbar on Desktop Hover */}
-      {!isEditing && (
-        <div
-          className={cn(
-            'absolute -top-4 z-20 hidden group-hover:flex items-center gap-0.5 rounded-2xl bg-card/95 border border-border/80 p-1 shadow-md text-muted-foreground backdrop-blur-md transition-all',
-            isOutgoing ? 'right-2' : 'left-2'
-          )}
-        >
-          {/* Reaction Trigger */}
-          <div className="relative">
-            <button
-              onClick={() => setShowReactionPicker(prev => !prev)}
-              aria-label="React with emoji"
-              className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-            >
-              <Smile className="w-3.5 h-3.5" />
-            </button>
-            {showReactionPicker && (
-              <div
-                className={cn(
-                  'absolute bottom-full mb-1 flex items-center gap-1 rounded-2xl bg-card border border-border/90 p-1.5 shadow-xl z-30 animate-in zoom-in-95 backdrop-blur-md',
-                  isOutgoing ? 'right-0' : 'left-0'
-                )}
-              >
-                {COMMON_EMOJIS.map(emoji => (
-                  <button
-                    key={emoji}
-                    onClick={e => handleReactionClick(emoji, e)}
-                    className="p-1 hover:scale-130 transition-transform text-base cursor-pointer"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Heart Reaction Shortcut */}
-          <button
-            onClick={e => handleReactionClick('❤️', e)}
-            aria-label="Send love reaction"
-            className="p-1.5 rounded-xl hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
-            title="Heart reaction"
-          >
-            <Heart className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Save / Bookmark to Favorites */}
-          <button
-            onClick={handleToggleFavorite}
-            aria-label={isBookmarked ? 'Unsave moment' : 'Save to Our Moments'}
-            className={cn(
-              'p-1.5 rounded-xl transition-colors cursor-pointer',
-              isBookmarked
-                ? 'text-amber-500 bg-amber-500/10'
-                : 'hover:bg-muted hover:text-foreground'
-            )}
-            title={isBookmarked ? 'Saved to Our Moments' : 'Save to Our Moments'}
-          >
-            <Bookmark className={cn('w-3.5 h-3.5', isBookmarked && 'fill-current')} />
-          </button>
-
-          {/* Reply */}
-          <button
-            onClick={() => setReplyingTo(message)}
-            aria-label="Reply to message"
-            className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-          >
-            <Reply className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Forward */}
-          <button
-            onClick={() => setIsForwardOpen(true)}
-            aria-label="Forward message"
-            className="p-1.5 rounded-xl hover:bg-muted hover:text-emerald-500 transition-colors cursor-pointer"
-            title="Forward message"
-          >
-            <Forward className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Copy (only if text body exists) */}
-          {displayBody && (
-            <button
-              onClick={handleCopy}
-              aria-label="Copy text"
-              className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              title="Copy text"
-            >
-              {isCopied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
-          )}
-
-          {/* Edit (only text, outgoing, within 15 min limit) */}
-          {isEditAvailable && (
-            <button
-              onClick={() => {
-                setIsEditing(true);
-                setEditText(displayBody || '');
-              }}
-              aria-label="Edit message (within 15 min)"
-              className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              title="Edit message"
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {/* Delete (available for outgoing & incoming with options) */}
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            aria-label="Delete message"
-            className="p-1.5 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
-            title="Delete message"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Replying-to Quoted Preview */}
       {message.reply_to && (
@@ -454,26 +335,170 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           </div>
         )}
 
-        <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onClick={() => {
-            if (isSelectMode) toggleSelectMessage(message.id);
-          }}
-          className={cn(
-            'relative max-w-[85%] sm:max-w-md rounded-2xl shadow-xs transition-all',
-            isImageOnly ? 'p-1 sm:p-1.5' : 'p-2 px-3 pb-1.5 sm:p-2.5 sm:px-3.5 sm:pb-2 pr-7 sm:pr-8',
-            isLittleNote
-              ? 'little-note-card rounded-2xl'
-              : isOutgoing
-              ? 'bg-[#005C4B] text-white rounded-br-xs shadow-sm shadow-[#005C4B]/20'
-              : 'bg-white dark:bg-[#202C33] text-foreground border border-border/70 rounded-bl-xs shadow-2xs',
-            isSelectMode && isSelected && 'ring-2 ring-emerald-500 bg-emerald-500/15 dark:bg-emerald-500/25'
+        {/* Specific Message Box Container with Hover Group */}
+        <div className="group relative max-w-[85%] sm:max-w-md">
+          {/* Quick Action Floating Toolbar on Desktop Hover - ONLY shows when hovering directly on this specific message box */}
+          {!isEditing && !isSelectMode && (
+            <div
+              className={cn(
+                'absolute -top-4 z-20 hidden md:group-hover:flex items-center gap-0.5 rounded-2xl bg-card/95 border border-border/80 p-1 shadow-md text-muted-foreground backdrop-blur-md transition-all animate-in fade-in zoom-in-95 duration-150',
+                isOutgoing ? 'right-1' : 'left-1'
+              )}
+            >
+              {/* Reaction Trigger */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowReactionPicker(prev => !prev)}
+                  aria-label="React with emoji"
+                  className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <Smile className="w-3.5 h-3.5" />
+                </button>
+                {showReactionPicker && (
+                  <div
+                    className={cn(
+                      'absolute bottom-full mb-1 flex items-center gap-1 rounded-2xl bg-card border border-border/90 p-1.5 shadow-xl z-30 animate-in zoom-in-95 backdrop-blur-md',
+                      isOutgoing ? 'right-0' : 'left-0'
+                    )}
+                  >
+                    {COMMON_EMOJIS.map(emoji => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={e => handleReactionClick(emoji, e)}
+                        className="p-1 hover:scale-130 transition-transform text-base cursor-pointer"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Heart Reaction Shortcut */}
+              <button
+                type="button"
+                onClick={e => handleReactionClick('❤️', e)}
+                aria-label="Send love reaction"
+                className="p-1.5 rounded-xl hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
+                title="Heart reaction"
+              >
+                <Heart className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Save / Bookmark to Favorites */}
+              <button
+                type="button"
+                onClick={handleToggleFavorite}
+                aria-label={isBookmarked ? 'Unsave moment' : 'Save to Our Moments'}
+                className={cn(
+                  'p-1.5 rounded-xl transition-colors cursor-pointer',
+                  isBookmarked
+                    ? 'text-amber-500 bg-amber-500/10'
+                    : 'hover:bg-muted hover:text-foreground'
+                )}
+                title={isBookmarked ? 'Saved to Our Moments' : 'Save to Our Moments'}
+              >
+                <Bookmark className={cn('w-3.5 h-3.5', isBookmarked && 'fill-current')} />
+              </button>
+
+              {/* Reply */}
+              <button
+                type="button"
+                onClick={() => setReplyingTo(message)}
+                aria-label="Reply to message"
+                className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                title="Reply"
+              >
+                <Reply className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Forward */}
+              <button
+                type="button"
+                onClick={() => setIsForwardOpen(true)}
+                aria-label="Forward message"
+                className="p-1.5 rounded-xl hover:bg-muted hover:text-emerald-500 transition-colors cursor-pointer"
+                title="Forward message"
+              >
+                <Forward className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Select */}
+              <button
+                type="button"
+                onClick={() => toggleSelectMessage(message.id)}
+                aria-label="Select message"
+                className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                title="Select message"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Copy (only if text body exists) */}
+              {displayBody && (
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  aria-label="Copy text"
+                  className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  title="Copy text"
+                >
+                  {isCopied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              )}
+
+              {/* Edit (only text, outgoing, within 15 min limit) */}
+              {isEditAvailable && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(true);
+                    setEditText(displayBody || '');
+                  }}
+                  aria-label="Edit message (within 15 min)"
+                  className="p-1.5 rounded-xl hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  title="Edit message"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Delete */}
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                aria-label="Delete message"
+                className="p-1.5 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                title="Delete message"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
-        >
-          {/* Subtle Dropdown Chevron & Context Menu */}
-          {!isEditing && (
-            <div className="absolute top-1.5 right-1.5 z-20">
+
+          {/* Actual Message Box */}
+          <div
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onClick={() => {
+              if (isSelectMode) toggleSelectMessage(message.id);
+            }}
+            className={cn(
+              'relative w-full rounded-2xl shadow-xs transition-all',
+              isImageOnly ? 'p-1 sm:p-1.5' : 'p-2 px-3 pb-1.5 sm:p-2.5 sm:px-3.5 sm:pb-2 pr-7 md:pr-3.5',
+              isLittleNote
+                ? 'little-note-card rounded-2xl'
+                : isOutgoing
+                ? 'bg-[#005C4B] text-white rounded-br-xs shadow-sm shadow-[#005C4B]/20'
+                : 'bg-white dark:bg-[#202C33] text-foreground border border-border/70 rounded-bl-xs shadow-2xs',
+              isSelectMode && isSelected && 'ring-2 ring-emerald-500 bg-emerald-500/15 dark:bg-emerald-500/25'
+            )}
+          >
+            {/* Mobile Only: Subtle Dropdown Chevron */}
+            {!isEditing && (
+              <div className="absolute top-1.5 right-1.5 z-20 md:hidden">
               <button
                 ref={chevronBtnRef}
                 type="button"
@@ -775,6 +800,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           </div>
         )}
       </div>
+    </div>
 
       {/* Checkbox indicator on right for outgoing messages in select mode */}
       {isSelectMode && isOutgoing && (
