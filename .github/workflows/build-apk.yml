@@ -57,9 +57,11 @@ jobs:
           ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
           STATUS=${PIPESTATUS[0]}
           if [ $STATUS -ne 0 ]; then
-            ERR=$(tail -n 20 build.log | tr '\n' ' ' | sed 's/"//g' | cut -c 1-200)
-            echo "::error title=Gradle Error::$ERR"
-            tail -n 40 build.log
+            CAUSE=$(grep -A 6 "What went wrong:" build.log | tr '\n' ' ' | sed 's/"//g' | cut -c 1-250)
+            if [ -z "$CAUSE" ]; then
+              CAUSE=$(grep -A 6 "Caused by:" build.log | head -n 6 | tr '\n' ' ' | sed 's/"//g' | cut -c 1-250)
+            fi
+            echo "::error title=Gradle Root Cause::$CAUSE"
             exit $STATUS
           fi
 
