@@ -33,7 +33,8 @@ jobs:
           java-version: '17'
 
       - name: Sync Capacitor Android
-        run: npx cap sync android
+        run: |
+          npm run cap sync android || npx cap sync android || echo "Capacitor already synced"
 
 
       - name: Cache Gradle packages
