@@ -17,7 +17,7 @@ import {
 } from '@/types/database';
 import { encryptMessage, decryptMessage } from '@/lib/e2ee';
 import { playSecurityAlertSound } from '@/lib/ringtone';
-import { showChatMessageNotification } from '@/lib/device-notifications';
+import { showChatMessageNotification, playMessageNotificationSound } from '@/lib/device-notifications';
 
 export type SecurityEventType = 'screenshot' | 'video_saved' | 'media_saved' | 'file_downloaded';
 
@@ -596,6 +596,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             conversationId: payload.conversationId,
             avatarUrl: payload.sender?.avatar_path,
           });
+        } else {
+          // In active open chat: play arrival chime immediately
+          playMessageNotificationSound();
         }
       })
       .on('broadcast', { event: 'friend-removed' }, (payload: any) => {
@@ -1253,6 +1256,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 conversationId: activeConversationId,
                 avatarUrl: senderProfile?.avatar_path,
               });
+            } else {
+              playMessageNotificationSound();
             }
 
             const nowIso = new Date().toISOString();
@@ -1603,9 +1608,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         )
       );
 
-      // Notify recipient device in real time via their user-notifications channel
+      // Notify recipient device in real time via dual client-websocket and server-http broadcast
       const partnerId = activeConversation?.otherUser?.id;
       if (partnerId && insertedMsg) {
+        const notifPayload = {
+          conversationId: activeConversationId,
+          sender: profile,
+          messageType: payload.messageType,
+          body: payload.body || '',
+          created_at: insertedMsg.created_at,
+        };
+
+        // 1. Direct client WebSocket broadcast (<20ms)
         try {
           const userNotifChan = supabase.channel(`user-notifications:${partnerId}`);
           userNotifChan.subscribe((status: string) => {
@@ -1613,20 +1627,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               userNotifChan.send({
                 type: 'broadcast',
                 event: 'new_message',
-                payload: {
-                  conversationId: activeConversationId,
-                  sender: profile,
-                  messageType: payload.messageType,
-                  body: payload.body || '',
-                  created_at: insertedMsg.created_at,
-                },
+                payload: notifPayload,
               });
               setTimeout(() => {
                 supabase.removeChannel(userNotifChan);
-              }, 1200);
+              }, 1500);
             }
           });
         } catch {}
+
+        // 2. Parallel server-side HTTP broadcast via service role
+        fetch('/api/chat/call-signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetUserId: partnerId,
+            event: 'new_message',
+            payload: notifPayload,
+            conversationId: activeConversationId,
+          }),
+        }).catch(() => {});
       }
 
       return {};

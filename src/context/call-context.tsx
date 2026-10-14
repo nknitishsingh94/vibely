@@ -381,7 +381,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Multi-channel signaling broadcaster to reach a user instantly (<50ms)
+  // Multi-channel signaling broadcaster to reach a user instantly (<20ms client + server fallback)
   const sendSignalToUser = useCallback(
     (targetUserId: string, event: string, payload: any, conversationId?: string, roomId?: string) => {
       if (!targetUserId) return;
@@ -390,7 +390,43 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         timestamp: payload?.timestamp || Date.now(),
       };
 
-      // Direct Server-Side Broadcast (<50ms delivery across all channels simultaneously)
+      // 1. Instant Direct Client WebSocket Broadcast (<20ms delivery)
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const callChan = supabase.channel(`call-user:${targetUserId}`);
+        callChan.subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            callChan.send({
+              type: 'broadcast',
+              event,
+              payload: enrichedPayload,
+            }).finally(() => {
+              setTimeout(() => {
+                supabase.removeChannel(callChan);
+              }, 2500);
+            });
+          }
+        });
+
+        const notifChan = supabase.channel(`user-notifications:${targetUserId}`);
+        notifChan.subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            notifChan.send({
+              type: 'broadcast',
+              event,
+              payload: enrichedPayload,
+            }).finally(() => {
+              setTimeout(() => {
+                supabase.removeChannel(notifChan);
+              }, 2500);
+            });
+          }
+        });
+      } catch (clientErr) {
+        console.warn('Client-side signal dispatch error:', clientErr);
+      }
+
+      // 2. Direct Server-Side Broadcast (<50ms delivery across all channels via service role)
       fetch('/api/chat/call-signal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -999,9 +1035,31 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (!payload || !payload.caller) return;
       if (isDuplicateSignal('incoming_call', payload)) return;
 
-      // Don't accept or ring if already in another active call state
-      if (activeCallStatusRef.current !== 'idle') return;
-      if (outgoingCallRef.current || incomingCallRef.current) return;
+      // Check if user is actively engaged in a connected call
+      const isConnected =
+        outgoingCallRef.current?.status === 'connected' ||
+        activeCallStatusRef.current === 'connected';
+
+      if (isConnected) {
+        // Send busy ACK back to caller
+        sendSignalToUser(
+          payload.caller.id,
+          'call_declined',
+          {
+            callId: payload.callId,
+            conversationId: payload.conversationId,
+            busy: true,
+          },
+          payload.conversationId,
+          payload.roomId
+        );
+        return;
+      }
+
+      // If already ringing for this callId, ignore duplicate signal
+      if (incomingCallRef.current?.callId === payload.callId) {
+        return;
+      }
 
       const callId = payload.callId || `call_${Date.now()}`;
       const roomId = payload.roomId || `room_${callId}`;
@@ -1166,6 +1224,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (isDuplicateSignal('call_cancelled', payload)) return;
 
       stopAllRingtones();
+      dismissCallNotification(payload?.callId || activeCallIdRef.current || undefined);
       activeCallStatusRef.current = 'idle';
 
       if (profile?.id && activeCallIdRef.current) {
@@ -1705,6 +1764,30 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       cleanupMedia();
     }, 600);
   };
+
+  // Listen for native Service Worker notification actions (e.g. Android lockscreen/tray buttons)
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const handleSwMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'CALL_ANSWER') {
+        unlockAudioSession();
+        acceptCall();
+      } else if (data.type === 'CALL_DECLINE') {
+        declineCall();
+      } else if (data.type === 'CALL_NOTIFICATION_CLICK') {
+        unlockAudioSession();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+    };
+  }, [acceptCall, declineCall]);
 
   // Controls: Mute
   const toggleMute = () => {

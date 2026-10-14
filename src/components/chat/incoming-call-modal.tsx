@@ -12,6 +12,9 @@ export function IncomingCallModal() {
 
   React.useEffect(() => {
     setIsProcessing(false);
+    if (incomingCall) {
+      unlockAudioSession();
+    }
   }, [incomingCall?.callId]);
 
   if (!incomingCall) return null;
@@ -36,7 +39,11 @@ export function IncomingCallModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200 select-none">
+    <div
+      onTouchStart={unlockAudioSession}
+      onClick={unlockAudioSession}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200 select-none"
+    >
       <div className="relative w-full max-w-sm rounded-3xl bg-card border border-border shadow-2xl p-6 flex flex-col items-center text-center overflow-hidden">
         {/* Glow backdrop */}
         <div className="absolute -top-16 -left-16 w-48 h-48 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-full blur-3xl pointer-events-none animate-pulse" />

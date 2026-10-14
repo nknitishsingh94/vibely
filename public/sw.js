@@ -109,13 +109,15 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of clientList) {
         if ('focus' in client) {
           client.focus();
-          if (data.type === 'call' && event.action === 'decline') {
-            client.postMessage({ type: 'CALL_DECLINE', callId: data.callId });
-          } else if (data.type === 'call') {
-            client.postMessage({ type: 'CALL_NOTIFICATION_CLICK', callId: data.callId });
-          }
-          return;
         }
+        if (data.type === 'call' && event.action === 'decline') {
+          client.postMessage({ type: 'CALL_DECLINE', callId: data.callId });
+        } else if (data.type === 'call' && event.action === 'answer') {
+          client.postMessage({ type: 'CALL_ANSWER', callId: data.callId });
+        } else if (data.type === 'call') {
+          client.postMessage({ type: 'CALL_NOTIFICATION_CLICK', callId: data.callId });
+        }
+        return;
       }
       // If no window is open, open a new window to target URL
       if (self.clients.openWindow) {

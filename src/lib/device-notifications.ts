@@ -1,6 +1,5 @@
 // Vibely Native Device & Mobile Notification System (Call & Message Notifications)
-
-let messageAudioCtx: AudioContext | null = null;
+import { getAudioContext, unlockAudioSession } from './ringtone';
 
 /**
  * Play a pleasant mobile message chime using Web Audio API
@@ -8,17 +7,13 @@ let messageAudioCtx: AudioContext | null = null;
 export function playMessageNotificationSound() {
   try {
     if (typeof window === 'undefined') return;
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
 
-    if (!messageAudioCtx || messageAudioCtx.state === 'closed') {
-      messageAudioCtx = new AudioContextClass();
-    }
-    if (messageAudioCtx.state === 'suspended') {
-      messageAudioCtx.resume().catch(() => {});
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
     }
 
-    const ctx = messageAudioCtx;
     const now = ctx.currentTime;
 
     // Pleasant dual chime (C6 -> G6)

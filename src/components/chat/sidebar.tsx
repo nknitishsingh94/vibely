@@ -40,6 +40,7 @@ import { BrandLogo, VibelyEmblem } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
 import { AvatarPickerModal } from './avatar-picker-modal';
 import { NotificationBell } from './notification-bar';
+import { NotificationPermissionBanner } from './notification-permission-banner';
 import { formatConversationTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { useCall } from '@/context/call-context';
@@ -391,6 +392,9 @@ export function Sidebar() {
             </button>
           </div>
         </div>
+
+        {/* Real-time calling & notification permission prompt */}
+        <NotificationPermissionBanner compact />
 
         {/* Conversations List (WhatsApp Chat Feed with Touch Pull-to-Refresh) */}
         <div
