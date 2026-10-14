@@ -64,12 +64,9 @@ export function Avatar({
   const hue = (hash * 137.5) % 360;
 
   return (
-    <div className={cn('relative inline-flex shrink-0 select-none', className)}>
+    <div className={cn('relative inline-flex shrink-0 select-none rounded-full', sizeClasses[size], className)}>
       <div
-        className={cn(
-          'relative flex items-center justify-center rounded-full overflow-hidden font-semibold border border-border/40 shadow-xs transition-transform',
-          sizeClasses[size]
-        )}
+        className="w-full h-full relative flex items-center justify-center rounded-full overflow-hidden font-semibold border border-border/30 shadow-xs transition-transform"
         style={{
           backgroundColor: validSrc && !imageError ? undefined : `hsl(${hue} 65% 45%)`,
           color: validSrc && !imageError ? undefined : '#ffffff',
@@ -81,7 +78,7 @@ export function Avatar({
             src={validSrc}
             alt={name}
             onError={() => setImageError(true)}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover rounded-full"
           />
         ) : (
           <span>{initials}</span>
@@ -91,7 +88,7 @@ export function Avatar({
       {isOnline !== undefined && (
         <span
           className={cn(
-            'absolute bottom-0 right-0 rounded-full ring-background transition-colors',
+            'absolute bottom-0 right-0 rounded-full ring-2 ring-background transition-colors z-10',
             badgeSizeClasses[size],
             isOnline ? 'bg-emerald-500' : 'bg-muted-foreground/40'
           )}

@@ -858,14 +858,14 @@ export function Sidebar() {
           >
             <div
               onClick={() => setIsAvatarPickerOpen(true)}
-              className="relative group cursor-pointer shrink-0"
+              className="relative group cursor-pointer shrink-0 rounded-full overflow-hidden"
               title="Change profile photo"
             >
               <Avatar
                 src={profile?.avatar_path}
                 name={profile?.display_name || 'Me'}
                 size="sm"
-                className="ring-1 ring-white/10 group-hover:ring-emerald-500/60 transition-all"
+                className="ring-1 ring-border/50 group-hover:ring-emerald-500/60 transition-all rounded-full"
               />
               <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
                 <Camera className="w-2.5 h-2.5" />
