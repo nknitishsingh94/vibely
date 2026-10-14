@@ -19,6 +19,7 @@ import {
   RotateCw,
   Copy,
   CheckSquare,
+  Forward,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -28,6 +29,7 @@ import { formatLastSeen } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { Dialog } from '@/components/ui/dialog';
+import { ForwardModal } from './forward-modal';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCall } from '@/context/call-context';
@@ -67,6 +69,7 @@ export function ConversationHeader() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = React.useState(false);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = React.useState(false);
   const [isDeletingMessages, setIsDeletingMessages] = React.useState(false);
+  const [isForwardModalOpen, setIsForwardModalOpen] = React.useState(false);
 
   const hasOutgoingSelected = React.useMemo(() => {
     return messages.some(
@@ -162,6 +165,15 @@ export function ConversationHeader() {
                 aria-label="Copy selected"
               >
                 <Copy className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsForwardModalOpen(true)}
+                className="p-2 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+                title="Forward selected"
+                aria-label="Forward selected"
+              >
+                <Forward className="w-4 h-4" />
               </button>
               <button
                 type="button"
@@ -624,6 +636,14 @@ export function ConversationHeader() {
           </div>
         </div>
       </Dialog>
+
+      {/* Forward Modal */}
+      <ForwardModal
+        isOpen={isForwardModalOpen}
+        onClose={() => setIsForwardModalOpen(false)}
+        messageIds={selectedMessageIds}
+        onSuccess={clearSelectedMessages}
+      />
     </>
   );
 }

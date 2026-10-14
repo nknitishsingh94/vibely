@@ -46,6 +46,7 @@ export interface ChatContextType {
   editMessage: (messageId: string, newBody: string) => Promise<{ error?: string }>;
   deleteMessage: (messageId: string, mode?: 'for_me' | 'for_everyone') => Promise<{ error?: string }>;
   deleteMessages: (messageIds: string[], mode?: 'for_me' | 'for_everyone') => Promise<{ error?: string }>;
+  forwardMessages: (targetConversationId: string, messageIds: string[]) => Promise<{ success: boolean; error?: string }>;
   selectedMessageIds: string[];
   setSelectedMessageIds: React.Dispatch<React.SetStateAction<string[]>>;
   isSelectMode: boolean;
@@ -1648,6 +1649,88 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Forward one or more messages to a target conversation
+  const forwardMessages = async (
+    targetConversationId: string,
+    messageIds: string[]
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!profile || messageIds.length === 0) {
+      return { success: false, error: 'No messages to forward' };
+    }
+
+    const msgsToForward = messages.filter(m => messageIds.includes(m.id) && !m.deleted_at);
+    if (msgsToForward.length === 0) {
+      return { success: false, error: 'No valid messages to forward' };
+    }
+
+    const supabase = getSupabaseBrowserClient();
+
+    try {
+      for (const msg of msgsToForward) {
+        let storagePath = msg.storage_path;
+
+        // Copy media file in Supabase storage if present
+        if (msg.storage_path) {
+          const fileExt = msg.original_filename?.split('.').pop() || 'dat';
+          const safeName = `fwd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+          const targetPath = `${targetConversationId}/${safeName}`;
+
+          const { error: copyErr } = await supabase.storage
+            .from('chat-media')
+            .copy(msg.storage_path, targetPath);
+
+          if (!copyErr) {
+            storagePath = targetPath;
+          }
+        }
+
+        const plainBody = msg.body;
+        const encryptedBody = plainBody
+          ? await encryptMessage(plainBody, targetConversationId)
+          : null;
+
+        const { data: insertedMsg, error: insertErr } = await supabase
+          .from('messages')
+          .insert({
+            conversation_id: targetConversationId,
+            sender_id: profile.id,
+            message_type: msg.message_type,
+            body: encryptedBody,
+            storage_path: storagePath,
+            original_filename: msg.original_filename,
+            mime_type: msg.mime_type,
+            file_size: msg.file_size,
+            duration_seconds: msg.duration_seconds,
+          })
+          .select()
+          .single();
+
+        if (insertErr) {
+          throw new Error(insertErr.message);
+        }
+
+        // If forwarding into currently active chat, update message list
+        if (insertedMsg && targetConversationId === activeConversationId) {
+          const newMsg: MessageWithDetails = {
+            ...insertedMsg,
+            sender: profile,
+            body: plainBody,
+            signedMediaUrl: msg.signedMediaUrl,
+            deliveryStatus: 'sent',
+            reactions: [],
+            receipts: [],
+          };
+          setMessages(prev => [...prev, newMsg]);
+        }
+      }
+
+      await refreshConversations();
+      return { success: true };
+    } catch (err: unknown) {
+      return { success: false, error: (err as Error)?.message || 'Failed to forward messages' };
+    }
+  };
+
   // Toggle emoji reaction
   const toggleReaction = async (messageId: string, emoji: string) => {
     if (!profile) return;
@@ -1774,6 +1857,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         editMessage,
         deleteMessage,
         deleteMessages,
+        forwardMessages,
         selectedMessageIds,
         setSelectedMessageIds,
         isSelectMode,

@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Ban,
   CheckSquare,
+  Forward,
 } from 'lucide-react';
 import { MessageWithDetails } from '@/types/database';
 import { useAuth } from '@/context/auth-context';
@@ -33,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { spawnFloatingHearts } from '@/components/ui/floating-hearts';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { toast } from '@/components/ui/toast';
+import { ForwardModal } from './forward-modal';
 
 interface MessageBubbleProps {
   message: MessageWithDetails;
@@ -67,6 +69,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
   const [menuPos, setMenuPos] = React.useState<{ top: number; left: number } | null>(null);
   const chevronBtnRef = React.useRef<HTMLButtonElement | null>(null);
   const [isCopied, setIsCopied] = React.useState(false);
+  const [isForwardOpen, setIsForwardOpen] = React.useState(false);
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const isOutgoing = message.sender_id === profile?.id;
@@ -364,6 +367,16 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
             <Reply className="w-3.5 h-3.5" />
           </button>
 
+          {/* Forward */}
+          <button
+            onClick={() => setIsForwardOpen(true)}
+            aria-label="Forward message"
+            className="p-1.5 rounded-xl hover:bg-muted hover:text-emerald-500 transition-colors cursor-pointer"
+            title="Forward message"
+          >
+            <Forward className="w-3.5 h-3.5" />
+          </button>
+
           {/* Copy (only if text body exists) */}
           {displayBody && (
             <button
@@ -520,6 +533,20 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
                     >
                       <Reply className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
                       <span>Reply</span>
+                    </button>
+
+                    {/* Forward */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMobileMenu(false);
+                        setMenuPos(null);
+                        setIsForwardOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-[12px] font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-left"
+                    >
+                      <Forward className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
+                      <span>Forward</span>
                     </button>
 
                     {/* Select */}
@@ -848,6 +875,13 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
           </Button>
         </div>
       </Dialog>
+
+      {/* Forward Modal */}
+      <ForwardModal
+        isOpen={isForwardOpen}
+        onClose={() => setIsForwardOpen(false)}
+        messageIds={[message.id]}
+      />
     </div>
   );
 }
