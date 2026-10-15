@@ -20,24 +20,75 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { BrandLogo } from '@/components/ui/brand-logo';
+import { BrandLogo, VibelyEmblem } from '@/components/ui/brand-logo';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { AppStatsBanner } from '@/components/landing/app-stats-banner';
 
 export default function LandingPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [activeReaction, setActiveReaction] = React.useState<string | null>('💜');
+  const [isNativeApp, setIsNativeApp] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    return Boolean(
+      (window as any).Capacitor?.isNativePlatform?.() ||
+      (window as any).AndroidBridge ||
+      ua.includes('VibelyApp') ||
+      (window as any).Capacitor?.getPlatform?.() === 'android'
+    );
+  });
 
-  // If OAuth code landed on the landing page, forward immediately to /auth/callback
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      if (code) {
-        window.location.href = `/auth/callback?${params.toString()}`;
+    if (typeof window === 'undefined') return;
+
+    const ua = navigator.userAgent || '';
+    const native = Boolean(
+      (window as any).Capacitor?.isNativePlatform?.() ||
+      (window as any).AndroidBridge ||
+      ua.includes('VibelyApp') ||
+      (window as any).Capacitor?.getPlatform?.() === 'android'
+    );
+    if (native !== isNativeApp) {
+      setIsNativeApp(native);
+    }
+
+    // If OAuth code landed on the landing page, forward immediately to /auth/callback
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) {
+      window.location.href = `/auth/callback?${params.toString()}`;
+      return;
+    }
+
+    if (!isLoading) {
+      if (user) {
+        // Authenticated user: immediately enter the Vibely chat application
+        router.replace('/chat');
+      } else if (native) {
+        // Native mobile app: open the login screen directly so user can sign in immediately
+        router.replace('/login');
       }
     }
-  }, []);
+  }, [user, isLoading, isNativeApp, router]);
+
+  // Inside the mobile app or when user is authenticated, NEVER render marketing landing page
+  if (isNativeApp || user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground select-none">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <VibelyEmblem size="lg" />
+          </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 dark:text-stone-400">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>{user ? 'Entering your space...' : 'Opening Vibely...'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const reactions = ['💜', '✨', '💖', '🔥', '🎵', '💌'];
 

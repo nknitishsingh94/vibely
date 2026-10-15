@@ -55,7 +55,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-[#0C3B2E]/15">
       {/* Sleek Top Bar */}
       <header className="px-4 sm:px-6 h-12 flex items-center justify-between border-b border-[#0C3B2E]/10 bg-white/90 backdrop-blur-xl">
-        <BrandLogo size="sm" href="/" />
+        <BrandLogo size="sm" href="/login" />
       </header>
 
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">

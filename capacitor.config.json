@@ -3,7 +3,7 @@
   "appName": "Vibely",
   "webDir": "public",
   "server": {
-    "url": "https://vibely-sigma-roan.vercel.app",
+    "url": "https://vibely-sigma-roan.vercel.app/chat",
     "cleartext": true
   },
   "android": {

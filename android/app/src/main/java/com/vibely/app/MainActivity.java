@@ -72,6 +72,12 @@ public class MainActivity extends BridgeActivity {
                     settings.setAllowFileAccess(true);
                     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                     settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+                    // Add VibelyApp identifier to User-Agent for instant native app detection
+                    String originalUa = settings.getUserAgentString();
+                    if (originalUa != null && !originalUa.contains("VibelyApp")) {
+                        settings.setUserAgentString(originalUa + " VibelyApp/1.0");
+                    }
                 }
 
                 b.setWebViewClient(new BridgeWebViewClient(b) {
@@ -90,7 +96,7 @@ public class MainActivity extends BridgeActivity {
                             String urlStr = request.getUrl() != null ? request.getUrl().toString() : "";
                             if (urlStr.contains("localhost")) {
                                 if (view != null) {
-                                    view.loadUrl("https://vibely-sigma-roan.vercel.app");
+                                    view.loadUrl("https://vibely-sigma-roan.vercel.app/chat");
                                 }
                                 return;
                             }
@@ -108,7 +114,7 @@ public class MainActivity extends BridgeActivity {
                         super.onReceivedError(view, errorCode, description, failingUrl);
                         if (failingUrl != null && failingUrl.contains("localhost")) {
                             if (view != null) {
-                                view.loadUrl("https://vibely-sigma-roan.vercel.app");
+                                view.loadUrl("https://vibely-sigma-roan.vercel.app/chat");
                             }
                             return;
                         }
@@ -120,11 +126,11 @@ public class MainActivity extends BridgeActivity {
                     }
                 });
 
-                // Immediately load live Vibely server so the app NEVER stays on localhost
+                // Immediately load live Vibely chat so the app directly opens the app/login and NEVER stays on localhost or marketing page
                 if (webView != null) {
                     String current = webView.getUrl();
                     if (current == null || current.contains("localhost")) {
-                        webView.loadUrl("https://vibely-sigma-roan.vercel.app");
+                        webView.loadUrl("https://vibely-sigma-roan.vercel.app/chat");
                     }
                 }
             }
