@@ -20,65 +20,66 @@ export async function POST(req: Request) {
       auth: { persistSession: false },
     });
 
-    // If identifier contains '@' and looks like an email address
-    if (clean.includes('@') && clean.includes('.')) {
+    // Check if identifier is an email address
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean);
+
+    if (isEmail) {
       const email = clean.toLowerCase();
-      // Check if user exists
-      const { data: usersData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      const matched = usersData?.users?.find(
-        (u) => (u.email || '').toLowerCase() === email
-      );
+      let isGoogle = false;
 
-      if (!matched) {
-        return NextResponse.json({
-          exists: false,
-          email,
-          isUsername: false,
-          isGoogle: false,
-        });
-      }
-
-      const providers =
-        matched.app_metadata?.providers ||
-        (matched.app_metadata?.provider ? [matched.app_metadata.provider] : []);
-      const isGoogle = providers.includes('google');
-
-      // Auto-heal missing profile for email user if needed
       try {
-        const { data: prof } = await admin.from('profiles').select('id').eq('id', matched.id).maybeSingle();
-        if (!prof) {
-          const displayName =
-            matched.user_metadata?.display_name ||
-            matched.user_metadata?.full_name ||
-            matched.email?.split('@')[0] ||
-            'User';
-          const username =
-            matched.user_metadata?.username ||
-            `${matched.email?.split('@')[0] || 'user'}_${matched.id.slice(0, 4)}`.toLowerCase();
+        const { data: usersData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const matched = usersData?.users?.find(
+          (u) => (u.email || '').toLowerCase() === email
+        );
 
-          await admin.from('profiles').upsert(
-            {
-              id: matched.id,
-              display_name: displayName,
-              username: username,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          );
+        if (matched) {
+          const providers =
+            matched.app_metadata?.providers ||
+            (matched.app_metadata?.provider ? [matched.app_metadata.provider] : []);
+          isGoogle = providers.includes('google') && !matched.app_metadata?.provider?.includes('email');
+
+          // Auto-heal missing profile for email user if needed
+          try {
+            const { data: prof } = await admin.from('profiles').select('id').eq('id', matched.id).maybeSingle();
+            if (!prof) {
+              const displayName =
+                matched.user_metadata?.display_name ||
+                matched.user_metadata?.full_name ||
+                matched.email?.split('@')[0] ||
+                'User';
+              const username =
+                matched.user_metadata?.username ||
+                `${matched.email?.split('@')[0] || 'user'}`.toLowerCase();
+
+              await admin.from('profiles').upsert(
+                {
+                  id: matched.id,
+                  display_name: displayName,
+                  username: username,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'id' }
+              );
+            }
+          } catch (profErr) {
+            console.warn('Profile sync on email resolve warning:', profErr);
+          }
+
+          // If user is unconfirmed, auto-confirm them
+          if (!matched.email_confirmed_at) {
+            try {
+              await admin.auth.admin.updateUserById(matched.id, { email_confirm: true });
+            } catch (confirmErr) {
+              console.warn('Auto-confirm in resolve-identifier email warning:', confirmErr);
+            }
+          }
         }
-      } catch (profErr) {
-        console.warn('Profile sync on email resolve warning:', profErr);
+      } catch (listErr) {
+        console.warn('User search error in resolve-identifier email:', listErr);
       }
 
-      // If user is unconfirmed, auto-confirm them
-      if (!matched.email_confirmed_at) {
-        try {
-          await admin.auth.admin.updateUserById(matched.id, { email_confirm: true });
-        } catch (confirmErr) {
-          console.warn('Auto-confirm in resolve-identifier email warning:', confirmErr);
-        }
-      }
-
+      // Always allow email login attempts through so Supabase can verify credentials
       return NextResponse.json({
         exists: true,
         email,

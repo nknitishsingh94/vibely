@@ -68,6 +68,7 @@ export function ConversationHeader() {
   const { isChatLocked, toggleLockChat } = useChatLock();
   const router = useRouter();
   const isCurrentLocked = activeConversation ? isChatLocked(activeConversation.id) : false;
+  const [isContactInfoOpen, setIsContactInfoOpen] = React.useState(false);
   const [isDateDialogOpen, setIsDateDialogOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState(anniversary || '');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
@@ -218,6 +219,11 @@ export function ConversationHeader() {
               <ArrowLeft className="w-6 h-6 shrink-0" />
             </button>
 
+          <div
+            onClick={() => setIsContactInfoOpen(true)}
+            className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer select-none group/partner hover:opacity-90 transition-opacity"
+            title="Click to view partner details & chat security"
+          >
             {/* Friend Avatar with presence ring */}
             <div className="relative">
               <Avatar
@@ -225,7 +231,7 @@ export function ConversationHeader() {
                 name={friend?.display_name || 'Partner'}
                 size="md"
                 isOnline={isOnline}
-                className="w-11 h-11 md:w-10 md:h-10 text-base md:text-sm shrink-0"
+                className="w-11 h-11 md:w-10 md:h-10 text-base md:text-sm shrink-0 ring-2 ring-emerald-500/20 group-hover/partner:ring-emerald-500/50 transition-all"
               />
             </div>
 
@@ -285,7 +291,8 @@ export function ConversationHeader() {
                 {/* Day Counter Mini Pill in Header */}
                 {daysTogether !== null && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setSelectedDate(anniversary || '');
                       setIsDateDialogOpen(true);
                     }}
@@ -299,8 +306,9 @@ export function ConversationHeader() {
               </div>
             </div>
           </div>
+          </div>
 
-          {/* Action Controls: Call, Video, Delete Chat & More Menu */}
+          {/* Action Controls: Call, Video, Single-User Lock & More Menu */}
           <div className="flex items-center gap-1.5 sm:gap-1 relative">
             <button
               type="button"
@@ -319,6 +327,33 @@ export function ConversationHeader() {
               aria-label="Voice Call"
             >
               <Phone className="w-5 h-5 md:w-4 md:h-4" />
+            </button>
+
+            {/* Single User Chat Lock / Unlock Action Button - Visible on both Mobile & Desktop! */}
+            <button
+              type="button"
+              onClick={() => {
+                if (activeConversation) {
+                  toggleLockChat(activeConversation.id, friend?.display_name);
+                }
+              }}
+              className={`w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl active:scale-95 transition-all cursor-pointer shrink-0 ${
+                isCurrentLocked
+                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 ring-1 ring-emerald-500/40'
+                  : 'bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+              title={
+                isCurrentLocked
+                  ? `Unlock chat with ${friend?.display_name || 'partner'} (remove PIN)`
+                  : `Lock chat with ${friend?.display_name || 'partner'} (hide behind 4-digit PIN)`
+              }
+              aria-label="Toggle Single User Chat Lock"
+            >
+              {isCurrentLocked ? (
+                <Unlock className="w-5 h-5 md:w-4 md:h-4 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <Lock className="w-5 h-5 md:w-4 md:h-4" />
+              )}
             </button>
 
             {/* Desktop Additional Buttons */}
@@ -364,26 +399,6 @@ export function ConversationHeader() {
                 aria-label="Toggle Our Moments drawer"
               >
                 <FolderHeart className="w-4 h-4" />
-              </Button>
-
-              {/* Chat Lock / Unlock Action Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  if (activeConversation) {
-                    toggleLockChat(activeConversation.id);
-                  }
-                }}
-                className={`rounded-xl transition-colors ${
-                  isCurrentLocked
-                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/15'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
-                title={isCurrentLocked ? 'Unlock Chat (remove PIN protection)' : 'Lock Chat (hide behind 4-digit PIN)'}
-                aria-label="Toggle Chat Lock"
-              >
-                {isCurrentLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
               </Button>
             </div>
 
@@ -709,6 +724,161 @@ export function ConversationHeader() {
         messageIds={selectedMessageIds}
         onSuccess={clearSelectedMessages}
       />
+
+      {/* Partner Profile & Single User Chat Security Dialog */}
+      <Dialog
+        isOpen={isContactInfoOpen}
+        onClose={() => setIsContactInfoOpen(false)}
+        size="sm"
+        title="Chat Info & Security"
+      >
+        <div className="space-y-5 pt-2 select-none">
+          {/* Partner Identity Card */}
+          <div className="flex flex-col items-center text-center space-y-2 p-4 rounded-2xl bg-muted/30 border border-border/40">
+            <Avatar
+              src={friend?.avatar_path}
+              name={friend?.display_name || 'Partner'}
+              size="lg"
+              isOnline={isOnline}
+              className="w-20 h-20 text-2xl shadow-md ring-4 ring-emerald-500/15"
+            />
+            <div className="space-y-0.5">
+              <h3 className="text-base font-bold text-foreground flex items-center justify-center gap-1.5">
+                <span>{friend?.display_name || 'My Partner'}</span>
+                <Sparkles className="w-4 h-4 text-rose-400 inline shrink-0" />
+              </h3>
+              <p className="text-xs font-mono text-muted-foreground">
+                {friend?.username ? `@${friend.username}` : ''}
+              </p>
+            </div>
+
+            <div className="pt-1">
+              {isOnline ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Online now</span>
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {formatLastSeen(friend?.last_seen_at || friendPresence.lastSeen)}
+                </span>
+              )}
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-3 pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsContactInfoOpen(false);
+                  handleStartCall('voice');
+                }}
+                className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+              >
+                <Phone className="w-4 h-4" />
+                <span>Voice</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsContactInfoOpen(false);
+                  handleStartCall('video');
+                }}
+                className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+              >
+                <Video className="w-4 h-4" />
+                <span>Video</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsContactInfoOpen(false);
+                  setIsMediaDrawerOpen(true);
+                }}
+                className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+              >
+                <FolderHeart className="w-4 h-4 text-primary" />
+                <span>Media</span>
+              </button>
+            </div>
+          </div>
+
+          {/* SINGLE USER CHAT LOCK TOGGLE CARD */}
+          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  isCurrentLocked
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  <Lock className="w-4.5 h-4.5" />
+                </div>
+                <div className="space-y-0.5">
+                  <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <span>Chat Lock</span>
+                    {isCurrentLocked && (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded-md">
+                        Protected
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Lock and hide this conversation behind your 4-digit passcode on this device.
+                  </p>
+                </div>
+              </div>
+
+              {/* iOS / WhatsApp Style Toggle Switch */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isCurrentLocked}
+                onClick={() => {
+                  if (activeConversation) {
+                    toggleLockChat(activeConversation.id, friend?.display_name);
+                  }
+                }}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                  isCurrentLocked ? 'bg-emerald-600' : 'bg-muted-foreground/30'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    isCurrentLocked ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <p className="text-[10px] text-muted-foreground/80 border-t border-border/40 pt-2 flex items-center gap-1.5">
+              <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                {isCurrentLocked
+                  ? 'This chat is hidden in the Locked Chats folder.'
+                  : 'Toggle ON to instantly hide and protect this chat.'}
+              </span>
+            </p>
+          </div>
+
+          {/* Delete Friendship / Conversation Option */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsContactInfoOpen(false);
+                setIsDeleteModalOpen(true);
+              }}
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-2xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-semibold transition-all cursor-pointer active:scale-98"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Chat & Remove Friend</span>
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </>
   );
 }

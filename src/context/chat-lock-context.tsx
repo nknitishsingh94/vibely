@@ -19,13 +19,14 @@ interface ChatLockContextType {
   unlockSession: (passcode: string) => Promise<{ success: boolean; error?: string }>;
   lockSession: () => void;
   createPasscode: (passcode: string) => Promise<boolean>;
-  toggleLockChat: (conversationId: string) => Promise<boolean>;
-  unlockChatPermanently: (conversationId: string) => void;
+  toggleLockChat: (conversationId: string, partnerName?: string) => Promise<boolean>;
+  unlockChatPermanently: (conversationId: string, partnerName?: string) => void;
   isChatLocked: (conversationId: string) => boolean;
   isChatAccessible: (conversationId: string) => boolean;
   showUnlockModal: boolean;
   targetConversationId: string | null;
-  openUnlockModal: (targetConvId?: string | null) => void;
+  targetPartnerName: string | null;
+  openUnlockModal: (targetConvId?: string | null, partnerName?: string | null) => void;
   closeUnlockModal: () => void;
 }
 
@@ -42,6 +43,7 @@ const ChatLockContext = createContext<ChatLockContextType>({
   isChatAccessible: () => true,
   showUnlockModal: false,
   targetConversationId: null,
+  targetPartnerName: null,
   openUnlockModal: () => {},
   closeUnlockModal: () => {},
 });
@@ -56,6 +58,7 @@ export function ChatLockProvider({ children }: { children: React.ReactNode }) {
 
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [targetConversationId, setTargetConversationId] = useState<string | null>(null);
+  const [targetPartnerName, setTargetPartnerName] = useState<string | null>(null);
 
   // Sync state whenever user changes or on mount
   const syncLockState = useCallback(() => {
@@ -88,14 +91,16 @@ export function ChatLockProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const openUnlockModal = useCallback((targetConvId: string | null = null) => {
+  const openUnlockModal = useCallback((targetConvId: string | null = null, partnerName: string | null = null) => {
     setTargetConversationId(targetConvId);
+    setTargetPartnerName(partnerName);
     setShowUnlockModal(true);
   }, []);
 
   const closeUnlockModal = useCallback(() => {
     setShowUnlockModal(false);
     setTargetConversationId(null);
+    setTargetPartnerName(null);
   }, []);
 
   const unlockSession = useCallback(
@@ -134,27 +139,28 @@ export function ChatLockProvider({ children }: { children: React.ReactNode }) {
   );
 
   const toggleLockChat = useCallback(
-    async (conversationId: string): Promise<boolean> => {
+    async (conversationId: string, partnerName?: string): Promise<boolean> => {
       if (!userId || !conversationId) return false;
 
       const isLocked = lockedConversationIds.includes(conversationId);
+      const name = partnerName ? ` with ${partnerName}` : '';
       if (isLocked) {
         // Unlock permanently
         unlockConversationPermanently(userId, conversationId);
         syncLockState();
-        toast.success('Chat unlocked and returned to regular chats');
+        toast.success(`Chat${name} unlocked and restored to regular chats`);
         return false;
       } else {
         // Lock conversation
         if (!hasPasscode) {
           // Must set a passcode first
-          openUnlockModal(conversationId);
+          openUnlockModal(conversationId, partnerName || null);
           return false;
         }
         lockConversation(userId, conversationId);
         syncLockState();
-        setIsUnlocked(true); // Keep unlocked for current view
-        toast.success('Chat locked! It is now hidden behind your passcode.');
+        setIsUnlocked(true); // Keep unlocked for current active view
+        toast.success(`Chat${name} locked! It is now hidden in Locked Chats.`);
         return true;
       }
     },
@@ -162,11 +168,12 @@ export function ChatLockProvider({ children }: { children: React.ReactNode }) {
   );
 
   const unlockChatPermanently = useCallback(
-    (conversationId: string) => {
+    (conversationId: string, partnerName?: string) => {
       if (!userId || !conversationId) return;
       unlockConversationPermanently(userId, conversationId);
       syncLockState();
-      toast.success('Chat unlocked permanently');
+      const name = partnerName ? ` with ${partnerName}` : '';
+      toast.success(`Chat${name} unlocked and restored`);
     },
     [userId, syncLockState]
   );
@@ -201,6 +208,7 @@ export function ChatLockProvider({ children }: { children: React.ReactNode }) {
         isChatAccessible,
         showUnlockModal,
         targetConversationId,
+        targetPartnerName,
         openUnlockModal,
         closeUnlockModal,
       }}

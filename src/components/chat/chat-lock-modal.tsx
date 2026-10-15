@@ -17,6 +17,7 @@ export function ChatLockModal() {
     unlockSession,
     createPasscode,
     targetConversationId,
+    targetPartnerName,
     toggleLockChat,
   } = useChatLock();
 
@@ -71,7 +72,7 @@ export function ChatLockModal() {
                 setIsSubmitting(false);
                 if (success) {
                   if (targetConversationId) {
-                    toggleLockChat(targetConversationId);
+                    toggleLockChat(targetConversationId, targetPartnerName || undefined);
                     setActiveConversationId(targetConversationId);
                   }
                   closeUnlockModal();
@@ -89,7 +90,11 @@ export function ChatLockModal() {
           unlockSession(nextPin).then(res => {
             setIsSubmitting(false);
             if (res.success) {
-              toast.success('Chats unlocked!');
+              toast.success(
+                targetPartnerName
+                  ? `Chat with ${targetPartnerName} unlocked!`
+                  : 'Chats unlocked!'
+              );
               if (targetConversationId) {
                 setActiveConversationId(targetConversationId);
               }
@@ -107,6 +112,7 @@ export function ChatLockModal() {
       firstPin,
       createPasscode,
       targetConversationId,
+      targetPartnerName,
       toggleLockChat,
       setActiveConversationId,
       closeUnlockModal,
@@ -164,15 +170,23 @@ export function ChatLockModal() {
         <h3 className="text-lg font-bold text-foreground">
           {isSetupMode
             ? setupStep === 1
-              ? 'Set 4-Digit Passcode'
+              ? targetPartnerName
+                ? `Lock Chat with ${targetPartnerName}`
+                : 'Set 4-Digit Passcode'
               : 'Confirm Your Passcode'
+            : targetPartnerName
+            ? `Unlock Chat with ${targetPartnerName}`
             : 'Enter Passcode'}
         </h3>
         <p className="text-xs text-muted-foreground mt-1 mb-6">
           {isSetupMode
             ? setupStep === 1
-              ? 'Create a 4-digit PIN to secure your private chats'
+              ? targetPartnerName
+                ? `Create a 4-digit PIN to lock and protect your chat with ${targetPartnerName}`
+                : 'Create a 4-digit PIN to secure your private chats'
               : 'Re-enter your 4-digit PIN to confirm'
+            : targetPartnerName
+            ? `Enter your 4-digit PIN to open chat with ${targetPartnerName}`
             : 'Enter your 4-digit PIN to access locked chats'}
         </p>
 

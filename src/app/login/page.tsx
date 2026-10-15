@@ -84,41 +84,54 @@ function LoginForm() {
     let emailToUse = rawInput;
     let isGoogleUser = false;
 
-    // 1. Resolve identifier (supports both username and email!)
-    try {
-      const resolveRes = await fetch('/api/auth/resolve-identifier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: rawInput }),
-      });
-      const resolveData = await resolveRes.json();
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawInput);
 
-      if (!resolveRes.ok || resolveData.error) {
-        if (resolveRes.status === 404 || resolveData.exists === false) {
+    if (isEmail) {
+      emailToUse = rawInput.toLowerCase();
+      // Optional check for Google-only account or auto-confirmation
+      try {
+        const resolveRes = await fetch('/api/auth/resolve-identifier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: rawInput }),
+        });
+        const resolveData = await resolveRes.json().catch(() => null);
+        if (resolveData?.isGoogle) {
+          isGoogleUser = true;
+        }
+      } catch (resolveErr) {
+        console.warn('Non-blocking resolve identifier warning:', resolveErr);
+      }
+    } else {
+      // It's a username - must resolve to an email address!
+      const cleanUsername = rawInput.replace(/^@/, '').toLowerCase();
+      try {
+        const resolveRes = await fetch('/api/auth/resolve-identifier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: cleanUsername }),
+        });
+        const resolveData = await resolveRes.json().catch(() => null);
+
+        if (!resolveRes.ok || !resolveData?.email) {
           setIsNotRegistered(true);
           setAuthError(
-            resolveData.error || 'No Vibely account found with this username or email. Please sign up first.'
+            resolveData?.error || `No Vibely account found with username @${cleanUsername}. Please check your spelling or sign up.`
           );
           setIsLoading(false);
           return;
         }
-      }
 
-      if (resolveData?.exists === false) {
-        setIsNotRegistered(true);
-        setAuthError('No Vibely account found with this email or username. Please check your spelling or sign up.');
+        emailToUse = resolveData.email;
+        if (resolveData?.isGoogle) {
+          isGoogleUser = true;
+        }
+      } catch (resolveErr) {
+        console.error('Username resolution error:', resolveErr);
+        setAuthError(`Unable to verify username @${cleanUsername}. Please try signing in with your email address.`);
         setIsLoading(false);
         return;
       }
-
-      if (resolveData?.email) {
-        emailToUse = resolveData.email;
-      }
-      if (resolveData?.isGoogle) {
-        isGoogleUser = true;
-      }
-    } catch (resolveErr) {
-      console.warn('Unable to resolve identifier:', resolveErr);
     }
 
     if (isGoogleUser) {
