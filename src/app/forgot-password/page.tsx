@@ -17,6 +17,8 @@ export default function ForgotPasswordPage() {
   const [isSent, setIsSent] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
+  const [sentEmail, setSentEmail] = React.useState('');
+
   const {
     register,
     handleSubmit,
@@ -28,21 +30,36 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: ForgotPasswordFormData) => {
     setIsLoading(true);
     setErrorMessage(null);
-
+    setSentEmail(data.email);
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: data.email }),
       });
 
-      if (error) {
-        setErrorMessage(error.message);
+      const resData = await res.json();
+      if (!res.ok || resData.error) {
+        setErrorMessage(resData.error || 'Failed to send password reset email');
       } else {
         setIsSent(true);
       }
-    } catch (err: unknown) {
-      setErrorMessage((err as Error)?.message || 'Password reset request failed');
+    } catch {
+      // Fallback to client SDK if network error
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) {
+          setErrorMessage(error.message);
+        } else {
+          setIsSent(true);
+        }
+      } catch (clientErr: unknown) {
+        setErrorMessage((clientErr as Error)?.message || 'Password reset request failed');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -79,13 +96,20 @@ export default function ForgotPasswordPage() {
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
                 <h3 className="font-bold text-sm text-[#0C3B2E] dark:text-white">Check your email</h3>
                 <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-                  We have sent instructions to reset your password. Please check your inbox and spam folder.
+                  We have sent a secure reset link to <strong>{sentEmail || 'your email'}</strong>. You can click the link in your email, or enter the 6-digit code directly below.
                 </p>
-                <Link href="/login">
-                  <Button size="sm" className="mt-2 rounded-xl font-bold bg-[#0C3B2E] hover:bg-[#155E49] text-white">
-                    Back to Sign In
-                  </Button>
-                </Link>
+                <div className="pt-2 flex flex-col gap-2">
+                  <Link href={`/reset-password?email=${encodeURIComponent(sentEmail)}`}>
+                    <Button size="sm" className="w-full rounded-xl font-bold bg-[#0C3B2E] hover:bg-[#155E49] text-white">
+                      Enter Reset Code or Update Password
+                    </Button>
+                  </Link>
+                  <Link href="/login">
+                    <Button variant="ghost" size="sm" className="w-full rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 dark:text-stone-400">
+                      Back to Sign In
+                    </Button>
+                  </Link>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

@@ -27,6 +27,43 @@ export async function GET(request: NextRequest) {
   // Initialize response FIRST so auth cookies can be written directly to it
   const response = NextResponse.redirect(redirectTarget);
 
+  const tokenHash = searchParams.get('token_hash') || searchParams.get('token');
+  const otpType = (searchParams.get('type') || 'recovery') as any;
+
+  // 1. Handle token_hash verification (bypasses PKCE entirely for email recovery)
+  if (tokenHash) {
+    const supabase = createServerClient(
+      env.supabaseUrl,
+      env.supabaseAnonKey,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value);
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+
+    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+      type: otpType,
+      token_hash: tokenHash,
+    });
+
+    if (!verifyError && verifyData?.session) {
+      if (safeRedirectTo === '/reset-password') {
+        return NextResponse.redirect(`${baseUrl}/reset-password`);
+      }
+      return response;
+    }
+  }
+
+  // 2. Handle standard OAuth / Auth code exchange
   if (code) {
     const supabase = createServerClient(
       env.supabaseUrl,
@@ -50,6 +87,12 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Failed to exchange auth code for session:', error);
+      const isVerifierError = (error.message || '').toLowerCase().includes('verifier');
+      if (isVerifierError || safeRedirectTo === '/reset-password') {
+        return NextResponse.redirect(
+          `${baseUrl}/reset-password?error=cross_device`
+        );
+      }
       return NextResponse.redirect(
         `${baseUrl}/login?error=${encodeURIComponent(error.message || 'Authentication code exchange failed')}`
       );
