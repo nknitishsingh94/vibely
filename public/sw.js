@@ -231,6 +231,43 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(self.registration.showNotification(senderName, options));
+  } else if (eventType === 'chat_security_alert') {
+    const userName = payload.userName || 'Partner';
+    const isScreenshot = payload.type === 'screenshot';
+    const title = isScreenshot ? '📸 Screenshot Alert' : '🚨 Security Alert';
+    const body = isScreenshot
+      ? `${userName} took a screenshot in your chat!`
+      : `${userName} performed a security action.`;
+
+    const options = {
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `sec-${payload.conversationId || Date.now()}`,
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [200, 100, 200, 100, 400],
+      sound: '/ringtone.wav',
+      data: {
+        type: 'security_alert',
+        conversationId: payload.conversationId,
+        url: payload.conversationId ? `/chat/${payload.conversationId}` : '/chat',
+      },
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+  } else {
+    // Universal fallback: never let an incoming push be silently ignored
+    const fallbackTitle = data.title || 'Vibely';
+    const fallbackBody = data.body || 'You have a new update';
+    const options = {
+      body: fallbackBody,
+      icon: data.icon || '/icon-192.png',
+      badge: '/icon-192.png',
+      vibrate: [150, 80, 150],
+      data: data.data || data,
+    };
+    event.waitUntil(self.registration.showNotification(fallbackTitle, options));
   }
 });
 

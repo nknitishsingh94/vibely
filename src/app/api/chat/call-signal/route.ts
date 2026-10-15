@@ -48,7 +48,12 @@ export async function POST(req: Request) {
       broadcastPromises.push(sendToChannel(`user-notifications:${targetUserId}`));
 
       // 3. High-Priority Background Web Push (Wakes up mobile phone when app is closed / locked)
-      if (event === 'incoming_call' || event === 'new_message' || event === 'call_cancelled') {
+      if (
+        event === 'incoming_call' ||
+        event === 'new_message' ||
+        event === 'call_cancelled' ||
+        event === 'chat_security_alert'
+      ) {
         broadcastPromises.push(sendWebPushToUser(targetUserId, event, enrichedPayload));
       }
     }

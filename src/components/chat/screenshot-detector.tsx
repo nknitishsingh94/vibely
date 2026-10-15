@@ -48,6 +48,14 @@ export function ScreenshotDetector() {
       lastUserTouchTime = Date.now();
     };
 
+    // Android 3-finger swipe gesture triggers touchcancel when OS screenshot interceptor takes over
+    const handleTouchCancel = () => {
+      const now = Date.now();
+      if (now - lastMultiTouchTime < 1200) {
+        notifySecurityEvent('screenshot');
+      }
+    };
+
     // 2. Keydown: Desktop shortcuts + Android Volume Down / Volume Up hardware keys
     const handleKeyDown = (e: KeyboardEvent) => {
       const now = Date.now();
@@ -125,13 +133,13 @@ export function ScreenshotDetector() {
       }
 
       // Case B: Mobile Android Volume Key + Blur (Hardware Power + Volume screenshot)
-      if (now - lastVolumeKeyTime < 1800) {
+      if (now - lastVolumeKeyTime < 2500) {
         notifySecurityEvent('screenshot');
         return;
       }
 
       // Case C: Mobile 3-Finger Gesture + Blur
-      if (now - lastMultiTouchTime < 1800) {
+      if (now - lastMultiTouchTime < 2500) {
         notifySecurityEvent('screenshot');
         return;
       }
@@ -144,12 +152,10 @@ export function ScreenshotDetector() {
         const pauseDuration = now - blurStartTime;
         blurStartTime = 0;
 
-        // An OS hardware screenshot pause typically lasts 150ms to 950ms on mobile.
-        // If user was NOT typing in an input, and no button/link was tapped right before blur:
+        // An OS hardware screenshot pause typically lasts 120ms to 2500ms on mobile.
+        // If user was NOT typing in an input text field:
         const wasTyping = isUserTyping();
-        const wasTouchingUi = now - lastUserTouchTime < 250;
-
-        if (!wasTyping && !wasTouchingUi && pauseDuration >= 180 && pauseDuration <= 1000) {
+        if (!wasTyping && pauseDuration >= 120 && pauseDuration <= 2800) {
           notifySecurityEvent('screenshot');
         }
       }
@@ -169,6 +175,12 @@ export function ScreenshotDetector() {
       notifySecurityEvent('screenshot');
     };
 
+    // 8. Native Android APK screenshot callback bridge
+    const handleNativeScreenshot = () => {
+      notifySecurityEvent('screenshot');
+    };
+
+    window.addEventListener('vibely_screenshot_captured', handleNativeScreenshot);
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
     window.addEventListener('blur', handleBlur);
@@ -176,10 +188,12 @@ export function ScreenshotDetector() {
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: true });
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchCancel, { passive: true });
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('beforeprint', handleBeforePrint);
 
     return () => {
+      window.removeEventListener('vibely_screenshot_captured', handleNativeScreenshot);
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
       window.removeEventListener('blur', handleBlur);
@@ -187,6 +201,7 @@ export function ScreenshotDetector() {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchCancel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeprint', handleBeforePrint);
     };

@@ -617,6 +617,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try { navigator.vibrate([50, 70, 50]); } catch {}
           }
+          // Trigger OS notification banner if page is in background or tab not focused
+          if (typeof document !== 'undefined' && (document.hidden || !document.hasFocus())) {
+            const userName = payload.userName || 'Partner';
+            const isScreenshot = payload.type === 'screenshot';
+            showChatMessageNotification({
+              messageId: payload.id,
+              senderName: isScreenshot ? '📸 Screenshot Alert' : '🚨 Security Alert',
+              messageText: isScreenshot
+                ? `${userName} took a screenshot of your chat!`
+                : `${userName} performed a security action.`,
+              conversationId: payload.conversationId,
+            });
+          }
           setTimeout(() => {
             setSecurityAlert(prev => (prev?.id === payload.id ? null : prev));
           }, 5500);
@@ -1169,12 +1182,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     // Realtime Snapchat-Style Security Event Listener (Screenshots & Media Saves)
     channel.on('broadcast', { event: 'chat_security_alert' }, ({ payload }: { payload: any }) => {
-      if (payload && payload.conversationId === activeConversationId) {
+      if (payload && payload.conversationId === activeConversationId && payload.userId !== profile?.id) {
         setSecurityAlert(payload);
         setSessionSecurityAlerts(prev => [...prev, payload]);
         playSecurityAlertSound();
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
           try { navigator.vibrate([50, 70, 50]); } catch {}
+        }
+        if (typeof document !== 'undefined' && (document.hidden || !document.hasFocus())) {
+          const userName = payload.userName || 'Partner';
+          const isScreenshot = payload.type === 'screenshot';
+          showChatMessageNotification({
+            messageId: payload.id,
+            senderName: isScreenshot ? '📸 Screenshot Alert' : '🚨 Security Alert',
+            messageText: isScreenshot
+              ? `${userName} took a screenshot of your chat!`
+              : `${userName} performed a security action.`,
+            conversationId: payload.conversationId,
+          });
         }
         setTimeout(() => {
           setSecurityAlert(prev => (prev?.id === payload.id ? null : prev));
@@ -1716,6 +1741,33 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             }
           });
         } catch {}
+
+        // Server-Side High-Priority Push to wake up partner's phone / background service
+        fetch('/api/chat/call-signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetUserId: otherUserId,
+            event: 'chat_security_alert',
+            payload: alert,
+            conversationId: convId,
+          }),
+        }).catch(() => {});
+      }
+
+      // Record permanent screenshot security event in messages table
+      if (type === 'screenshot') {
+        try {
+          const supabase = getSupabaseBrowserClient();
+          await supabase.from('messages').insert({
+            conversation_id: convId,
+            sender_id: profile.id,
+            message_type: 'text',
+            body: '[📸 Screenshot]',
+          });
+        } catch (e) {
+          console.warn('Could not record screenshot message:', e);
+        }
       }
     },
     [profile, conversations]
