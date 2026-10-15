@@ -1,5 +1,4 @@
-// Vibely Native Device & Mobile Notification System (Call & Message Notifications)
-import { getAudioContext, unlockAudioSession, getSelectedNotificationSound, playSynthesizedNotificationTone } from './ringtone';
+import { getSelectedNotificationSound, playSynthesizedNotificationTone } from './ringtone';
 import { env } from './env';
 
 // In-memory deduplication cache to prevent duplicate notifications / double chimes

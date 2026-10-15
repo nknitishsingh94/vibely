@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer';
-import { env } from '@/lib/env';
 
 export interface SendOtpOptions {
   to: string;
@@ -8,13 +7,11 @@ export interface SendOtpOptions {
 }
 
 export function generateSixDigitOtp(): string {
-  // Generate random 6-digit number between 100000 and 999999
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 /**
- * Creates a nodemailer transport using Gmail SMTP or custom SMTP
- * Gmail SMTP is 100% FREE (up to 500 emails/day for personal Gmail)
+ * Initializes nodemailer transport using configured SMTP credentials.
  */
 function getEmailTransporter() {
   const user = process.env.SMTP_USER || process.env.GMAIL_USER;
@@ -116,7 +113,6 @@ export async function sendOtpEmail({ to, otp, displayName }: SendOtpOptions): Pr
     </html>
   `;
 
-  // 1. If custom/Gmail SMTP is configured, send directly via SMTP (100% free, 500 emails/day!)
   if (transporter) {
     try {
       const senderFrom = process.env.SMTP_FROM || `Vibely Security <${process.env.SMTP_USER || process.env.GMAIL_USER}>`;
@@ -128,13 +124,12 @@ export async function sendOtpEmail({ to, otp, displayName }: SendOtpOptions): Pr
         html: htmlContent,
       });
 
-      console.log(`[Email Service] Sent OTP ${otp} to ${to} via Custom/Gmail SMTP`);
       return { success: true, provider: 'smtp' };
-    } catch (smtpErr: any) {
-      console.warn('[Email Service] SMTP send failed, falling back:', smtpErr?.message);
+    } catch (smtpErr: unknown) {
+      const message = smtpErr instanceof Error ? smtpErr.message : String(smtpErr);
+      console.warn('[Email Service] SMTP transport failed, fallback to default provider:', message);
     }
   }
 
-  // 2. Fallback to Supabase built-in mailer
   return { success: true, provider: 'supabase' };
 }

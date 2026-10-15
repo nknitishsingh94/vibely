@@ -131,16 +131,16 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
   const isImageOnly = message.message_type === 'image' && !displayBody;
 
   // 1. Eligible for editing: Outgoing text message AND within 15 minutes of sending
-  const isEditAvailable = React.useMemo(() => {
+  const isEditAvailable = (() => {
     if (!isOutgoing || message.message_type !== 'text') return false;
     const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
     const createdTime = new Date(message.created_at).getTime();
     return Date.now() - createdTime <= FIFTEEN_MINUTES_MS;
-  }, [isOutgoing, message.message_type, message.created_at]);
+  })();
 
   // 2. Eligible for "Delete for everyone":
-  // Must be outgoing AND within WhatsApp's standard 60-hour window (2.5 days)
-  const isDeleteForEveryoneAvailable = React.useMemo(() => {
+  // Must be outgoing AND within standard 60-hour window (2.5 days)
+  const isDeleteForEveryoneAvailable = (() => {
     if (!isOutgoing) return false;
     const SIXTY_HOURS_MS = 60 * 60 * 60 * 1000;
 
@@ -150,14 +150,9 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
       return Date.now() - readTime <= SIXTY_HOURS_MS;
     }
 
-    if (message.deliveryStatus === 'read') {
-      const createdTime = new Date(message.created_at).getTime();
-      return Date.now() - createdTime <= SIXTY_HOURS_MS;
-    }
-
     const createdTime = new Date(message.created_at).getTime();
     return Date.now() - createdTime <= SIXTY_HOURS_MS;
-  }, [isOutgoing, message.receipts, message.deliveryStatus, message.created_at]);
+  })();
 
   // Status icon for outgoing messages (WhatsApp-style ticks)
   const renderStatus = () => {

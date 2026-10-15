@@ -96,6 +96,16 @@ export default function PrivacySettingsPage() {
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
+  const loadRegisteredDevices = React.useCallback(async (userId: string) => {
+    setIsLoadingDevices(true);
+    try {
+      const devices = await fetchRegisteredDevices(userId);
+      setRegisteredDevices(devices);
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     setNotifPermission(getNotificationPermission());
     setSelectedRingtoneState(getSelectedRingtone());
@@ -104,17 +114,7 @@ export default function PrivacySettingsPage() {
     if (user?.id) {
       loadRegisteredDevices(user.id);
     }
-  }, [user?.id]);
-
-  const loadRegisteredDevices = async (userId: string) => {
-    setIsLoadingDevices(true);
-    try {
-      const devices = await fetchRegisteredDevices(userId);
-      setRegisteredDevices(devices);
-    } finally {
-      setIsLoadingDevices(false);
-    }
-  };
+  }, [user?.id, loadRegisteredDevices]);
 
   const handleRequestPermission = async () => {
     const perm = await requestNotificationPermission();

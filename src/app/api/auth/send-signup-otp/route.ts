@@ -165,8 +165,6 @@ export async function POST(req: Request) {
       }).catch((e) => console.warn('Supabase signInWithOtp notice:', e?.message));
     }
 
-    console.log(`[Signup OTP] Generated code for ${cleanEmail} (delivery: ${emailResult.provider})`);
-
     return NextResponse.json({
       success: true,
       email: cleanEmail,

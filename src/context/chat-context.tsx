@@ -312,7 +312,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           .limit(1)
           .maybeSingle();
 
-        let lastMsg: (Message & { deliveryStatus?: DeliveryStatus }) | null = lastMsgData ? { ...lastMsgData } : null;
+        const lastMsg: (Message & { deliveryStatus?: DeliveryStatus }) | null = lastMsgData ? { ...lastMsgData } : null;
         if (lastMsg) {
           if (lastMsg.body) {
             try {
@@ -809,6 +809,41 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isConfigured, profile?.id]);
 
+  // Mark conversation as read
+  const markConversationAsRead = useCallback(async (conversationId: string) => {
+    if (!profile) return;
+
+    setConversations(prev =>
+      prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
+    );
+
+    const nowIso = new Date().toISOString();
+    try {
+      if (typeof window !== 'undefined' && profile?.id) {
+        localStorage.setItem(`vibely_last_read_${profile.id}_${conversationId}`, nowIso);
+      }
+    } catch {}
+
+    if (isConfigured) {
+      fetch('/api/chat/mark-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': profile.id,
+        },
+        body: JSON.stringify({ conversationId, userId: profile.id }),
+      }).catch(() => {});
+
+      const supabase = getSupabaseBrowserClient();
+      await supabase
+        .from('conversation_members')
+        .update({ last_read_at: nowIso })
+        .eq('conversation_id', conversationId)
+        .eq('user_id', profile.id)
+        .catch(() => {});
+    }
+  }, [isConfigured, profile]);
+
   // Initialize conversations
   useEffect(() => {
     if (profile) {
@@ -1081,7 +1116,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setMessages([]);
       setPartnerActivity(null);
     }
-  }, [activeConversationId, loadMessages]);
+  }, [activeConversationId, loadMessages, markConversationAsRead]);
 
   // Realtime subscription setup
   useEffect(() => {
@@ -2255,42 +2290,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           emoji,
         });
       }
-    }
-  };
-
-  // Mark conversation as read
-  const markConversationAsRead = async (conversationId: string) => {
-    if (!profile) return;
-
-    setConversations(prev =>
-      prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
-    );
-
-    const nowIso = new Date().toISOString();
-    try {
-      if (typeof window !== 'undefined' && profile?.id) {
-        localStorage.setItem(`vibely_last_read_${profile.id}_${conversationId}`, nowIso);
-      }
-    } catch {}
-
-    if (isConfigured) {
-      // 1. Call server API to guarantee DB update even if client RLS blocks
-      fetch('/api/chat/mark-read', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': profile.id,
-        },
-        body: JSON.stringify({ conversationId, userId: profile.id }),
-      }).catch(() => {});
-
-      // 2. Client-side update
-      const supabase = getSupabaseBrowserClient();
-      await supabase
-        .from('conversation_members')
-        .update({ last_read_at: nowIso })
-        .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id);
     }
   };
 

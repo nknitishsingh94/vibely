@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 
     // Fetch sender profiles for each incoming request
     const senderIds = (incomingRows || []).map((r: any) => r.created_by);
-    let senderProfilesMap = new Map();
+    const senderProfilesMap = new Map();
 
     if (senderIds.length > 0) {
       const { data: senders } = await db
@@ -103,7 +103,7 @@ export async function GET(req: Request) {
       return parts[2];
     }).filter(Boolean);
 
-    let receiverProfilesMap = new Map();
+    const receiverProfilesMap = new Map();
     if (receiverIds.length > 0) {
       const { data: receivers } = await db
         .from('profiles')

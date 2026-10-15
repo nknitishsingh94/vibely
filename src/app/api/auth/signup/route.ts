@@ -81,12 +81,10 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (!prof) {
-        // User was deleted from database profiles! Clean up orphaned auth user so fresh signup succeeds!
-        console.log('Cleaning up orphaned auth user whose profile was deleted in DB:', existingAuthUser.id);
         try {
           await adminClient.auth.admin.deleteUser(existingAuthUser.id);
-        } catch (delErr) {
-          console.warn('Error deleting orphaned auth user:', delErr);
+        } catch {
+          // Non-blocking cleanup
         }
       } else {
         emailExists = true;

@@ -1,4 +1,3 @@
-import { Profile } from '@/types/database';
 
 /**
  * Formats a user UUID into a short, clean, human-readable Vibe ID.
