@@ -16,10 +16,14 @@ import {
   CheckCircle2,
   AlertCircle,
   LogIn,
+  ShieldCheck,
+  KeyRound,
+  RotateCw,
+  ArrowLeft,
+  Sparkles,
 } from 'lucide-react';
 import { signupSchema, SignupFormData } from '@/lib/validations/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { isSupabaseConfigured } from '@/lib/env';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BrandLogo } from '@/components/ui/brand-logo';
@@ -33,6 +37,17 @@ function SignupForm() {
   const initialError = searchParams.get('error_description') || searchParams.get('error') || null;
   const { user } = useAuth();
 
+  // Step state: 'form' -> 'otp'
+  const [step, setStep] = React.useState<'form' | 'otp'>('form');
+  const [submittedData, setSubmittedData] = React.useState<SignupFormData | null>(null);
+
+  // OTP state
+  const [otpCode, setOtpCode] = React.useState('');
+  const [resendCooldown, setResendCooldown] = React.useState(0);
+  const [isVerifyingOtp, setIsVerifyingOtp] = React.useState(false);
+  const [isResendingOtp, setIsResendingOtp] = React.useState(false);
+  const [otpSentMessage, setOtpSentMessage] = React.useState<string | null>(null);
+
   const [showPassword, setShowPassword] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(initialError);
   const [isAlreadyRegistered, setIsAlreadyRegistered] = React.useState(false);
@@ -45,6 +60,17 @@ function SignupForm() {
       router.replace('/chat');
     }
   }, [user, router]);
+
+  // Resend OTP countdown timer
+  React.useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => {
+        setResendCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const {
     register,
@@ -85,6 +111,7 @@ function SignupForm() {
     }
   };
 
+  // Step 1: Submit Form -> Validate uniqueness & Send OTP to real email
   const onSubmit = async (data: SignupFormData) => {
     setIsLoading(true);
     setAuthError(null);
@@ -95,153 +122,146 @@ function SignupForm() {
       const cleanUsername = data.username.trim().toLowerCase();
       const cleanDisplayName = data.displayName.trim();
 
-      // 1. Server-side registration attempt (bypasses confirmation emails if service role key is present)
-      let signupSucceeded = false;
-      let serverErrorMsg: string | null = null;
-
-      try {
-        const res = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: cleanEmail,
-            password: data.password,
-            displayName: cleanDisplayName,
-            username: cleanUsername,
-          }),
-        });
-
-        const resData = await res.json().catch(() => null);
-
-        if (res.ok && resData?.success) {
-          signupSucceeded = true;
-        } else {
-          const errorType = resData?.error;
-          const msg = resData?.message || resData?.error;
-
-          if (errorType === 'both_exist' || errorType === 'email_exists') {
-            setIsAlreadyRegistered(true);
-            setAuthError(msg || 'An account with this email already exists. Please sign in instead.');
-            setIsLoading(false);
-            return;
-          }
-
-          if (errorType === 'username_exists') {
-            setIsAlreadyRegistered(false);
-            setAuthError(msg || 'This username is already taken. Please choose another username.');
-            setIsLoading(false);
-            return;
-          }
-
-          if (errorType === 'rate_limited') {
-            setAuthError(msg || 'Too many attempts. Please wait a moment and try again.');
-            setIsLoading(false);
-            return;
-          }
-
-          serverErrorMsg = msg || null;
-        }
-      } catch (err) {
-        console.warn('Server signup request failed, trying client fallback:', err);
-      }
-
-      // 2. If server signup was not successful, attempt direct client-side Supabase signup fallback
-      if (!signupSucceeded) {
-        const supabase = getSupabaseBrowserClient();
-        const { data: directData, error: directError } = await supabase.auth.signUp({
+      const res = await fetch('/api/auth/send-signup-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           email: cleanEmail,
-          password: data.password,
-          options: {
-            data: {
-              display_name: cleanDisplayName,
-              username: cleanUsername,
-            },
-          },
-        });
+          username: cleanUsername,
+          displayName: cleanDisplayName,
+        }),
+      });
 
-        if (directError) {
-          const lower = (directError.message || '').toLowerCase();
-          if (lower.includes('already registered') || lower.includes('user already exists')) {
-            setIsAlreadyRegistered(true);
-            setAuthError('An account with this email already exists. Please sign in instead.');
-          } else {
-            setAuthError(serverErrorMsg || directError.message || 'Registration failed. Please try again.');
-          }
-          setIsLoading(false);
-          return;
+      const resData = await res.json().catch(() => null);
+
+      if (res.ok && resData?.success) {
+        setSubmittedData(data);
+        setStep('otp');
+        setOtpCode('');
+        setResendCooldown(60);
+        setOtpSentMessage(`We sent a 6-digit verification code to ${cleanEmail}`);
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      } else {
+        const errorType = resData?.error;
+        const msg = resData?.message || resData?.error;
+
+        if (errorType === 'both_exist' || errorType === 'email_exists') {
+          setIsAlreadyRegistered(true);
+          setAuthError(msg || 'An account with this email already exists. Please sign in instead.');
+        } else if (errorType === 'username_exists') {
+          setIsAlreadyRegistered(false);
+          setAuthError(msg || 'This username is already taken. Please choose another username.');
+        } else if (errorType === 'rate_limited') {
+          setAuthError(msg || 'Too many attempts. Please wait a moment and try again.');
+        } else {
+          setAuthError(msg || 'Failed to send verification code. Please check your email.');
+        }
+      }
+    } catch (err: unknown) {
+      setAuthError((err as Error)?.message || 'Failed to send verification code. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Step 2: Verify OTP -> Activate Account & Set Password
+  const onVerifyOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!submittedData) return;
+
+    const trimmedOtp = otpCode.trim();
+    if (trimmedOtp.length !== 6 || !/^\d{6}$/.test(trimmedOtp)) {
+      setAuthError('Please enter the complete 6-digit verification code.');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    setAuthError(null);
+
+    try {
+      const cleanEmail = submittedData.email.trim().toLowerCase();
+      const res = await fetch('/api/auth/verify-signup-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          otp: trimmedOtp,
+          password: submittedData.password,
+          displayName: submittedData.displayName.trim(),
+          username: submittedData.username.trim().toLowerCase(),
+        }),
+      });
+
+      const resData = await res.json().catch(() => null);
+
+      if (res.ok && resData?.success) {
+        setSignupSuccess(true);
+        const supabase = getSupabaseBrowserClient();
+
+        // 1. If session was returned, set it directly
+        if (resData.session?.access_token && resData.session?.refresh_token) {
+          try {
+            await supabase.auth.setSession({
+              access_token: resData.session.access_token,
+              refresh_token: resData.session.refresh_token,
+            });
+          } catch {}
+        } else {
+          // 2. Otherwise sign in with verified password
+          try {
+            await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: submittedData.password,
+            });
+          } catch {}
         }
 
-        // Auto-confirm via server API in background
-        try {
-          await fetch('/api/auth/check-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
-          });
-        } catch (autoConfirmErr) {
-          console.warn('Auto-confirm attempt warning:', autoConfirmErr);
-        }
-
-        if (directData?.session) {
+        setTimeout(() => {
           router.replace('/chat');
           if (typeof window !== 'undefined') {
             window.location.href = '/chat';
           }
-          return;
-        }
-
-        signupSucceeded = true;
+        }, 1200);
+      } else {
+        setAuthError(resData?.message || 'Invalid or expired verification code. Please try again.');
       }
+    } catch (err: unknown) {
+      setAuthError((err as Error)?.message || 'Failed to verify OTP. Please try again.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
-      // 3. Account successfully created & auto-confirmed: log in directly
-      const supabase = getSupabaseBrowserClient();
-      let { error: signInError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: data.password,
+  // Resend OTP code
+  const onResendOtp = async () => {
+    if (resendCooldown > 0 || !submittedData || isResendingOtp) return;
+    setIsResendingOtp(true);
+    setAuthError(null);
+
+    try {
+      const res = await fetch('/api/auth/send-signup-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: submittedData.email.trim().toLowerCase(),
+          username: submittedData.username.trim().toLowerCase(),
+          displayName: submittedData.displayName.trim(),
+        }),
       });
 
-      if (signInError) {
-        const lower = (signInError.message || '').toLowerCase();
-        if (lower.includes('email not confirmed')) {
-          try {
-            await fetch('/api/auth/check-user', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
-            });
-            const retryRes = await supabase.auth.signInWithPassword({
-              email: cleanEmail,
-              password: data.password,
-            });
-            if (!retryRes.error) {
-              router.replace('/chat');
-              setTimeout(() => {
-                if (typeof window !== 'undefined' && window.location.pathname === '/signup') {
-                  window.location.href = '/chat';
-                }
-              }, 1000);
-              return;
-            }
-          } catch (autoErr) {
-            console.warn('Auto-confirm retry error:', autoErr);
-          }
-        }
+      const resData = await res.json().catch(() => null);
+      if (res.ok && resData?.success) {
+        setResendCooldown(60);
+        setOtpSentMessage(`New 6-digit code sent to ${submittedData.email}`);
       } else {
-        router.replace('/chat');
-        setTimeout(() => {
-          if (typeof window !== 'undefined' && window.location.pathname === '/signup') {
-            window.location.href = '/chat';
-          }
-        }, 1000);
-        return;
+        setAuthError(resData?.message || 'Failed to resend verification code. Please try again.');
       }
-
-      // If session couldn't auto-start, show quick sign-in link
-      setSignupSuccess(true);
-      setIsLoading(false);
     } catch (err: unknown) {
-      setAuthError((err as Error)?.message || 'Sign up failed. Please try again.');
-      setIsLoading(false);
+      setAuthError((err as Error)?.message || 'Failed to resend code.');
+    } finally {
+      setIsResendingOtp(false);
     }
   };
 
@@ -260,28 +280,147 @@ function SignupForm() {
         <div className="w-full max-w-md space-y-6">
           <div className="text-center space-y-1.5">
             <h1 className="text-2xl sm:text-3xl font-sans font-black tracking-tight text-[#0C3B2E] dark:text-white">
-              Sync your world on Vibely.
+              {step === 'otp' ? 'Verify Your Email' : 'Sync your world on Vibely.'}
             </h1>
             <p className="text-xs text-stone-600 dark:text-emerald-100/70 font-sans">
-              A private space for the notes, memories, and moments you share.
+              {step === 'otp'
+                ? 'Enter the 6-digit code sent to your real email to activate your account.'
+                : 'A private space for the notes, memories, and moments you share.'}
             </p>
           </div>
 
           <div className="p-6 sm:p-7 rounded-3xl bg-white/95 dark:bg-[#09241B]/95 border border-[#0C3B2E]/15 dark:border-white/15 shadow-2xl space-y-5 backdrop-blur-xl">
             {signupSuccess ? (
-              <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-                <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">Account Created!</h3>
+              <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3 animate-in fade-in zoom-in-95 duration-300">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto animate-bounce" />
+                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">
+                  Email Verified Successfully!
+                </h3>
                 <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-                  Your account is registered. You can now sign in to connect with your partner.
+                  Your account is activated and secure. Signing you in to Vibely...
                 </p>
-                <Link href="/login" className="inline-block mt-2">
-                  <Button size="sm" className="rounded-xl font-bold bg-[#0C3B2E] hover:bg-[#155E49] text-white">
-                    Go to Sign In
+                <div className="flex items-center justify-center gap-2 pt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  <RotateCw className="w-4 h-4 animate-spin" />
+                  <span>Launching your space...</span>
+                </div>
+              </div>
+            ) : step === 'otp' ? (
+              /* ================= STEP 2: OTP VERIFICATION ================= */
+              <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+                {/* Email Banner */}
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Real Email Verification</span>
+                  </div>
+                  <p className="text-xs text-stone-700 dark:text-stone-300 font-medium">
+                    We sent a 6-digit OTP to:
+                  </p>
+                  <p className="text-sm font-bold text-foreground font-mono break-all">
+                    {submittedData?.email}
+                  </p>
+                </div>
+
+                {otpSentMessage && !authError && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-semibold text-center border border-emerald-500/20">
+                    {otpSentMessage}
+                  </div>
+                )}
+
+                {authError && (
+                  <div className="p-3.5 rounded-2xl bg-destructive/10 text-destructive text-xs border border-destructive/20 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <p className="font-medium leading-relaxed">{authError}</p>
+                  </div>
+                )}
+
+                <form onSubmit={onVerifyOtp} className="space-y-4">
+                  <div className="space-y-2 text-center">
+                    <label className="text-xs font-bold text-foreground block">
+                      Enter 6-Digit OTP Code
+                    </label>
+
+                    <div className="relative max-w-[260px] mx-auto">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        autoFocus
+                        autoComplete="one-time-code"
+                        placeholder="••••••"
+                        value={otpCode}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setOtpCode(val);
+                          setAuthError(null);
+                          // Auto submit when 6 digits are typed
+                          if (val.length === 6 && submittedData) {
+                            setTimeout(() => {
+                              const verifyBtn = document.getElementById('verify-otp-btn');
+                              if (verifyBtn) verifyBtn.click();
+                            }, 50);
+                          }
+                        }}
+                        className="h-14 text-center font-mono text-2xl font-black tracking-[0.45em] rounded-2xl border-2 border-emerald-500/40 focus:border-emerald-500 bg-background shadow-inner"
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Check your inbox or spam folder for the email from Vibely.
+                    </p>
+                  </div>
+
+                  <Button
+                    id="verify-otp-btn"
+                    type="submit"
+                    isLoading={isVerifyingOtp}
+                    disabled={otpCode.length !== 6 || isVerifyingOtp}
+                    className="w-full rounded-2xl font-bold shadow-md shadow-[#0C3B2E]/25 bg-[#0C3B2E] text-white hover:bg-[#155E49] cursor-pointer h-11"
+                  >
+                    <span>Verify Code & Activate Account</span>
+                    <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
-                </Link>
+                </form>
+
+                {/* Resend and Edit details footer */}
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('form');
+                      setAuthError(null);
+                    }}
+                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Change details</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onResendOtp}
+                    disabled={resendCooldown > 0 || isResendingOtp}
+                    className={`font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                      resendCooldown > 0
+                        ? 'text-muted-foreground cursor-not-allowed'
+                        : 'text-emerald-600 dark:text-emerald-400 hover:underline'
+                    }`}
+                  >
+                    {isResendingOtp ? (
+                      <>
+                        <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : resendCooldown > 0 ? (
+                      <span>Resend code in {resendCooldown}s</span>
+                    ) : (
+                      <span>Resend OTP code</span>
+                    )}
+                  </button>
+                </div>
               </div>
             ) : (
+              /* ================= STEP 1: REGISTRATION FORM ================= */
               <>
                 {authError && (
                   <div className="p-4 rounded-2xl bg-destructive/10 text-destructive text-xs border border-destructive/20 space-y-2">
@@ -303,6 +442,14 @@ function SignupForm() {
                     )}
                   </div>
                 )}
+
+                {/* Anti-Fake Email Shield Highlight */}
+                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+                  <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span className="font-semibold leading-tight">
+                    Email verification via OTP is required to prevent fake accounts.
+                  </span>
+                </div>
 
                 {/* Google Sign Up Option */}
                 <div className="space-y-4">
@@ -359,7 +506,7 @@ function SignupForm() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-foreground">
-                      Email Address
+                      Email Address (Real email for OTP)
                     </label>
                     <Input
                       type="email"
@@ -433,9 +580,9 @@ function SignupForm() {
                   <Button
                     type="submit"
                     isLoading={isLoading}
-                    className="w-full rounded-2xl font-bold shadow-md shadow-[#0C3B2E]/25 mt-4 bg-[#0C3B2E] text-white hover:bg-[#155E49] cursor-pointer"
+                    className="w-full rounded-2xl font-bold shadow-md shadow-[#0C3B2E]/25 mt-4 bg-[#0C3B2E] text-white hover:bg-[#155E49] cursor-pointer h-11"
                   >
-                    Create My Vibely Space
+                    <span>Verify Email & Continue</span>
                     <ArrowRight className="w-4 h-4 ml-1.5" />
                   </Button>
                 </form>

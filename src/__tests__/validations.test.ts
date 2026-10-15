@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loginSchema, signupSchema } from '@/lib/validations/auth';
+import { loginSchema, signupSchema, otpVerificationSchema } from '@/lib/validations/auth';
 import { validateFileAttachment } from '@/lib/validations/message';
 
 describe('Auth Validation Schemas', () => {
@@ -57,6 +57,24 @@ describe('Auth Validation Schemas', () => {
       confirmPassword: 'Password123',
     });
     expect(valid.success).toBe(true);
+  });
+
+  it('should validate 6-digit OTP verification schema correctly', () => {
+    // Valid 6-digit OTP
+    const valid = otpVerificationSchema.safeParse({ otp: '123456' });
+    expect(valid.success).toBe(true);
+
+    // Invalid: less than 6 digits
+    const tooShort = otpVerificationSchema.safeParse({ otp: '12345' });
+    expect(tooShort.success).toBe(false);
+
+    // Invalid: more than 6 digits
+    const tooLong = otpVerificationSchema.safeParse({ otp: '1234567' });
+    expect(tooLong.success).toBe(false);
+
+    // Invalid: non-digit characters
+    const nonDigits = otpVerificationSchema.safeParse({ otp: '12a45b' });
+    expect(nonDigits.success).toBe(false);
   });
 });
 

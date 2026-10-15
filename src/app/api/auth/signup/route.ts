@@ -162,64 +162,97 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5. Neither exists: create account directly with email_confirm: true (NO confirmation email sent!)
-    const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+    // 5. Check if OTP was provided to complete verification
+    const otp = body.otp ? String(body.otp).trim() : null;
+
+    const anonClient = createClient(env.supabaseUrl, env.supabaseAnonKey || '', {
+      auth: { persistSession: false },
+    });
+
+    if (otp) {
+      // Step B: Verify the provided OTP code
+      const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
+        email: cleanEmail,
+        token: otp,
+        type: 'email',
+      });
+
+      if (verifyErr || !verifyData?.user) {
+        return NextResponse.json(
+          {
+            error: 'invalid_otp',
+            message: 'Invalid or expired verification code. Please check your email.',
+          },
+          { status: 400 }
+        );
+      }
+
+      const verifiedUserId = verifyData.user.id;
+
+      // Finalize password and profile
+      await adminClient.auth.admin.updateUserById(verifiedUserId, {
+        password,
+        email_confirm: true,
+        user_metadata: {
+          display_name: cleanDisplayName,
+          username: cleanUsername,
+        },
+      });
+
+      await adminClient.from('profiles').upsert(
+        {
+          id: verifiedUserId,
+          display_name: cleanDisplayName,
+          username: cleanUsername,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+
+      await adminClient.from('user_preferences').upsert(
+        { user_id: verifiedUserId },
+        { onConflict: 'user_id' }
+      );
+
+      return NextResponse.json({
+        success: true,
+        verified: true,
+        user: {
+          id: verifiedUserId,
+          email: cleanEmail,
+          username: cleanUsername,
+          displayName: cleanDisplayName,
+        },
+        session: verifyData.session,
+      });
+    }
+
+    // Step A: No OTP provided yet -> Send OTP to verify email ownership!
+    const { error: otpError } = await anonClient.auth.signInWithOtp({
       email: cleanEmail,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        display_name: cleanDisplayName,
-        username: cleanUsername,
+      options: {
+        shouldCreateUser: true,
+        data: {
+          display_name: cleanDisplayName,
+          username: cleanUsername,
+        },
       },
     });
 
-    if (createError) {
+    if (otpError) {
+      console.error('Error sending signup OTP:', otpError);
       return NextResponse.json(
-        { error: 'create_failed', message: createError.message },
+        { error: 'otp_failed', message: otpError.message || 'Failed to send verification code to email.' },
         { status: 400 }
       );
     }
 
-    if (newUser.user?.id) {
-      try {
-        await adminClient.from('profiles').upsert(
-          {
-            id: newUser.user.id,
-            display_name: cleanDisplayName,
-            username: cleanUsername,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        );
-
-        await adminClient.from('user_preferences').upsert(
-          {
-            user_id: newUser.user.id,
-          },
-          { onConflict: 'user_id' }
-        );
-      } catch (profileErr) {
-        console.warn('Initial profile upsert warning:', profileErr);
-      }
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        user: {
-          id: newUser.user?.id,
-          email: newUser.user?.email,
-          username: cleanUsername,
-          displayName: cleanDisplayName,
-        },
-      },
-      {
-        headers: {
-          'X-RateLimit-Limit': String(rateLimit.limit),
-          'X-RateLimit-Remaining': String(rateLimit.remaining),
-        },
-      }
-    );
+    return NextResponse.json({
+      success: true,
+      requiresOtp: true,
+      email: cleanEmail,
+      message: `A 6-digit verification code has been sent to ${cleanEmail}. Please enter the code to complete registration.`,
+    });
   } catch (err: any) {
     console.error('Error in signup route:', err);
     return NextResponse.json(

@@ -90,3 +90,13 @@ export const profileUpdateSchema = z.object({
 });
 
 export type ProfileUpdateFormData = z.infer<typeof profileUpdateSchema>;
+
+export const otpVerificationSchema = z.object({
+  otp: z
+    .string()
+    .trim()
+    .length(6, 'Please enter the complete 6-digit verification code')
+    .regex(/^\d{6}$/, 'Verification code must contain digits only'),
+});
+
+export type OtpVerificationFormData = z.infer<typeof otpVerificationSchema>;
