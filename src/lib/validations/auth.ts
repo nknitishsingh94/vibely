@@ -4,10 +4,12 @@ export const loginSchema = z
   .object({
     identifier: z
       .string()
+      .trim()
       .min(2, 'Please enter your username or email address')
       .optional(),
     email: z
       .string()
+      .trim()
       .min(2, 'Please enter your username or email address')
       .optional(),
     password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -23,14 +25,19 @@ export const signupSchema = z
   .object({
     displayName: z
       .string()
+      .trim()
       .min(2, 'Display name must be at least 2 characters')
       .max(50, 'Display name cannot exceed 50 characters'),
     username: z
       .string()
+      .trim()
       .min(3, 'Username must be at least 3 characters')
       .max(30, 'Username cannot exceed 30 characters')
       .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
-    email: z.string().email('Please enter a valid email address'),
+    email: z
+      .string()
+      .trim()
+      .email('Please enter a valid email address'),
     password: z
       .string()
       .min(8, 'Password must be at least 8 characters')
@@ -47,7 +54,7 @@ export const signupSchema = z
 export type SignupFormData = z.infer<typeof signupSchema>;
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().trim().email('Please enter a valid email address'),
 });
 
 export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;

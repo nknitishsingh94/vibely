@@ -69,16 +69,36 @@ function SignupForm() {
   const hasLower = /[a-z]/.test(passwordVal);
   const hasNumber = /[0-9]/.test(passwordVal);
 
+  const onFormError = (formErrors: any) => {
+    const firstKey = Object.keys(formErrors)[0];
+    const firstMsg =
+      formErrors.displayName?.message ||
+      formErrors.username?.message ||
+      formErrors.email?.message ||
+      formErrors.password?.message ||
+      formErrors.confirmPassword?.message ||
+      (firstKey ? formErrors[firstKey]?.message : 'Please complete all required fields correctly.');
+
+    setAuthError(firstMsg);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const onSubmit = async (data: SignupFormData) => {
     setIsLoading(true);
     setAuthError(null);
     setIsAlreadyRegistered(false);
 
     try {
-      const cleanEmail = data.email.trim();
+      const cleanEmail = data.email.trim().toLowerCase();
+      const cleanUsername = data.username.trim().toLowerCase();
+      const cleanDisplayName = data.displayName.trim();
 
       // 1. Server-side registration attempt (bypasses confirmation emails if service role key is present)
-      let usedServerSignup = false;
+      let signupSucceeded = false;
+      let serverErrorMsg: string | null = null;
+
       try {
         const res = await fetch('/api/auth/signup', {
           method: 'POST',
@@ -86,15 +106,15 @@ function SignupForm() {
           body: JSON.stringify({
             email: cleanEmail,
             password: data.password,
-            displayName: data.displayName.trim(),
-            username: data.username.toLowerCase().trim(),
+            displayName: cleanDisplayName,
+            username: cleanUsername,
           }),
         });
 
         const resData = await res.json().catch(() => null);
 
         if (res.ok && resData?.success) {
-          usedServerSignup = true;
+          signupSucceeded = true;
         } else {
           const errorType = resData?.error;
           const msg = resData?.message || resData?.error;
@@ -113,71 +133,67 @@ function SignupForm() {
             return;
           }
 
-          // Fallback to direct client-side Supabase signup
-          const supabase = getSupabaseBrowserClient();
-          const { data: directData, error: directError } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: data.password,
-            options: {
-              data: {
-                display_name: data.displayName.trim(),
-                username: data.username.toLowerCase().trim(),
-              },
-            },
-          });
-
-          if (directError) {
-            const lower = (directError.message || '').toLowerCase();
-            if (lower.includes('already registered') || lower.includes('user already exists')) {
-              setIsAlreadyRegistered(true);
-              setAuthError('An account with this email already exists. Please sign in instead.');
-            } else {
-              setAuthError(directError.message || 'Registration failed');
-            }
+          if (errorType === 'rate_limited') {
+            setAuthError(msg || 'Too many attempts. Please wait a moment and try again.');
             setIsLoading(false);
             return;
           }
 
-          if (directData?.session) {
-            window.location.href = '/chat';
-            return;
-          }
-
-          setSignupSuccess(true);
-          setIsLoading(false);
-          return;
+          serverErrorMsg = msg || null;
         }
       } catch (err) {
-        // Fallback to client-side signup on network or server error
+        console.warn('Server signup request failed, trying client fallback:', err);
+      }
+
+      // 2. If server signup was not successful, attempt direct client-side Supabase signup fallback
+      if (!signupSucceeded) {
         const supabase = getSupabaseBrowserClient();
         const { data: directData, error: directError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: data.password,
           options: {
             data: {
-              display_name: data.displayName.trim(),
-              username: data.username.toLowerCase().trim(),
+              display_name: cleanDisplayName,
+              username: cleanUsername,
             },
           },
         });
 
         if (directError) {
-          setAuthError(directError.message || 'Registration failed');
+          const lower = (directError.message || '').toLowerCase();
+          if (lower.includes('already registered') || lower.includes('user already exists')) {
+            setIsAlreadyRegistered(true);
+            setAuthError('An account with this email already exists. Please sign in instead.');
+          } else {
+            setAuthError(serverErrorMsg || directError.message || 'Registration failed. Please try again.');
+          }
           setIsLoading(false);
           return;
         }
 
+        // Auto-confirm via server API in background
+        try {
+          await fetch('/api/auth/check-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanEmail, autoConfirm: true }),
+          });
+        } catch (autoConfirmErr) {
+          console.warn('Auto-confirm attempt warning:', autoConfirmErr);
+        }
+
         if (directData?.session) {
-          window.location.href = '/chat';
+          router.replace('/chat');
+          if (typeof window !== 'undefined') {
+            window.location.href = '/chat';
+          }
           return;
         }
 
-        setSignupSuccess(true);
-        setIsLoading(false);
-        return;
+        signupSucceeded = true;
       }
 
-      // 2. Account successfully created & auto-confirmed: log in directly
+      // 3. Account successfully created & auto-confirmed: log in directly
       const supabase = getSupabaseBrowserClient();
       let { error: signInError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
@@ -198,10 +214,9 @@ function SignupForm() {
               password: data.password,
             });
             if (!retryRes.error) {
+              router.replace('/chat');
               if (typeof window !== 'undefined') {
                 window.location.href = '/chat';
-              } else {
-                router.replace('/chat');
               }
               return;
             }
@@ -210,10 +225,9 @@ function SignupForm() {
           }
         }
       } else {
+        router.replace('/chat');
         if (typeof window !== 'undefined') {
           window.location.href = '/chat';
-        } else {
-          router.replace('/chat');
         }
         return;
       }
@@ -307,7 +321,7 @@ function SignupForm() {
                   </div>
                 </div>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
+                <form onSubmit={handleSubmit(onSubmit, onFormError)} className="space-y-3.5">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-foreground">
                       Your Name / Nickname
@@ -381,18 +395,18 @@ function SignupForm() {
 
                     {/* Password Strength Checklist */}
                     {passwordVal && (
-                      <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px] text-muted-foreground">
-                        <span className={hasLength ? 'text-emerald-500 font-medium' : ''}>
-                          ✓ 8+ characters
+                      <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
+                        <span className={`flex items-center gap-1 font-medium transition-colors ${hasLength ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-500'}`}>
+                          {hasLength ? '✓' : '○'} 8+ characters
                         </span>
-                        <span className={hasUpper ? 'text-emerald-500 font-medium' : ''}>
-                          ✓ Uppercase letter
+                        <span className={`flex items-center gap-1 font-medium transition-colors ${hasUpper ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-500'}`}>
+                          {hasUpper ? '✓' : '○'} 1 Uppercase (A-Z)
                         </span>
-                        <span className={hasLower ? 'text-emerald-500 font-medium' : ''}>
-                          ✓ Lowercase letter
+                        <span className={`flex items-center gap-1 font-medium transition-colors ${hasLower ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-500'}`}>
+                          {hasLower ? '✓' : '○'} 1 Lowercase (a-z)
                         </span>
-                        <span className={hasNumber ? 'text-emerald-500 font-medium' : ''}>
-                          ✓ Number
+                        <span className={`flex items-center gap-1 font-medium transition-colors ${hasNumber ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-500'}`}>
+                          {hasNumber ? '✓' : '○'} 1 Number (0-9)
                         </span>
                       </div>
                     )}

@@ -58,6 +58,20 @@ function LoginForm() {
     },
   });
 
+  const onFormError = (formErrors: any) => {
+    const firstKey = Object.keys(formErrors)[0];
+    const firstMsg =
+      formErrors.identifier?.message ||
+      formErrors.email?.message ||
+      formErrors.password?.message ||
+      (firstKey ? formErrors[firstKey]?.message : 'Please enter your username/email and password.');
+
+    setAuthError(firstMsg);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setAuthError(null);
@@ -80,7 +94,7 @@ function LoginForm() {
       const resolveData = await resolveRes.json();
 
       if (!resolveRes.ok || resolveData.error) {
-        if (resolveRes.status === 404) {
+        if (resolveRes.status === 404 || resolveData.exists === false) {
           setIsNotRegistered(true);
           setAuthError(
             resolveData.error || 'No Vibely account found with this username or email. Please sign up first.'
@@ -88,6 +102,13 @@ function LoginForm() {
           setIsLoading(false);
           return;
         }
+      }
+
+      if (resolveData?.exists === false) {
+        setIsNotRegistered(true);
+        setAuthError('No Vibely account found with this email or username. Please check your spelling or sign up.');
+        setIsLoading(false);
+        return;
       }
 
       if (resolveData?.email) {
@@ -135,6 +156,9 @@ function LoginForm() {
               });
               if (!retryRes.error) {
                 router.replace(redirectTo);
+                if (typeof window !== 'undefined') {
+                  window.location.href = redirectTo || '/chat';
+                }
                 return;
               }
               error = retryRes.error;
@@ -154,10 +178,9 @@ function LoginForm() {
         }
         setIsLoading(false);
       } else {
+        router.replace(redirectTo);
         if (typeof window !== 'undefined') {
           window.location.href = redirectTo || '/chat';
-        } else {
-          router.replace(redirectTo);
         }
       }
     } catch (err: unknown) {
@@ -265,7 +288,7 @@ function LoginForm() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit, onFormError)} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-foreground">
                   Username or Email

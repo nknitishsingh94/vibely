@@ -29,13 +29,58 @@ export async function POST(req: Request) {
         (u) => (u.email || '').toLowerCase() === email
       );
 
+      if (!matched) {
+        return NextResponse.json({
+          exists: false,
+          email,
+          isUsername: false,
+          isGoogle: false,
+        });
+      }
+
       const providers =
-        matched?.app_metadata?.providers ||
-        (matched?.app_metadata?.provider ? [matched.app_metadata.provider] : []);
+        matched.app_metadata?.providers ||
+        (matched.app_metadata?.provider ? [matched.app_metadata.provider] : []);
       const isGoogle = providers.includes('google');
 
+      // Auto-heal missing profile for email user if needed
+      try {
+        const { data: prof } = await admin.from('profiles').select('id').eq('id', matched.id).maybeSingle();
+        if (!prof) {
+          const displayName =
+            matched.user_metadata?.display_name ||
+            matched.user_metadata?.full_name ||
+            matched.email?.split('@')[0] ||
+            'User';
+          const username =
+            matched.user_metadata?.username ||
+            `${matched.email?.split('@')[0] || 'user'}_${matched.id.slice(0, 4)}`.toLowerCase();
+
+          await admin.from('profiles').upsert(
+            {
+              id: matched.id,
+              display_name: displayName,
+              username: username,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
+        }
+      } catch (profErr) {
+        console.warn('Profile sync on email resolve warning:', profErr);
+      }
+
+      // If user is unconfirmed, auto-confirm them
+      if (!matched.email_confirmed_at) {
+        try {
+          await admin.auth.admin.updateUserById(matched.id, { email_confirm: true });
+        } catch (confirmErr) {
+          console.warn('Auto-confirm in resolve-identifier email warning:', confirmErr);
+        }
+      }
+
       return NextResponse.json({
-        exists: Boolean(matched),
+        exists: true,
         email,
         isUsername: false,
         isGoogle,
@@ -43,16 +88,48 @@ export async function POST(req: Request) {
     }
 
     // It's a username (e.g. 'alex' or '@alex')
-    const cleanUsername = clean.replace(/^@/, '').toLowerCase();
+    const cleanUsername = clean.replace(/^@/, '').toLowerCase().trim();
 
-    // Lookup profile by username (case-insensitive)
+    // 1. Lookup profile by username (case-insensitive)
     const { data: profile, error: pError } = await admin
       .from('profiles')
       .select('id, username, display_name')
       .ilike('username', cleanUsername)
       .maybeSingle();
 
-    if (pError || !profile) {
+    let targetUserId = profile?.id;
+    let targetUsername = profile?.username || cleanUsername;
+    let targetDisplayName = profile?.display_name;
+
+    // 2. If not found in profiles, search auth.users user_metadata->username as fallback!
+    if (!targetUserId) {
+      const { data: usersData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const matchedUser = usersData?.users?.find(
+        (u) => (u.user_metadata?.username || '').toLowerCase() === cleanUsername
+      );
+
+      if (matchedUser) {
+        targetUserId = matchedUser.id;
+        targetDisplayName = matchedUser.user_metadata?.display_name || cleanUsername;
+
+        // Auto-heal missing profile in profiles table
+        try {
+          await admin.from('profiles').upsert(
+            {
+              id: matchedUser.id,
+              username: cleanUsername,
+              display_name: targetDisplayName,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
+        } catch (healErr) {
+          console.warn('Auto-healing profile error in resolve-identifier:', healErr);
+        }
+      }
+    }
+
+    if (!targetUserId) {
       return NextResponse.json(
         { exists: false, error: `No Vibely account found with username @${cleanUsername}. Please check the username or sign up.` },
         { status: 404 }
@@ -60,7 +137,7 @@ export async function POST(req: Request) {
     }
 
     // Lookup user email in auth.users by user ID
-    const { data: userData, error: uError } = await admin.auth.admin.getUserById(profile.id);
+    const { data: userData, error: uError } = await admin.auth.admin.getUserById(targetUserId);
     if (uError || !userData?.user?.email) {
       return NextResponse.json(
         { exists: false, error: 'Could not resolve email for this username' },
@@ -86,8 +163,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       exists: true,
       email: user.email,
-      username: profile.username,
-      displayName: profile.display_name,
+      username: targetUsername,
+      displayName: targetDisplayName,
       isGoogle,
       isUsername: true,
     });

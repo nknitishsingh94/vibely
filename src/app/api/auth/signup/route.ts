@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       usersData?.users?.some((u) => (u.email || '').toLowerCase() === cleanEmail)
     );
 
-    // 3. Check if username is already present in database (public.profiles)
+    // 3. Check if username is already present in database (public.profiles or auth.users metadata)
     const { data: profileWithUsername, error: profileErr } = await adminClient
       .from('profiles')
       .select('id, username')
@@ -82,7 +82,13 @@ export async function POST(req: Request) {
       console.error('Error checking username in profiles:', profileErr);
     }
 
-    const usernameExists = Boolean(profileWithUsername);
+    const usernameExistsInProfiles = Boolean(profileWithUsername);
+    const usernameExistsInUsers = Boolean(
+      usersData?.users?.some(
+        (u) => (u.user_metadata?.username || '').toLowerCase() === cleanUsername
+      )
+    );
+    const usernameExists = usernameExistsInProfiles || usernameExistsInUsers;
 
     // 4. Strict matching and explicit error messaging
     if (emailExists && usernameExists) {
