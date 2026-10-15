@@ -28,12 +28,26 @@ export async function GET() {
               }
             } catch {}
           }
+          const newCount = currentDownloads + 1;
           const buffer = Buffer.from(
             JSON.stringify({
-              downloads: currentDownloads + 1,
+              downloads: newCount,
               lastUpdated: new Date().toISOString(),
             })
           );
+
+          // Broadcast real-time update to all open web browsers
+          try {
+            const statsChan = adminClient.channel('vibely-live-stats');
+            statsChan.send({
+              type: 'broadcast',
+              event: 'download_increment',
+              payload: { downloads: newCount },
+            }).finally(() => {
+              setTimeout(() => adminClient.removeChannel(statsChan), 2000);
+            });
+          } catch {}
+
           return adminClient.storage
             .from('chat-media')
             .upload(STATS_FILE_PATH, buffer, { upsert: true, contentType: 'text/plain' });

@@ -129,6 +129,18 @@ export async function POST(req: Request) {
       .from('chat-media')
       .upload(STATS_FILE_PATH, dataBuffer, { upsert: true, contentType: 'text/plain' });
 
+    // Broadcast instant real-time update to all open browsers
+    try {
+      const statsChan = adminClient.channel('vibely-live-stats');
+      statsChan.send({
+        type: 'broadcast',
+        event: 'download_increment',
+        payload: { downloads: newDownloads },
+      }).finally(() => {
+        setTimeout(() => adminClient.removeChannel(statsChan), 2000);
+      });
+    } catch {}
+
     return NextResponse.json({ success: true, downloads: newDownloads });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err?.message }, { status: 500 });
