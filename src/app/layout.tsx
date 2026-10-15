@@ -4,9 +4,11 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
 import { ChatProvider } from '@/context/chat-context';
+import { ChatLockProvider } from '@/context/chat-lock-context';
 import { CallProvider } from '@/context/call-context';
 import { CallModal } from '@/components/chat/call-modal';
 import { IncomingCallModal } from '@/components/chat/incoming-call-modal';
+import { ChatLockModal } from '@/components/chat/chat-lock-modal';
 import { FloatingHeartsOverlay } from '@/components/ui/floating-hearts';
 import { Toaster } from '@/components/ui/toast';
 import { PwaRegister } from '@/components/pwa-register';
@@ -83,15 +85,18 @@ export default function RootLayout({
         >
           <AuthProvider>
             <ChatProvider>
-              <CallProvider>
-                <PwaRegister />
-                {children}
-                <CallModal />
-                <IncomingCallModal />
-                <CallNotificationPermissionDialog />
-                <FloatingHeartsOverlay />
-                <Toaster />
-              </CallProvider>
+              <ChatLockProvider>
+                <CallProvider>
+                  <PwaRegister />
+                  {children}
+                  <CallModal />
+                  <IncomingCallModal />
+                  <ChatLockModal />
+                  <CallNotificationPermissionDialog />
+                  <FloatingHeartsOverlay />
+                  <Toaster />
+                </CallProvider>
+              </ChatLockProvider>
             </ChatProvider>
           </AuthProvider>
         </ThemeProvider>

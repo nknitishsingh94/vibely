@@ -21,6 +21,8 @@ import {
   X,
   Bell,
   Lock,
+  Unlock,
+  ChevronRight,
   Phone,
   Trash2,
   Loader2,
@@ -32,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
+import { useChatLock } from '@/context/chat-lock-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -66,6 +69,12 @@ export function Sidebar() {
 
   const { daysTogether, favorites } = useRomanticFeatures();
   const { startCall, callHistory, clearCallHistory, deleteCallLog, markCallHistoryAsRead } = useCall();
+  const {
+    lockedConversationIds,
+    isUnlocked,
+    openUnlockModal,
+    lockSession,
+  } = useChatLock();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = React.useState(false);
   const [filterText, setFilterText] = React.useState('');
@@ -165,6 +174,14 @@ export function Sidebar() {
     const user = c.otherUser?.username?.toLowerCase() || '';
     return name.includes(filterText.toLowerCase()) || user.includes(filterText.toLowerCase());
   });
+
+  const regularConversations = React.useMemo(() => {
+    return filteredConversations.filter(c => !lockedConversationIds.includes(c.id));
+  }, [filteredConversations, lockedConversationIds]);
+
+  const lockedConversations = React.useMemo(() => {
+    return filteredConversations.filter(c => lockedConversationIds.includes(c.id));
+  }, [filteredConversations, lockedConversationIds]);
 
   const unreadMissedCallsCount = React.useMemo(() => {
     return callHistory.filter(
@@ -686,27 +703,211 @@ export function Sidebar() {
             </div>
           ) : (
             <>
-              {filteredConversations.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
-                    <Heart className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">No chats found</p>
-                  <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
-                    Share your username or connect with your partner to start chatting.
-                  </p>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setIsInviteOpen(true)}
-                    className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              {/* WhatsApp style Locked Chats entry */}
+              {lockedConversationIds.length > 0 && (
+                <div className="border-b border-border/40 bg-card/40">
+                  <div
+                    onClick={() => {
+                      if (isUnlocked) {
+                        lockSession();
+                      } else {
+                        openUnlockModal();
+                      }
+                    }}
+                    className="flex items-center justify-between px-4 py-3.5 md:px-3.5 md:py-3 cursor-pointer hover:bg-muted/40 transition-colors group select-none"
                   >
-                    <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                    Connect Partner
-                  </Button>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        {isUnlocked ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                          <span>Locked Chats</span>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            {lockedConversationIds.length}
+                          </span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          {isUnlocked ? 'Tap to hide & lock again' : 'Tap to unlock with passcode'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isUnlocked ? (
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            lockSession();
+                          }}
+                          className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                        >
+                          Lock now
+                        </button>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* If unlocked, show the locked conversations right here */}
+                  {isUnlocked && lockedConversations.length > 0 && (
+                    <div className="divide-y divide-border/20 border-t border-border/30 bg-emerald-950/5 dark:bg-emerald-950/20">
+                      {lockedConversations.map(conv => {
+                        const other = conv.otherUser;
+                        const isActive = conv.id === activeConversationId;
+                        const isOtherOnline = other?.id ? isUserOnline(other.id) : (other?.id === friendPresence.userId ? friendPresence.online : false);
+                        const isPartnerTyping = typingUsers.some(
+                          u => u === other?.display_name || u === other?.username
+                        );
+                        const lastTime = conv.lastMessage?.created_at || conv.updated_at;
+                        const hasUnread = conv.unreadCount > 0;
+
+                        return (
+                          <div
+                            key={conv.id}
+                            onClick={() => {
+                              setActiveConversationId(conv.id);
+                              markConversationAsRead(conv.id);
+                            }}
+                            className={cn(
+                              'flex items-center gap-3.5 px-4 py-3.5 md:px-3.5 md:py-3 cursor-pointer transition-all duration-150 relative group',
+                              isActive
+                                ? 'bg-muted/80 dark:bg-card/90 shadow-2xs'
+                                : 'hover:bg-muted/40'
+                            )}
+                          >
+                            {isActive && (
+                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600 dark:bg-emerald-500" />
+                            )}
+                            <Avatar
+                              src={other?.avatar_path}
+                              name={other?.display_name || 'Partner'}
+                              size="md"
+                              isOnline={isOtherOnline}
+                              className="w-12 h-12 md:w-10 md:h-10 text-base md:text-sm shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <h4
+                                  className={cn(
+                                    'text-base md:text-sm font-bold md:font-semibold truncate text-foreground flex items-center gap-1.5',
+                                    hasUnread && 'font-extrabold'
+                                  )}
+                                >
+                                  <span className="truncate">{other?.display_name || 'Partner'}</span>
+                                  <span className="inline-flex items-center text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded-md shrink-0">
+                                    <Lock className="w-2.5 h-2.5 mr-0.5 inline" />
+                                    Locked
+                                  </span>
+                                </h4>
+                                {lastTime && (
+                                  <span
+                                    className={cn(
+                                      'text-xs md:text-[11px] shrink-0 font-medium',
+                                      hasUnread
+                                        ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                                        : 'text-muted-foreground'
+                                    )}
+                                  >
+                                    {formatConversationTime(lastTime)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <div className="truncate flex items-center min-w-0 max-w-[210px] sm:max-w-[230px]">
+                                  {isOtherOnline && (isPartnerTyping || (isActive && partnerActivity?.activity === 'typing')) ? (
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[13px] md:text-xs flex items-center gap-1 animate-pulse">
+                                      typing...
+                                    </span>
+                                  ) : isOtherOnline && isActive && partnerActivity?.activity === 'viewing_image' ? (
+                                    <span className="text-purple-600 dark:text-purple-400 font-semibold text-[13px] md:text-xs flex items-center gap-1 animate-pulse">
+                                      📸 viewing photo...
+                                    </span>
+                                  ) : isOtherOnline && isActive && partnerActivity?.activity === 'in_chat' ? (
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[13px] md:text-xs flex items-center gap-1">
+                                      👀 in chat
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={cn(
+                                        'truncate text-[13px] md:text-xs flex items-center',
+                                        hasUnread
+                                          ? 'text-foreground font-semibold'
+                                          : 'text-muted-foreground'
+                                      )}
+                                    >
+                                      {renderLastMessageStatus(conv.lastMessage, isOtherOnline)}
+                                      {renderMediaPreview(
+                                        conv.lastMessage?.message_type,
+                                        conv.lastMessage?.original_filename
+                                      )}
+                                      {!['image', 'audio', 'video', 'file'].includes(
+                                        conv.lastMessage?.message_type || ''
+                                      ) && (
+                                        <span className="truncate">
+                                          {conv.lastMessage?.body?.startsWith('[💌 Note]')
+                                            ? '💌 Sent a Little Note'
+                                            : conv.lastMessage?.body ||
+                                              (conv.lastMessage ? 'Sent a message' : 'Say hello!')}
+                                        </span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {hasUnread && (
+                                    <span className="min-w-[22px] h-5.5 px-1.5 rounded-full text-xs md:text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                      {conv.unreadCount}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Regular Conversations List */}
+              {regularConversations.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground space-y-2">
+                  {lockedConversationIds.length > 0 ? (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+                        <Lock className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">All active chats are locked</p>
+                      <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
+                        Tap Locked Chats above and enter your passcode to view.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+                        <Heart className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">No chats found</p>
+                      <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
+                        Share your username or connect with your partner to start chatting.
+                      </p>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setIsInviteOpen(true)}
+                        className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                      >
+                        <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                        Connect Partner
+                      </Button>
+                    </>
+                  )}
                 </div>
               ) : (
-                filteredConversations.map(conv => {
+                regularConversations.map(conv => {
                   const other = conv.otherUser;
                   const isActive = conv.id === activeConversationId;
                   const isOtherOnline = other?.id ? isUserOnline(other.id) : (other?.id === friendPresence.userId ? friendPresence.online : false);

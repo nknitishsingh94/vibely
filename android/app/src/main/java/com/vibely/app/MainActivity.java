@@ -73,6 +73,11 @@ public class MainActivity extends BridgeActivity {
                     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                     settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+                    // Ensure cookies are enabled and persisted for Supabase Auth and Next.js
+                    android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                    cookieManager.setAcceptCookie(true);
+                    cookieManager.setAcceptThirdPartyCookies(webView, true);
+
                     // Clean UserAgent: Strip 'Version/X.X' and '; wv' so Google/SSO treat WebView as Chrome Mobile
                     String originalUa = settings.getUserAgentString();
                     if (originalUa != null) {
@@ -87,6 +92,15 @@ public class MainActivity extends BridgeActivity {
                 }
 
                 b.setWebViewClient(new BridgeWebViewClient(b) {
+                    @Override
+                    public void onPageFinished(WebView view, String url) {
+                        super.onPageFinished(view, url);
+                        try {
+                            android.webkit.CookieManager.getInstance().flush();
+                        } catch (Throwable ignored) {
+                        }
+                    }
+
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                         if (request != null && request.getUrl() != null) {

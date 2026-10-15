@@ -20,9 +20,12 @@ import {
   Copy,
   CheckSquare,
   Forward,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
+import { useChatLock } from '@/context/chat-lock-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatLastSeen } from '@/lib/utils';
@@ -62,7 +65,9 @@ export function ConversationHeader() {
 
   const { startCall } = useCall();
   const { anniversary, daysTogether, updateAnniversary } = useRomanticFeatures();
+  const { isChatLocked, toggleLockChat } = useChatLock();
   const router = useRouter();
+  const isCurrentLocked = activeConversation ? isChatLocked(activeConversation.id) : false;
   const [isDateDialogOpen, setIsDateDialogOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState(anniversary || '');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
@@ -234,6 +239,15 @@ export function ConversationHeader() {
                 <span title="Private Romantic Sanctuary" className="inline-flex">
                   <ShieldCheck className="w-4 h-4 md:w-3.5 md:h-3.5 text-primary/80 shrink-0" />
                 </span>
+                {isCurrentLocked && (
+                  <span
+                    title="This chat is locked with your 4-digit passcode"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full shrink-0"
+                  >
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>Locked</span>
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2 text-xs truncate">
@@ -351,6 +365,26 @@ export function ConversationHeader() {
               >
                 <FolderHeart className="w-4 h-4" />
               </Button>
+
+              {/* Chat Lock / Unlock Action Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  if (activeConversation) {
+                    toggleLockChat(activeConversation.id);
+                  }
+                }}
+                className={`rounded-xl transition-colors ${
+                  isCurrentLocked
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/15'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+                title={isCurrentLocked ? 'Unlock Chat (remove PIN protection)' : 'Lock Chat (hide behind 4-digit PIN)'}
+                aria-label="Toggle Chat Lock"
+              >
+                {isCurrentLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              </Button>
             </div>
 
             {/* Mobile More Options Dropdown Toggle */}
@@ -416,6 +450,28 @@ export function ConversationHeader() {
                     >
                       <CalendarHeart className="w-4 h-4 text-rose-500 shrink-0" />
                       <span>Our Special Date</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreMenuOpen(false);
+                        if (activeConversation) {
+                          toggleLockChat(activeConversation.id);
+                        }
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10 active:scale-[0.98] transition-all cursor-pointer text-left"
+                    >
+                      {isCurrentLocked ? (
+                        <>
+                          <Unlock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span>Unlock Chat</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <span>Lock Chat (PIN)</span>
+                        </>
+                      )}
                     </button>
                     <div className="h-px bg-zinc-200 dark:bg-zinc-700/60 my-0.5" />
                     <button

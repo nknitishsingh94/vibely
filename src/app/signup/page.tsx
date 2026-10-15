@@ -198,7 +198,11 @@ function SignupForm() {
               password: data.password,
             });
             if (!retryRes.error) {
-              router.replace('/chat');
+              if (typeof window !== 'undefined') {
+                window.location.href = '/chat';
+              } else {
+                router.replace('/chat');
+              }
               return;
             }
           } catch (autoErr) {
@@ -206,7 +210,11 @@ function SignupForm() {
           }
         }
       } else {
-        router.replace('/chat');
+        if (typeof window !== 'undefined') {
+          window.location.href = '/chat';
+        } else {
+          router.replace('/chat');
+        }
         return;
       }
 
@@ -321,6 +329,9 @@ function SignupForm() {
                     <Input
                       type="text"
                       placeholder="choose_username"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       leftIcon={<AtSign className="w-4 h-4 text-muted-foreground" />}
                       error={errors.username?.message}
                       className="rounded-xl"
@@ -335,6 +346,9 @@ function SignupForm() {
                     <Input
                       type="email"
                       placeholder="name@example.com"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       leftIcon={<Mail className="w-4 h-4 text-muted-foreground" />}
                       error={errors.email?.message}
                       className="rounded-xl"

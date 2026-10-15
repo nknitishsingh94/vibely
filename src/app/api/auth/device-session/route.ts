@@ -94,17 +94,9 @@ export async function POST(req: Request) {
     const nowIso = new Date().toISOString();
     const existingSlot = registeredDevices[deviceType as 'desktop' | 'mobile'];
 
-    // 1. Check if another device of this type is already registered with a different deviceId
-    if (existingSlot && existingSlot.deviceId && existingSlot.deviceId !== deviceId) {
-      const typeLabel = deviceType === 'desktop' ? 'Desktop/PC' : 'Mobile Phone';
-      return NextResponse.json({
-        allowed: false,
-        error: 'DEVICE_LIMIT_REACHED',
-        deviceType,
-        existingDevice: existingSlot,
-        message: `Device Limit Reached: This account already has an active ${typeLabel} logged in ("${existingSlot.name || typeLabel}"). Vibely allows only 1 Desktop and 1 Mobile simultaneously. Please logout from your other ${typeLabel} or delete your account to switch devices.`,
-      });
-    }
+    // 1. Register or update this device slot
+    // An authenticated user claims the slot for their device type (at most 1 Desktop + 1 Mobile simultaneously).
+    // This allows seamless re-installation of the APK, app updates, and device switching without lock-outs.
 
     // 2. Register or update this device slot
     const updatedSlot: DeviceInfo = {

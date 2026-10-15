@@ -9,7 +9,7 @@ import { ConversationHeader } from '@/components/chat/conversation-header';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageComposer } from '@/components/chat/message-composer';
 import { MediaGalleryDrawer } from '@/components/chat/media-gallery-drawer';
-import { UserPlus, Sparkles, Copy, Check, ArrowRight, Loader2, User } from 'lucide-react';
+import { UserPlus, Sparkles, Copy, Check, ArrowRight, ArrowLeft, Loader2, User, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InviteModal } from '@/components/chat/invite-modal';
@@ -18,10 +18,12 @@ import { ScreenshotDetector } from '@/components/chat/screenshot-detector';
 import { SecurityAlertBanner } from '@/components/chat/security-alert-banner';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { toast } from '@/components/ui/toast';
+import { useChatLock } from '@/context/chat-lock-context';
 
 export default function ChatPage() {
   const router = useRouter();
   const { activeConversationId, setActiveConversationId, connectWithPartner } = useChat();
+  const { isChatLocked, isUnlocked, openUnlockModal } = useChatLock();
   const { user, profile, isLoading } = useAuth();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -156,11 +158,52 @@ export default function ChatPage() {
         <SecurityAlertBanner />
         <TopNotificationBar />
         {activeConversationId ? (
-          <>
-            <ConversationHeader />
-            <MessageList />
-            <MessageComposer />
-          </>
+          isChatLocked(activeConversationId) && !isUnlocked ? (
+            <div className="flex-1 flex flex-col h-full bg-background select-none">
+              {/* Minimal top bar with back button */}
+              <div className="p-3 border-b border-border/60 flex items-center gap-3 bg-card/60">
+                <button
+                  type="button"
+                  onClick={() => setActiveConversationId(null)}
+                  className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
+                  aria-label="Back to chats"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="font-bold text-sm text-foreground">Chat Locked</span>
+                </div>
+              </div>
+
+              {/* Locked Screen Center Box */}
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none romantic-wallpaper">
+                <div className="max-w-xs w-full space-y-4 p-8 rounded-3xl bg-card/90 border border-border/80 shadow-2xl backdrop-blur-xl">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center shadow-xs">
+                    <Lock className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-bold text-foreground">Chat is Protected</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      This private conversation is locked behind your 4-digit passcode.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => openUnlockModal(activeConversationId)}
+                    className="w-full h-11 rounded-2xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-95 cursor-pointer"
+                  >
+                    Enter Passcode
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <ConversationHeader />
+              <MessageList />
+              <MessageComposer />
+            </>
+          )
         ) : (
           /* Empty state on desktop when no conversation is selected */
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground select-none romantic-wallpaper">

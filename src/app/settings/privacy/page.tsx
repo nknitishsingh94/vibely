@@ -21,11 +21,15 @@ import {
   VolumeX,
   Save,
   LogOut,
+  Lock,
+  Unlock,
+  KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
 import { useAuth } from '@/context/auth-context';
+import { useChatLock } from '@/context/chat-lock-context';
 import { useRouter } from 'next/navigation';
 import {
   getNotificationPermission,
@@ -52,6 +56,13 @@ import {
 
 export default function PrivacySettingsPage() {
   const { user, signOut } = useAuth();
+  const {
+    hasPasscode,
+    lockedConversationIds,
+    openUnlockModal,
+    lockSession,
+    isUnlocked,
+  } = useChatLock();
   const router = useRouter();
 
   const [notifPermission, setNotifPermission] = React.useState<NotificationPermission>('default');
@@ -602,7 +613,71 @@ export default function PrivacySettingsPage() {
           </div>
         </div>
 
-        {/* SECTION 5: DANGER ZONE - PERMANENT ACCOUNT DELETION */}
+        {/* SECTION 5: CHAT LOCK & PRIVACY PASSCODE */}
+        <div className="pt-6 border-t border-border/60 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Chat Lock & Privacy Passcode</span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Lock personal conversations behind a 4-digit PIN. Locked chats are hidden from the chat list.
+              </p>
+            </div>
+            <span
+              className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                hasPasscode
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  : 'bg-muted text-muted-foreground border-border'
+              }`}
+            >
+              {hasPasscode ? 'Passcode Active' : 'Not Set'}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-muted/40 border border-border/40 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <p className="font-semibold text-foreground">
+                  {lockedConversationIds.length === 0
+                    ? 'No chats currently locked'
+                    : `${lockedConversationIds.length} ${
+                        lockedConversationIds.length === 1 ? 'chat' : 'chats'
+                      } locked and hidden`}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  You can lock any conversation directly from the 3-dots menu inside that chat.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => openUnlockModal()}
+                  className="rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95 shadow-xs"
+                >
+                  <KeyRound className="w-3.5 h-3.5 mr-1.5" />
+                  {hasPasscode ? 'Change Passcode' : 'Set 4-Digit Passcode'}
+                </Button>
+
+                {isUnlocked && lockedConversationIds.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={lockSession}
+                    className="rounded-xl text-xs font-semibold border-border cursor-pointer active:scale-95"
+                  >
+                    <Lock className="w-3.5 h-3.5 mr-1.5" />
+                    Lock Now
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 6: DANGER ZONE - PERMANENT ACCOUNT DELETION */}
         <div className="pt-6 border-t border-border/60 space-y-3">
           <h3 className="text-sm font-semibold text-destructive flex items-center gap-1.5">
             <AlertTriangle className="w-4 h-4" />

@@ -154,7 +154,11 @@ function LoginForm() {
         }
         setIsLoading(false);
       } else {
-        router.replace(redirectTo);
+        if (typeof window !== 'undefined') {
+          window.location.href = redirectTo || '/chat';
+        } else {
+          router.replace(redirectTo);
+        }
       }
     } catch (err: unknown) {
       setAuthError((err as Error)?.message || 'Sign in failed. Please try again.');
@@ -269,6 +273,9 @@ function LoginForm() {
                 <Input
                   type="text"
                   placeholder="Enter your username or email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   leftIcon={<User className="w-4 h-4 text-muted-foreground" />}
                   error={errors.identifier?.message || errors.email?.message}
                   className="rounded-xl"
