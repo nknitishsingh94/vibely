@@ -1,47 +1,46 @@
 // Vibely Native Device & Mobile Notification System (Call & Message Notifications)
-import { getAudioContext, unlockAudioSession } from './ringtone';
+import { getAudioContext, unlockAudioSession, getSelectedNotificationSound, playSynthesizedNotificationTone } from './ringtone';
 import { env } from './env';
 
+// In-memory deduplication cache to prevent duplicate notifications / double chimes
+const notifiedKeys = new Map<string, number>();
+let lastChimeTime = 0;
+
+function isDuplicateNotification(key: string): boolean {
+  const now = Date.now();
+  // Clean entries older than 12 seconds
+  for (const [k, time] of notifiedKeys.entries()) {
+    if (now - time > 12000) {
+      notifiedKeys.delete(k);
+    }
+  }
+  if (notifiedKeys.has(key)) {
+    return true;
+  }
+  notifiedKeys.set(key, now);
+  return false;
+}
+
 /**
- * Play a pleasant mobile message chime using Web Audio API
+ * Play user's preferred message chime with deduplication and silent mode support
  */
-export function playMessageNotificationSound() {
+export function playMessageNotificationSound(force = false) {
   try {
     if (typeof window === 'undefined') return;
-    const ctx = getAudioContext();
-    if (!ctx) return;
 
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
+    const now = Date.now();
+    // Throttle chimes to prevent double triggers within 600ms
+    if (!force && now - lastChimeTime < 600) {
+      return;
+    }
+    lastChimeTime = now;
+
+    const soundPref = getSelectedNotificationSound();
+    if (soundPref === 'silent') {
+      return; // User set notification sound to silent!
     }
 
-    const now = ctx.currentTime;
-
-    // Pleasant dual chime (C6 -> G6)
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(1046.5, now); // C6
-    osc1.frequency.exponentialRampToValueAtTime(1567.98, now + 0.12); // G6
-
-    osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(523.25, now); // C5 harmonic
-    osc2.frequency.exponentialRampToValueAtTime(783.99, now + 0.12);
-
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc1.start(now);
-    osc2.start(now);
-    osc1.stop(now + 0.4);
-    osc2.stop(now + 0.4);
+    playSynthesizedNotificationTone(soundPref);
   } catch (err) {
     console.warn('[Vibely Sound] Error playing message chime:', err);
   }
@@ -94,6 +93,7 @@ function urlBase64ToUint8Array(base64String: string) {
 
 /**
  * Register device for Background Web Push with VAPID key
+ * Ensures keys (p256dh and auth) are extracted correctly for Android Chrome & mobile PWAs
  */
 export async function registerPushSubscription(userId: string) {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
@@ -124,10 +124,38 @@ export async function registerPushSubscription(userId: string) {
     }
 
     if (sub) {
+      // Safely serialize subscription with fallback key extraction
+      const subJson = sub.toJSON ? sub.toJSON() : ({} as any);
+      let p256dh = subJson.keys?.p256dh;
+      let auth = subJson.keys?.auth;
+
+      if (!p256dh && typeof sub.getKey === 'function') {
+        const rawP256dh = sub.getKey('p256dh');
+        if (rawP256dh) {
+          p256dh = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(rawP256dh))));
+        }
+      }
+
+      if (!auth && typeof sub.getKey === 'function') {
+        const rawAuth = sub.getKey('auth');
+        if (rawAuth) {
+          auth = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(rawAuth))));
+        }
+      }
+
+      const subscriptionData = {
+        endpoint: sub.endpoint,
+        expirationTime: sub.expirationTime || null,
+        keys: {
+          p256dh: p256dh || '',
+          auth: auth || '',
+        },
+      };
+
       await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, subscription: sub.toJSON() }),
+        body: JSON.stringify({ userId, subscription: subscriptionData }),
       });
       console.log('[Vibely Push] Background push subscription registered successfully for user:', userId);
     }
@@ -136,7 +164,7 @@ export async function registerPushSubscription(userId: string) {
   }
 }
 
-interface CallNotificationOptions {
+export interface CallNotificationOptions {
   callerName: string;
   callType: 'voice' | 'video';
   callId: string;
@@ -145,7 +173,7 @@ interface CallNotificationOptions {
 }
 
 /**
- * Show a full Incoming Call notification with vibration on mobile device
+ * Show a full Incoming Call notification with continuous vibration on mobile device
  */
 export async function showIncomingCallNotification(options: CallNotificationOptions) {
   if (!isNotificationSupported()) return;
@@ -153,7 +181,7 @@ export async function showIncomingCallNotification(options: CallNotificationOpti
   // Request vibration on mobile phone (ringing cadence)
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
     try {
-      navigator.vibrate([600, 400, 600, 400, 600, 400, 600, 400]);
+      navigator.vibrate([1000, 500, 1000, 500, 1000, 500, 1000, 500]);
     } catch {}
   }
 
@@ -178,12 +206,12 @@ export async function showIncomingCallNotification(options: CallNotificationOpti
           tag,
           renotify: true,
           requireInteraction: true,
-          vibrate: [600, 400, 600, 400, 600, 400],
+          vibrate: [1000, 500, 1000, 500, 1000, 500, 1000, 500],
           data: {
             type: 'call',
             callId: options.callId,
             conversationId: options.conversationId,
-            url: options.conversationId ? `/chat/${options.conversationId}` : '/chat',
+            url: options.conversationId ? `/chat/${options.conversationId}?callId=${options.callId}` : '/chat',
           },
           actions: [
             { action: 'answer', title: '📞 Answer' },
@@ -233,7 +261,8 @@ export async function dismissCallNotification(callId?: string) {
   } catch {}
 }
 
-interface MessageNotificationOptions {
+export interface MessageNotificationOptions {
+  messageId?: string;
   senderName: string;
   messageText?: string | null;
   messageType?: string;
@@ -242,10 +271,20 @@ interface MessageNotificationOptions {
 }
 
 /**
- * Show a new chat message notification with vibration and chime sound
+ * Show a new chat message notification with vibration and chime sound.
+ * Guarantees zero duplicate triggers ("do bar notification aane se bachata hai")
  */
 export async function showChatMessageNotification(options: MessageNotificationOptions) {
-  // Always play chime sound and short mobile vibration
+  // Deduplicate against duplicate events (WebSocket + Postgres change + Push)
+  const dedupeKey = options.messageId
+    ? `msg_${options.messageId}`
+    : `chat_${options.conversationId}_${(options.messageText || options.messageType || '').slice(0, 30)}_${options.senderName}`;
+
+  if (isDuplicateNotification(dedupeKey)) {
+    return;
+  }
+
+  // Play chime sound (respects silence preference & throttling)
   playMessageNotificationSound();
 
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {

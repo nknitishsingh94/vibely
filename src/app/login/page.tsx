@@ -19,7 +19,7 @@ function LoginForm() {
   const redirectTo = searchParams.get('redirectTo') || '/chat';
   const initialEmail = searchParams.get('email') || '';
   const initialError = searchParams.get('error_description') || searchParams.get('error') || null;
-  const { user } = useAuth();
+  const { user, deviceLimitError } = useAuth();
 
   const [showPassword, setShowPassword] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(initialError);
@@ -184,6 +184,20 @@ function LoginForm() {
           </div>
 
           <div className="p-6 sm:p-7 rounded-3xl bg-white/95 dark:bg-[#09241B]/95 border border-[#0C3B2E]/15 dark:border-white/15 shadow-2xl space-y-5 backdrop-blur-xl">
+
+            {deviceLimitError && (
+              <div className="p-4 rounded-2xl text-xs border bg-amber-500/10 text-amber-900 dark:text-amber-200 border-amber-500/30 space-y-2">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                  <p className="font-semibold leading-relaxed">
+                    {deviceLimitError}
+                  </p>
+                </div>
+                <p className="text-[11px] opacity-80 pl-6 leading-relaxed">
+                  Vibely permits only 1 Desktop and 1 Mobile simultaneously. Please disconnect from your other device in Settings or delete your account to log in here.
+                </p>
+              </div>
+            )}
 
             {authError && (
               <div

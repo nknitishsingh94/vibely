@@ -1799,7 +1799,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const data = event.data;
       if (!data || typeof data !== 'object') return;
 
-      if (data.type === 'CALL_ANSWER') {
+      if (data.type === 'BACKGROUND_INCOMING_CALL' && data.payload) {
+        unlockAudioSession();
+        // If tab is in background, trigger incoming call chime & alert
+        if (incomingCallRef.current?.callId !== data.payload.callId) {
+          startIncomingRing();
+          showIncomingCallNotification({
+            callerName: data.payload.caller?.display_name || 'Someone',
+            callType: data.payload.callType || 'voice',
+            callId: data.payload.callId,
+            conversationId: data.payload.conversationId,
+            avatarUrl: data.payload.caller?.avatar_path,
+          });
+        }
+      } else if (data.type === 'CALL_ANSWER') {
         unlockAudioSession();
         acceptCall();
       } else if (data.type === 'CALL_DECLINE') {
@@ -1814,6 +1827,31 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       navigator.serviceWorker.removeEventListener('message', handleSwMessage);
     };
   }, [acceptCall, declineCall]);
+
+  // Deep-linking: auto-answer or decline if opened from notification click with ?callAction=
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      const action = url.searchParams.get('callAction');
+      const targetCallId = url.searchParams.get('callId');
+
+      if (action === 'answer' && incomingCall) {
+        if (!targetCallId || incomingCall.callId === targetCallId) {
+          unlockAudioSession();
+          acceptCall();
+          url.searchParams.delete('callAction');
+          url.searchParams.delete('callId');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+        }
+      } else if (action === 'decline' && incomingCall) {
+        declineCall();
+        url.searchParams.delete('callAction');
+        url.searchParams.delete('callId');
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+      }
+    } catch {}
+  }, [incomingCall, acceptCall, declineCall]);
 
   // Controls: Mute
   const toggleMute = () => {

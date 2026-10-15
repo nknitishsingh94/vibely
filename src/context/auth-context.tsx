@@ -5,12 +5,19 @@ import { User } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isSupabaseConfigured } from '@/lib/env';
 import { Profile } from '@/types/database';
+import { registerDeviceSession, releaseDeviceSession } from '@/lib/device-session';
+import { registerPushSubscription } from '@/lib/device-notifications';
+import { Dialog } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, Laptop, Smartphone } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   isLoading: boolean;
   isConfigured: boolean;
+  deviceLimitError: string | null;
+  clearDeviceLimitError: () => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (data: { displayName: string; username: string; bio?: string | null; avatarPath?: string | null }) => Promise<{ error?: string }>;
@@ -22,6 +29,8 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   isLoading: true,
   isConfigured: false,
+  deviceLimitError: null,
+  clearDeviceLimitError: () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
   updateProfile: async () => ({ error: 'Not implemented' }),
@@ -32,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [deviceLimitError, setDeviceLimitError] = useState<string | null>(null);
   const isConfigured = isSupabaseConfigured();
 
   const loadProfile = useCallback(async (userId: string) => {
@@ -67,6 +77,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isConfigured]);
 
+  const verifyAndRegisterDevice = useCallback(async (userId: string): Promise<boolean> => {
+    try {
+      const result = await registerDeviceSession(userId);
+      if (!result.allowed) {
+        const errorMsg =
+          result.message ||
+          'Device Limit Reached: A single Vibely account can only be active on 1 Desktop and 1 Mobile simultaneously. Please logout from your other device to sign in here.';
+        setDeviceLimitError(errorMsg);
+        const supabase = getSupabaseBrowserClient();
+        await supabase.auth.signOut();
+        setUser(null);
+        setProfile(null);
+        return false;
+      }
+      setDeviceLimitError(null);
+      // Auto-register device push subscription for real-time background calling
+      registerPushSubscription(userId);
+      return true;
+    } catch (e) {
+      console.warn('Device verification error:', e);
+      return true;
+    }
+  }, []);
+
   useEffect(() => {
     if (!isConfigured) {
       setUser(null);
@@ -80,9 +114,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Initial session fetch
     supabase.auth.getSession().then(async ({ data }: { data: { session: any } }) => {
       const session = data?.session;
-      setUser(session?.user ?? null);
       if (session?.user) {
-        await loadProfile(session.user.id);
+        const isAllowed = await verifyAndRegisterDevice(session.user.id);
+        if (isAllowed) {
+          setUser(session.user);
+          await loadProfile(session.user.id);
+        }
+      } else {
+        setUser(null);
+        setProfile(null);
       }
       setIsLoading(false);
     });
@@ -90,11 +130,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (session?.user) {
+        // On sign in or token refresh, enforce device check
+        if (event === 'SIGNED_IN') {
+          const isAllowed = await verifyAndRegisterDevice(session.user.id);
+          if (!isAllowed) {
+            setIsLoading(false);
+            return;
+          }
+        }
+        setUser(session.user);
         await loadProfile(session.user.id);
       } else {
+        setUser(null);
         setProfile(null);
       }
       setIsLoading(false);
@@ -103,15 +152,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [isConfigured, loadProfile]);
+  }, [isConfigured, loadProfile, verifyAndRegisterDevice]);
 
   const signOut = async () => {
+    if (user) {
+      await releaseDeviceSession(user.id);
+    }
     if (isConfigured) {
       const supabase = getSupabaseBrowserClient();
       await supabase.auth.signOut();
     }
     setUser(null);
     setProfile(null);
+  };
+
+  const clearDeviceLimitError = () => {
+    setDeviceLimitError(null);
   };
 
   const refreshProfile = async () => {
@@ -206,6 +262,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         isLoading,
         isConfigured,
+        deviceLimitError,
+        clearDeviceLimitError,
         signOut,
         refreshProfile,
         updateProfile,
@@ -213,6 +271,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+
+      {/* Strict Device Limit Reached Modal (1 Desktop + 1 Mobile Maximum) */}
+      <Dialog
+        isOpen={Boolean(deviceLimitError)}
+        onClose={clearDeviceLimitError}
+        size="md"
+        title="⚠️ Device Limit Exceeded"
+        description="Vibely security policy allows each account to be active on only 1 Desktop and 1 Mobile phone simultaneously."
+      >
+        <div className="space-y-4 pt-2">
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+            {deviceLimitError}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-muted/60 border border-border/50 text-center space-y-1">
+              <Laptop className="w-5 h-5 mx-auto text-primary" />
+              <p className="font-semibold text-foreground">Desktop Slot</p>
+              <p className="text-[10px] text-muted-foreground">Max 1 Active PC / Mac</p>
+            </div>
+            <div className="p-3 rounded-xl bg-muted/60 border border-border/50 text-center space-y-1">
+              <Smartphone className="w-5 h-5 mx-auto text-emerald-600 dark:text-emerald-400" />
+              <p className="font-semibold text-foreground">Mobile Slot</p>
+              <p className="text-[10px] text-muted-foreground">Max 1 Active Phone</p>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground text-center">
+            To switch devices, logout from your active device or delete your account in Settings.
+          </p>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              size="sm"
+              onClick={clearDeviceLimitError}
+              className="rounded-xl px-5 bg-[#005C4B] hover:bg-[#004D3F] text-white"
+            >
+              Understood
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </AuthContext.Provider>
   );
 }

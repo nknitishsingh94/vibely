@@ -590,6 +590,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
         if (!isCurrentOpen || isHidden) {
           showChatMessageNotification({
+            messageId: payload.messageId || payload.id,
             senderName: payload.sender?.display_name || 'Friend',
             messageText: payload.body,
             messageType: payload.messageType,
@@ -597,7 +598,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             avatarUrl: payload.sender?.avatar_path,
           });
         } else {
-          // In active open chat: play arrival chime immediately
+          // In active open chat: play arrival chime immediately (respects mute & throttling)
           playMessageNotificationSound();
         }
       })
@@ -1247,19 +1248,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
           // If incoming message from other user, record receipt
           if (newMsg.sender_id !== profile.id) {
-            // If tab is in background, show device notification
-            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-              showChatMessageNotification({
-                senderName: senderProfile?.display_name || 'Friend',
-                messageText: completeMessage.body,
-                messageType: completeMessage.message_type,
-                conversationId: activeConversationId,
-                avatarUrl: senderProfile?.avatar_path,
-              });
-            } else {
-              playMessageNotificationSound();
-            }
-
+            // Receipt upsert (broadcast already handles real-time alert without double-trigger)
             const nowIso = new Date().toISOString();
             await supabase.from('message_receipts').upsert(
               {

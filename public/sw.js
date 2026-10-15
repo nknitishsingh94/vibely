@@ -101,21 +101,32 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const targetUrl = data.url || (data.conversationId ? `/chat/${data.conversationId}` : '/chat');
+  let targetUrl = data.url || (data.conversationId ? `/chat/${data.conversationId}` : '/chat');
+
+  if (data.type === 'call') {
+    const isAnswer = event.action === 'answer' || !event.action;
+    const queryJoin = targetUrl.includes('?') ? '&' : '?';
+    targetUrl += `${queryJoin}callAction=${isAnswer ? 'answer' : 'decline'}&callId=${data.callId || ''}`;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it
+      // If a window is already open, focus and navigate it
       for (const client of clientList) {
         if ('focus' in client) {
           client.focus();
         }
-        if (data.type === 'call' && event.action === 'decline') {
-          client.postMessage({ type: 'CALL_DECLINE', callId: data.callId });
-        } else if (data.type === 'call' && event.action === 'answer') {
-          client.postMessage({ type: 'CALL_ANSWER', callId: data.callId });
-        } else if (data.type === 'call') {
-          client.postMessage({ type: 'CALL_NOTIFICATION_CLICK', callId: data.callId });
+        if ('navigate' in client && targetUrl) {
+          client.navigate(targetUrl);
+        }
+        if (data.type === 'call') {
+          if (event.action === 'decline') {
+            client.postMessage({ type: 'CALL_DECLINE', callId: data.callId });
+          } else {
+            client.postMessage({ type: 'CALL_ANSWER', callId: data.callId });
+          }
+        } else {
+          client.postMessage({ type: 'NOTIFICATION_CLICK', data });
         }
         return;
       }
@@ -163,7 +174,7 @@ self.addEventListener('push', (event) => {
       tag: `call-${payload.callId || 'active'}`,
       renotify: true,
       requireInteraction: true,
-      vibrate: [800, 400, 800, 400, 800, 400, 800, 400],
+      vibrate: [1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500],
       data: {
         type: 'call',
         callId: payload.callId,
@@ -175,6 +186,13 @@ self.addEventListener('push', (event) => {
         { action: 'decline', title: '❌ Decline' },
       ],
     };
+
+    // Forward to any background clients to start instant ringtone playback
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      clientList.forEach((client) => {
+        client.postMessage({ type: 'BACKGROUND_INCOMING_CALL', payload });
+      });
+    });
 
     event.waitUntil(self.registration.showNotification(title, options));
   } else if (eventType === 'call_cancelled') {
