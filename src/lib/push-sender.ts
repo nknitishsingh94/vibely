@@ -52,16 +52,34 @@ export async function sendWebPushToUser(targetUserId: string, event: string, pay
       return;
     }
 
+    const isCall = event === 'incoming_call';
+    const callerName = payload?.caller?.display_name || 'Someone';
+    const isVideo = payload?.callType === 'video';
+
     const pushPayload = JSON.stringify({
+      title: isCall
+        ? `📞 Incoming ${isVideo ? 'Video' : 'Voice'} Call`
+        : (payload?.sender?.display_name || 'Vibely'),
+      body: isCall
+        ? `${callerName} is calling you on Vibely... Tap to answer`
+        : (payload?.body || 'New message'),
+      icon: isCall ? (payload?.caller?.avatar_path || '/icon-192.png') : '/icon-192.png',
+      badge: '/icon-192.png',
+      sound: '/ringtone.wav',
+      tag: isCall ? `call-${payload?.callId || Date.now()}` : `msg-${payload?.conversationId || Date.now()}`,
+      vibrate: isCall ? [1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500] : [150, 80, 150],
       event,
       payload,
       timestamp: Date.now(),
     });
 
-    const isCall = event === 'incoming_call';
     const pushOptions: webpush.RequestOptions = {
       urgency: isCall ? 'high' : 'normal',
       TTL: isCall ? 60 : 86400, // Calls expire in 60s, messages expire in 24h
+      headers: {
+        Urgency: isCall ? 'high' : 'normal',
+        Topic: isCall ? 'call' : 'message',
+      },
     };
 
     const staleEndpoints: string[] = [];

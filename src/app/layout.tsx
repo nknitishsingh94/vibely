@@ -10,6 +10,7 @@ import { IncomingCallModal } from '@/components/chat/incoming-call-modal';
 import { FloatingHeartsOverlay } from '@/components/ui/floating-hearts';
 import { Toaster } from '@/components/ui/toast';
 import { PwaRegister } from '@/components/pwa-register';
+import { CallNotificationPermissionDialog } from '@/components/chat/call-notification-permission-dialog';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -87,6 +88,7 @@ export default function RootLayout({
                 {children}
                 <CallModal />
                 <IncomingCallModal />
+                <CallNotificationPermissionDialog />
                 <FloatingHeartsOverlay />
                 <Toaster />
               </CallProvider>

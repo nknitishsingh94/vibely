@@ -9,6 +9,7 @@ const PRECACHE_ASSETS = [
   '/favicon.svg',
   '/icon-192.png',
   '/icon-512.png',
+  '/ringtone.wav',
 ];
 
 self.addEventListener('install', (event) => {
@@ -175,6 +176,7 @@ self.addEventListener('push', (event) => {
       renotify: true,
       requireInteraction: true,
       vibrate: [1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500],
+      sound: '/ringtone.wav',
       data: {
         type: 'call',
         callId: payload.callId,

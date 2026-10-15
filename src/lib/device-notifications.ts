@@ -113,9 +113,19 @@ export async function registerPushSubscription(userId: string) {
     if (!reg || !reg.pushManager) return;
 
     let sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      const subJson = sub.toJSON ? sub.toJSON() : ({} as any);
+      if (!subJson.keys?.p256dh && typeof sub.getKey !== 'function') {
+        try {
+          await sub.unsubscribe();
+          sub = null;
+        } catch {}
+      }
+    }
+
     if (!sub) {
       const vapidKey = env.vapidPublicKey;
-      if (!vapidKey) return;
+      if (!vapidKey) return false;
       const convertedKey = urlBase64ToUint8Array(vapidKey);
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -158,9 +168,12 @@ export async function registerPushSubscription(userId: string) {
         body: JSON.stringify({ userId, subscription: subscriptionData }),
       });
       console.log('[Vibely Push] Background push subscription registered successfully for user:', userId);
+      return true;
     }
+    return false;
   } catch (err) {
     console.warn('Failed to register push subscription:', err);
+    return false;
   }
 }
 
