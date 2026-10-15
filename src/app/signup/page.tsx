@@ -306,7 +306,7 @@ function SignupForm() {
                     </label>
                     <Input
                       type="text"
-                      placeholder="e.g. Alex"
+                      placeholder="Enter your name"
                       leftIcon={<User className="w-4 h-4 text-muted-foreground" />}
                       error={errors.displayName?.message}
                       className="rounded-xl"
@@ -320,7 +320,7 @@ function SignupForm() {
                     </label>
                     <Input
                       type="text"
-                      placeholder="alex"
+                      placeholder="choose_username"
                       leftIcon={<AtSign className="w-4 h-4 text-muted-foreground" />}
                       error={errors.username?.message}
                       className="rounded-xl"

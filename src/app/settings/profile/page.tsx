@@ -155,7 +155,7 @@ export default function ProfileSettingsPage() {
               Display Name
             </label>
             <Input
-              placeholder="e.g. Alex Rivera"
+              placeholder="Enter your display name"
               leftIcon={<User className="w-4 h-4" />}
               error={errors.displayName?.message}
               {...register('displayName')}
@@ -167,7 +167,7 @@ export default function ProfileSettingsPage() {
               Username
             </label>
             <Input
-              placeholder="e.g. alex_rivera"
+              placeholder="Enter your username"
               leftIcon={<AtSign className="w-4 h-4" />}
               error={errors.username?.message}
               {...register('username')}

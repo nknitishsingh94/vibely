@@ -30,9 +30,6 @@ import { useRouter } from 'next/navigation';
 import {
   getNotificationPermission,
   requestNotificationPermission,
-  showIncomingCallNotification,
-  showChatMessageNotification,
-  dismissCallNotification,
 } from '@/lib/device-notifications';
 import {
   AVAILABLE_RINGTONES,
@@ -109,43 +106,9 @@ export default function PrivacySettingsPage() {
     setNotifPermission(perm);
     if (perm === 'granted') {
       toast.success('Call & Message notifications enabled!');
-      showChatMessageNotification({
-        senderName: 'Vibely Sanctuary',
-        messageText: '🎉 Call & Message notifications are active!',
-        conversationId: 'system_test',
-      });
     } else if (perm === 'denied') {
       toast.error('Notification permission was blocked in browser settings.');
     }
-  };
-
-  const handleTestCallNotification = async () => {
-    if (notifPermission !== 'granted') {
-      await handleRequestPermission();
-      return;
-    }
-    toast.info('Simulating incoming call notification (5 seconds)...');
-    showIncomingCallNotification({
-      callerName: 'Alex (Test Call)',
-      callType: 'voice',
-      callId: 'test_call_' + Date.now(),
-    });
-    setTimeout(() => {
-      dismissCallNotification();
-    }, 5000);
-  };
-
-  const handleTestMessageNotification = async () => {
-    if (notifPermission !== 'granted') {
-      await handleRequestPermission();
-      return;
-    }
-    toast.success('Sending test message notification...');
-    showChatMessageNotification({
-      senderName: 'Alex',
-      messageText: 'Hey there! How is your day going? 💕',
-      conversationId: 'test_conv',
-    });
   };
 
   // Ringtone Preview
@@ -552,7 +515,7 @@ export default function PrivacySettingsPage() {
               When enabled, incoming voice and video calls will trigger full phone vibration and status alerts even when you are outside the app, and new messages pop up with single chimes without echoing.
             </p>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="pt-1">
               {notifPermission !== 'granted' ? (
                 <Button
                   size="sm"
@@ -563,26 +526,10 @@ export default function PrivacySettingsPage() {
                   Enable Call & Message Notifications
                 </Button>
               ) : (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleTestCallNotification}
-                    className="rounded-xl text-xs font-medium border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
-                  >
-                    <PhoneCall className="w-3.5 h-3.5 mr-1.5" />
-                    Test Call Ring & Vibrate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleTestMessageNotification}
-                    className="rounded-xl text-xs font-medium border-border hover:bg-muted cursor-pointer"
-                  >
-                    <MessageSquareCheck className="w-3.5 h-3.5 mr-1.5" />
-                    Test Message Chime
-                  </Button>
-                </>
+                <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-3.5 py-2 rounded-xl border border-emerald-500/20">
+                  <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Call notifications and background ringing are fully active on this device.</span>
+                </div>
               )}
             </div>
           </div>

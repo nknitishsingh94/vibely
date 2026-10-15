@@ -211,7 +211,7 @@ export default function ChatPage() {
               <form onSubmit={handleQuickConnect} className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Input
-                    placeholder="Enter partner's username (e.g. alex)"
+                    placeholder="Enter partner's username"
                     value={partnerInput}
                     onChange={(e) => setPartnerInput(e.target.value)}
                     className="rounded-xl bg-card/60 backdrop-blur border-border text-xs h-10 placeholder:font-sans"

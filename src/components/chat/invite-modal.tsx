@@ -292,7 +292,7 @@ export function InviteModal({ isOpen, onClose, defaultTab = 'username' }: Invite
                       setTargetIdentifier(e.target.value);
                       if (connectError) setConnectError(null);
                     }}
-                    placeholder="Enter partner's username (e.g. alex)"
+                    placeholder="Enter partner's username"
                     className="w-full pl-8 pr-3.5 py-2.5 rounded-2xl text-xs bg-background border border-input focus:outline-none focus:ring-2 focus:ring-[#0C3B2E]/25 dark:focus:ring-emerald-400/25 font-sans placeholder:text-muted-foreground transition-all shadow-2xs"
                     autoFocus
                   />
