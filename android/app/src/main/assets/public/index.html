@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vibely</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #061410;
+      background: radial-gradient(circle at 50% 20%, #0C3B2E 0%, #061410 75%);
+      color: #F0FDF4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      text-align: center;
+      padding: 24px;
+      overflow: hidden;
+    }
+    .container {
+      max-width: 380px;
+      width: 100%;
+      background: rgba(12, 59, 46, 0.35);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      border-radius: 28px;
+      padding: 40px 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      animation: fadeIn 0.4s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .logo-wrapper {
+      width: 88px;
+      height: 88px;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+    .logo-wrapper svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #FFFFFF 0%, #A7F3D0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .status-text {
+      font-size: 14px;
+      color: #9CA3AF;
+      line-height: 1.5;
+      margin-bottom: 24px;
+      min-height: 42px;
+      transition: color 0.3s;
+    }
+    .spinner-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(52, 211, 153, 0.2);
+      border-top-color: #34D399;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .retry-btn {
+      display: none;
+      width: 100%;
+      background: #10B981;
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 14px;
+      padding: 14px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+      transition: transform 0.15s, opacity 0.2s;
+    }
+    .retry-btn:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-wrapper">
+      <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="vBg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#155E49" />
+            <stop offset="100%" stop-color="#0C3B2E" />
+          </linearGradient>
+        </defs>
+        <rect width="128" height="128" rx="28" fill="url(#vBg)" />
+        <rect width="124" height="124" x="2" y="2" rx="26" stroke="rgba(255,255,255,0.2)" stroke-width="2.5" />
+        <g transform="translate(18.4, 18.4) scale(3.8)">
+          <path d="M4.5 4.5L12 18.5L19.5 4.5" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M8.5 9.5L10.5 13L12 10.5L13.5 13L15.5 9.5" stroke="rgba(255, 255, 255, 0.95)" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="12" cy="7" r="1.5" fill="#FFFFFF" />
+        </g>
+        <circle cx="106" cy="22" r="9" fill="#34D399" />
+        <circle cx="106" cy="22" r="9" stroke="#0C3B2E" stroke-width="3" />
+      </svg>
+    </div>
+
+    <h1>Vibely</h1>
+    <p id="status" class="status-text">Connecting to Vibely...</p>
+
+    <div id="spinner-wrap" class="spinner-wrap">
+      <div class="spinner"></div>
+    </div>
+
+    <button id="retry-btn" class="retry-btn" onclick="retryNow()">Retry Connection</button>
+  </div>
+
+  <script>
+    const TARGET_URL = 'https://vibely-sigma-roan.vercel.app';
+    const statusEl = document.getElementById('status');
+    const retryBtn = document.getElementById('retry-btn');
+    const spinnerWrap = document.getElementById('spinner-wrap');
+
+    let countdown = 4;
+    let timer = null;
+
+    function navigate() {
+      window.location.replace(TARGET_URL);
+    }
+
+    function showOfflineState() {
+      if (spinnerWrap) spinnerWrap.style.display = 'none';
+      if (retryBtn) retryBtn.style.display = 'block';
+      statusEl.style.color = '#F87171';
+      statusEl.innerText = 'Unable to reach Vibely server. Check your internet connection and try again.';
+      
+      // Auto countdown retry
+      countdown = 5;
+      clearInterval(timer);
+      timer = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          retryBtn.innerText = 'Retrying in ' + countdown + 's...';
+        } else {
+          clearInterval(timer);
+          retryBtn.innerText = 'Connecting...';
+          retryNow();
+        }
+      }, 1000);
+    }
+
+    function retryNow() {
+      clearInterval(timer);
+      if (spinnerWrap) spinnerWrap.style.display = 'flex';
+      if (retryBtn) retryBtn.innerText = 'Connecting...';
+      statusEl.style.color = '#9CA3AF';
+      statusEl.innerText = 'Connecting to Vibely...';
+      navigate();
+    }
+
+    window.addEventListener('online', () => {
+      retryNow();
+    });
+
+    // Immediate attempt if not already on the site
+    if (window.location.href.indexOf(TARGET_URL) === -1) {
+      if (navigator.onLine) {
+        setTimeout(navigate, 400);
+      } else {
+        showOfflineState();
+      }
+    }
+
+    // Safety timeout: if page didn't redirect within 4s, show retry UI
+    setTimeout(() => {
+      if (window.location.href.indexOf(TARGET_URL) === -1) {
+        showOfflineState();
+      }
+    }, 4000);
+  </script>
+</body>
+</html>

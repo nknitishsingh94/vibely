@@ -777,8 +777,8 @@ export function CallModal() {
               )}
               title={
                 isAntiBusyMode
-                  ? "Anti-Busy Mode ON: WhatsApp calls will NOT show busy!"
-                  : "Turn on Anti-Busy Mode (prevents WhatsApp from showing busy)"
+                  ? "Anti-Busy Mode ON: External calls will NOT show busy!"
+                  : "Turn on Anti-Busy Mode (prevents external apps from showing busy)"
               }
             >
               <Zap className={cn("w-3.5 h-3.5", isAntiBusyMode ? "text-amber-500 fill-amber-500" : isLightScreen ? "text-slate-600" : "text-white/70")} />

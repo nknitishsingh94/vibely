@@ -1549,22 +1549,50 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       // Upload file to private storage if present
       if (payload.file) {
-        const fileExt = payload.file.name.split('.').pop();
+        const fileExt = (payload.file.name.split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g, '');
         const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
         const filePath = `${activeConversationId}/${safeName}`;
+        const contentType = payload.file.type && payload.file.type.trim() !== '' ? payload.file.type : 'application/octet-stream';
 
-        const { error: uploadErr } = await supabase.storage
-          .from('chat-media')
-          .upload(filePath, payload.file, {
-            contentType: payload.file.type,
-            upsert: false,
-          });
+        let uploadSuccess = false;
 
-        if (uploadErr) {
-          throw new Error(`Upload failed: ${uploadErr.message}`);
+        // 1. First attempt: Direct client-side storage upload
+        try {
+          const { error: uploadErr } = await supabase.storage
+            .from('chat-media')
+            .upload(filePath, payload.file, {
+              contentType,
+              upsert: false,
+            });
+
+          if (!uploadErr) {
+            storagePath = filePath;
+            uploadSuccess = true;
+          } else {
+            console.warn('Client direct upload failed, trying server API fallback:', uploadErr.message);
+          }
+        } catch (clientErr) {
+          console.warn('Client direct upload exception, falling back to server API:', clientErr);
         }
 
-        storagePath = filePath;
+        // 2. Second attempt: Resilient server-side upload fallback (bypasses CORS & MIME restrictions)
+        if (!uploadSuccess) {
+          const formData = new FormData();
+          formData.append('file', payload.file);
+          formData.append('conversationId', activeConversationId);
+
+          const apiRes = await fetch('/api/chat/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const apiData = await apiRes.json();
+          if (!apiRes.ok || apiData.error || !apiData.filePath) {
+            throw new Error(apiData.error || `Upload failed with status ${apiRes.status}`);
+          }
+
+          storagePath = apiData.filePath;
+        }
       }
 
       // Encrypt body using AES-GCM 256-bit E2EE before storing in Supabase!

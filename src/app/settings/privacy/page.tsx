@@ -583,9 +583,9 @@ export default function PrivacySettingsPage() {
               <div className="flex items-start gap-3">
                 <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-semibold text-foreground">Anti-Busy Mode (WhatsApp Busy Bypass)</h4>
+                  <h4 className="text-xs font-semibold text-foreground">Anti-Busy Mode (Call Privacy Bypass)</h4>
                   <p className="text-[11px] text-muted-foreground">
-                    Prevents WhatsApp callers from seeing you as busy during Vibely calls
+                    Prevents external callers from seeing you as busy during Vibely calls
                   </p>
                 </div>
               </div>

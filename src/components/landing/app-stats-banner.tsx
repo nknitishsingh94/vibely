@@ -203,7 +203,7 @@ export function AppStatsBanner() {
               </h2>
 
               <p className="text-sm sm:text-base text-stone-600 dark:text-emerald-100/80 leading-relaxed font-normal max-w-2xl">
-                Experience crystal-clear real-time voice & video calls, WhatsApp-style background ringing even when the phone is locked, instant screenshot security alerts, and zero-noise romantic messaging.
+                Experience crystal-clear real-time voice & video calls, reliable background ringing even when the phone is locked, instant screenshot security alerts, and zero-noise romantic messaging.
               </p>
 
               {/* Action Buttons & Badges */}

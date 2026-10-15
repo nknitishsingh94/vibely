@@ -87,6 +87,13 @@ public class MainActivity extends BridgeActivity {
                     public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                         super.onReceivedError(view, request, error);
                         if (request != null && request.isForMainFrame()) {
+                            String urlStr = request.getUrl() != null ? request.getUrl().toString() : "";
+                            if (urlStr.contains("localhost")) {
+                                if (view != null) {
+                                    view.loadUrl("https://vibely-sigma-roan.vercel.app");
+                                }
+                                return;
+                            }
                             // Retry loading if connection momentarily dropped
                             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                                 if (view != null) {
@@ -99,6 +106,12 @@ public class MainActivity extends BridgeActivity {
                     @Override
                     public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                         super.onReceivedError(view, errorCode, description, failingUrl);
+                        if (failingUrl != null && failingUrl.contains("localhost")) {
+                            if (view != null) {
+                                view.loadUrl("https://vibely-sigma-roan.vercel.app");
+                            }
+                            return;
+                        }
                         new Handler(Looper.getMainLooper()).postDelayed(() -> {
                             if (view != null) {
                                 view.reload();
@@ -106,6 +119,14 @@ public class MainActivity extends BridgeActivity {
                         }, 3500);
                     }
                 });
+
+                // Immediately load live Vibely server so the app NEVER stays on localhost
+                if (webView != null) {
+                    String current = webView.getUrl();
+                    if (current == null || current.contains("localhost")) {
+                        webView.loadUrl("https://vibely-sigma-roan.vercel.app");
+                    }
+                }
             }
         } catch (Throwable ignored) {
         }
