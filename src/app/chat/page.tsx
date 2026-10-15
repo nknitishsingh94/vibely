@@ -16,7 +16,7 @@ import { InviteModal } from '@/components/chat/invite-modal';
 import { TopNotificationBar } from '@/components/chat/notification-bar';
 import { ScreenshotDetector } from '@/components/chat/screenshot-detector';
 import { SecurityAlertBanner } from '@/components/chat/security-alert-banner';
-import { BrandLogo } from '@/components/ui/brand-logo';
+import { BrandLogo, VibelyEmblem } from '@/components/ui/brand-logo';
 import { toast } from '@/components/ui/toast';
 import { useChatLock } from '@/context/chat-lock-context';
 
@@ -171,8 +171,8 @@ export default function ChatPage() {
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="font-bold text-sm text-foreground">Chat Locked</span>
+                  <VibelyEmblem size="xs" />
+                  <span className="font-bold text-sm text-foreground">Private Space</span>
                 </div>
               </div>
 
@@ -180,19 +180,19 @@ export default function ChatPage() {
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none romantic-wallpaper">
                 <div className="max-w-xs w-full space-y-4 p-8 rounded-3xl bg-card/90 border border-border/80 shadow-2xl backdrop-blur-xl">
                   <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center shadow-xs">
-                    <Lock className="w-8 h-8" />
+                    <VibelyEmblem size="sm" />
                   </div>
                   <div className="space-y-1">
-                    <h3 className="text-lg font-bold text-foreground">Chat is Protected</h3>
+                    <h3 className="text-lg font-bold text-foreground">Private Space</h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      This private conversation is locked behind your 4-digit passcode.
+                      Enter your 4-digit PIN to access this space.
                     </p>
                   </div>
                   <Button
                     onClick={() => openUnlockModal(activeConversationId)}
-                    className="w-full h-11 rounded-2xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-95 cursor-pointer"
+                    className="w-full h-11 rounded-2xl font-bold bg-[#0C3B2E] hover:bg-[#155E49] text-white shadow-md active:scale-95 cursor-pointer"
                   >
-                    Enter Passcode
+                    Enter PIN
                   </Button>
                 </div>
               </div>

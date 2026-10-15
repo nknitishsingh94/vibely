@@ -46,6 +46,7 @@ import { NotificationPermissionBanner } from './notification-permission-banner';
 import { formatConversationTime, cn } from '@/lib/utils';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { useCall } from '@/context/call-context';
+import { toast } from '@/components/ui/toast';
 import { formatCallTime, formatCallDuration } from '@/lib/call-history';
 
 export function Sidebar() {
@@ -72,6 +73,8 @@ export function Sidebar() {
   const {
     lockedConversationIds,
     isUnlocked,
+    hasPasscode,
+    unlockSession,
     openUnlockModal,
     lockSession,
     toggleLockChat,
@@ -92,6 +95,38 @@ export function Sidebar() {
 
   const touchStartY = React.useRef(0);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Stealth Logo Touch & Long-Press Detection
+  const logoPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleLogoTouchStart = React.useCallback(() => {
+    logoPressTimerRef.current = setTimeout(() => {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(25); } catch {}
+      }
+      openUnlockModal();
+    }, 450);
+  }, [openUnlockModal]);
+
+  const handleLogoTouchEnd = React.useCallback(() => {
+    if (logoPressTimerRef.current) {
+      clearTimeout(logoPressTimerRef.current);
+      logoPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleLogoClick = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (lockedConversationIds.length > 0) {
+      if (isUnlocked) {
+        lockSession();
+      } else {
+        openUnlockModal();
+      }
+    } else {
+      setActiveConversationId(null);
+    }
+  }, [lockedConversationIds.length, isUnlocked, lockSession, openUnlockModal, setActiveConversationId]);
 
   const handleManualRefresh = async () => {
     if (isRefreshing) return;
@@ -282,14 +317,23 @@ export function Sidebar() {
         {/* Brand Header */}
         <div className="shrink-0 p-3.5 sm:p-4 border-b border-border/50 flex flex-col gap-2 pt-[max(env(safe-area-inset-top),0.875rem)]">
           <div className="flex items-center justify-between">
-            <BrandLogo
-              size="md"
-              href="/chat"
-              onClick={(e) => {
+            <div
+              onTouchStart={handleLogoTouchStart}
+              onTouchEnd={handleLogoTouchEnd}
+              onTouchMove={handleLogoTouchEnd}
+              onContextMenu={(e) => {
                 e.preventDefault();
-                setActiveConversationId(null);
+                openUnlockModal();
               }}
-            />
+              className="cursor-pointer select-none"
+              title="Vibely Space"
+            >
+              <BrandLogo
+                size="md"
+                href="/chat"
+                onClick={handleLogoClick}
+              />
+            </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button
@@ -329,7 +373,18 @@ export function Sidebar() {
             <input
               type="text"
               value={filterText}
-              onChange={e => setFilterText(e.target.value)}
+              onChange={async (e) => {
+                const val = e.target.value;
+                setFilterText(val);
+                // Stealth passcode entry directly in search bar
+                if (val.length === 4 && /^\d{4}$/.test(val) && hasPasscode && !isUnlocked) {
+                  const res = await unlockSession(val);
+                  if (res.success) {
+                    setFilterText('');
+                    toast.success('Stealth chats unlocked! 🔓');
+                  }
+                }
+              }}
               placeholder="Search Vibely or start new chat"
               className="w-full pl-[3.85rem] pr-8 py-2.5 md:py-2 rounded-xl text-sm md:text-xs bg-muted/60 hover:bg-muted/80 focus:bg-background border border-border/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder:text-muted-foreground transition-all shadow-xs"
             />
@@ -709,56 +764,40 @@ export function Sidebar() {
             </div>
           ) : (
             <>
-              {/* WhatsApp style Locked Chats entry */}
-              {lockedConversationIds.length > 0 && (
-                <div className="border-b border-border/40 bg-card/40">
+              {/* Stealth Locked Chats section - ONLY visible when owner has unlocked via secret touch */}
+              {isUnlocked && lockedConversations.length > 0 && (
+                <div className="border-b border-border/40 bg-card/40 animate-in fade-in duration-200">
                   <div
-                    onClick={() => {
-                      if (isUnlocked) {
-                        lockSession();
-                      } else {
-                        openUnlockModal();
-                      }
-                    }}
-                    className="flex items-center justify-between px-4 py-3.5 md:px-3.5 md:py-3 cursor-pointer hover:bg-muted/40 transition-colors group select-none"
+                    onClick={lockSession}
+                    className="flex items-center justify-between px-4 py-2.5 md:px-3.5 md:py-2 cursor-pointer hover:bg-muted/40 transition-colors group select-none bg-emerald-500/10 border-b border-emerald-500/20"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                        {isUnlocked ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <Lock className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                          <span>Locked Chats</span>
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                            {lockedConversationIds.length}
+                        <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <span>Unlocked Chats</span>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                            {lockedConversations.length}
                           </span>
                         </h4>
-                        <p className="text-xs text-muted-foreground">
-                          {isUnlocked ? 'Tap to hide & lock again' : 'Tap to unlock with passcode'}
-                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {isUnlocked ? (
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            lockSession();
-                          }}
-                          className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground active:scale-95 transition-all"
-                        >
-                          Lock now
-                        </button>
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        lockSession();
+                      }}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all cursor-pointer"
+                    >
+                      Hide & Lock
+                    </button>
                   </div>
 
-                  {/* If unlocked, show the locked conversations right here */}
-                  {isUnlocked && lockedConversations.length > 0 && (
-                    <div className="divide-y divide-border/20 border-t border-border/30 bg-emerald-950/5 dark:bg-emerald-950/20">
+                  {/* Show the unlocked conversations */}
+                  <div className="divide-y divide-border/20 border-t border-border/30 bg-emerald-950/5 dark:bg-emerald-950/20">
                       {lockedConversations.map(conv => {
                         const other = conv.otherUser;
                         const isActive = conv.id === activeConversationId;
@@ -888,43 +927,28 @@ export function Sidebar() {
                         );
                       })}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
 
               {/* Regular Conversations List */}
               {regularConversations.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground space-y-2">
-                  {lockedConversationIds.length > 0 ? (
-                    <>
-                      <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
-                        <Lock className="w-6 h-6" />
-                      </div>
-                      <p className="text-sm font-semibold text-foreground">All active chats are locked</p>
-                      <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
-                        Tap Locked Chats above and enter your passcode to view.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
-                        <Heart className="w-6 h-6" />
-                      </div>
-                      <p className="text-sm font-semibold text-foreground">No chats found</p>
-                      <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
-                        Share your username or connect with your partner to start chatting.
-                      </p>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => setIsInviteOpen(true)}
-                        className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                      >
-                        <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                        Connect Partner
-                      </Button>
-                    </>
-                  )}
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+                    <Heart className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">No chats found</p>
+                  <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
+                    Share your username or connect with your partner to start chatting.
+                  </p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setIsInviteOpen(true)}
+                    className="mt-2 text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                    Connect Partner
+                  </Button>
                 </div>
               ) : (
                 regularConversations.map(conv => {

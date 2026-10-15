@@ -78,6 +78,37 @@ export function ConversationHeader() {
   const [isDeletingMessages, setIsDeletingMessages] = React.useState(false);
   const [isForwardModalOpen, setIsForwardModalOpen] = React.useState(false);
 
+  // Stealth Chat Lock State & Long-Press Gesture Detection
+  const [isSecretLockModalOpen, setIsSecretLockModalOpen] = React.useState(false);
+  const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isLongPressTriggered = React.useRef(false);
+
+  const startLongPress = React.useCallback(() => {
+    isLongPressTriggered.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggered.current = true;
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(25); } catch {}
+      }
+      setIsSecretLockModalOpen(true);
+    }, 450);
+  }, []);
+
+  const clearLongPress = React.useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handlePartnerInfoClick = React.useCallback(() => {
+    if (isLongPressTriggered.current) {
+      isLongPressTriggered.current = false;
+      return;
+    }
+    setIsContactInfoOpen(true);
+  }, []);
+
   // Only allow "Delete for everyone" if ALL selected messages were sent by current user and not already deleted
   const canDeleteForEveryone = React.useMemo(() => {
     if (selectedMessageIds.length === 0) return false;
@@ -220,9 +251,23 @@ export function ConversationHeader() {
             </button>
 
           <div
-            onClick={() => setIsContactInfoOpen(true)}
+            onClick={handlePartnerInfoClick}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setIsSecretLockModalOpen(true);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setIsSecretLockModalOpen(true);
+            }}
+            onTouchStart={startLongPress}
+            onTouchEnd={clearLongPress}
+            onTouchMove={clearLongPress}
+            onMouseDown={startLongPress}
+            onMouseUp={clearLongPress}
+            onMouseLeave={clearLongPress}
             className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer select-none group/partner hover:opacity-90 transition-opacity"
-            title="Click to view partner details & chat security"
+            title="Tap for chat details, hold space to manage stealth lock"
           >
             {/* Friend Avatar with presence ring */}
             <div className="relative">
@@ -245,15 +290,6 @@ export function ConversationHeader() {
                 <span title="Private Romantic Sanctuary" className="inline-flex">
                   <ShieldCheck className="w-4 h-4 md:w-3.5 md:h-3.5 text-primary/80 shrink-0" />
                 </span>
-                {isCurrentLocked && (
-                  <span
-                    title="This chat is locked with your 4-digit passcode"
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full shrink-0"
-                  >
-                    <Lock className="w-2.5 h-2.5" />
-                    <span>Locked</span>
-                  </span>
-                )}
               </div>
 
               <div className="flex items-center gap-2 text-xs truncate">
@@ -327,33 +363,6 @@ export function ConversationHeader() {
               aria-label="Voice Call"
             >
               <Phone className="w-5 h-5 md:w-4 md:h-4" />
-            </button>
-
-            {/* Single User Chat Lock / Unlock Action Button - Visible on both Mobile & Desktop! */}
-            <button
-              type="button"
-              onClick={() => {
-                if (activeConversation) {
-                  toggleLockChat(activeConversation.id, friend?.display_name);
-                }
-              }}
-              className={`w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl active:scale-95 transition-all cursor-pointer shrink-0 ${
-                isCurrentLocked
-                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 ring-1 ring-emerald-500/40'
-                  : 'bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-              title={
-                isCurrentLocked
-                  ? `Unlock chat with ${friend?.display_name || 'partner'} (remove PIN)`
-                  : `Lock chat with ${friend?.display_name || 'partner'} (hide behind 4-digit PIN)`
-              }
-              aria-label="Toggle Single User Chat Lock"
-            >
-              {isCurrentLocked ? (
-                <Unlock className="w-5 h-5 md:w-4 md:h-4 text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <Lock className="w-5 h-5 md:w-4 md:h-4" />
-              )}
             </button>
 
             {/* Desktop Additional Buttons */}
@@ -876,6 +885,72 @@ export function ConversationHeader() {
               <Trash2 className="w-4 h-4" />
               <span>Delete Chat & Remove Friend</span>
             </button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Secret Stealth Chat Lock Dialog */}
+      <Dialog
+        isOpen={isSecretLockModalOpen}
+        onClose={() => setIsSecretLockModalOpen(false)}
+        title="Stealth Chat Lock"
+        size="sm"
+      >
+        <div className="space-y-4 pt-1 select-none">
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-2">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center shadow-xs">
+              {isCurrentLocked ? <ShieldCheck className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">
+                {isCurrentLocked ? 'This Chat is Locked & Hidden' : 'Lock & Hide This Chat'}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                {isCurrentLocked
+                  ? 'This chat is secret. It is hidden from the public chats list and protected by your PIN.'
+                  : 'Hides this chat from your main conversation list. It can only be revealed by touching the Vibely logo and entering your PIN.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
+            {isCurrentLocked ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  if (activeConversation) {
+                    toggleLockChat(activeConversation.id, friend?.display_name);
+                    setIsSecretLockModalOpen(false);
+                  }
+                }}
+                className="w-full rounded-xl bg-muted hover:bg-muted/80 text-foreground font-semibold text-xs h-10 cursor-pointer"
+              >
+                <span>Unlock & Make Public Again</span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => {
+                  if (activeConversation) {
+                    toggleLockChat(activeConversation.id, friend?.display_name);
+                    setIsSecretLockModalOpen(false);
+                  }
+                }}
+                className="w-full rounded-xl bg-[#0C3B2E] hover:bg-[#155E49] text-white font-bold text-xs h-10 shadow-sm cursor-pointer"
+              >
+                <Lock className="w-4 h-4 mr-1.5" />
+                <span>Lock & Hide Chat Behind PIN</span>
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsSecretLockModalOpen(false)}
+              className="w-full rounded-xl text-xs text-muted-foreground cursor-pointer"
+            >
+              Cancel
+            </Button>
           </div>
         </div>
       </Dialog>
