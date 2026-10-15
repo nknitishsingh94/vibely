@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { generateSixDigitOtp, sendOtpEmail } from '@/lib/email-service';
 
 export async function POST(req: Request) {
   try {
@@ -93,24 +94,17 @@ export async function POST(req: Request) {
           },
           { status: 400 }
         );
-      } else {
-        // Orphaned unconfirmed/deleted user without profile: delete so fresh OTP signup proceeds smoothly
-        try {
-          await adminClient.auth.admin.deleteUser(existingAuthUser.id);
-        } catch (delErr) {
-          console.warn('Error deleting orphaned user in send-signup-otp:', delErr);
-        }
       }
     }
 
     // 4. Check if username is already taken by a profile
-    const { data: profileWithUsername, error: pError } = await adminClient
+    const { data: profileWithUsername } = await adminClient
       .from('profiles')
       .select('id, username')
       .ilike('username', cleanUsername)
       .maybeSingle();
 
-    if (profileWithUsername) {
+    if (profileWithUsername && (!existingAuthUser || profileWithUsername.id !== existingAuthUser.id)) {
       return NextResponse.json(
         {
           error: 'username_exists',
@@ -120,37 +114,64 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5. Send 6-digit OTP code to the email address via Supabase Auth
-    const anonClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
-      auth: { persistSession: false },
-    });
+    // 5. Generate 6-digit OTP and store with 10-minute expiry
+    const generatedOtp = generateSixDigitOtp();
+    const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    const { error: otpError } = await anonClient.auth.signInWithOtp({
-      email: cleanEmail,
-      options: {
-        shouldCreateUser: true,
-        data: {
+    if (existingAuthUser) {
+      await adminClient.auth.admin.updateUserById(existingAuthUser.id, {
+        user_metadata: {
+          ...existingAuthUser.user_metadata,
+          signup_otp: generatedOtp,
+          signup_otp_expires: expiry,
           display_name: cleanDisplayName,
           username: cleanUsername,
         },
-      },
+      });
+    } else {
+      await adminClient.auth.admin.createUser({
+        email: cleanEmail,
+        email_confirm: false,
+        user_metadata: {
+          signup_otp: generatedOtp,
+          signup_otp_expires: expiry,
+          display_name: cleanDisplayName,
+          username: cleanUsername,
+        },
+      });
+    }
+
+    // 6. Deliver the OTP email (via Free Gmail/Custom SMTP or fallback)
+    const emailResult = await sendOtpEmail({
+      to: cleanEmail,
+      otp: generatedOtp,
+      displayName: cleanDisplayName,
     });
 
-    if (otpError) {
-      console.error('Error sending OTP via Supabase:', otpError);
-      return NextResponse.json(
-        {
-          error: 'otp_failed',
-          message: otpError.message || 'Failed to send verification code. Please check the email address.',
+    // If custom SMTP is not set, also trigger Supabase's signInWithOtp as dual delivery
+    if (emailResult.provider === 'supabase') {
+      const anonClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+        auth: { persistSession: false },
+      });
+      await anonClient.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          shouldCreateUser: true,
+          data: {
+            display_name: cleanDisplayName,
+            username: cleanUsername,
+          },
         },
-        { status: 400 }
-      );
+      }).catch((e) => console.warn('Supabase signInWithOtp notice:', e?.message));
     }
+
+    console.log(`[Signup OTP] Generated code for ${cleanEmail} (delivery: ${emailResult.provider})`);
 
     return NextResponse.json({
       success: true,
       email: cleanEmail,
-      message: `A 6-digit verification code has been sent to ${cleanEmail}. Please enter it to verify your email.`,
+      provider: emailResult.provider,
+      message: `A 6-digit verification code has been sent to ${cleanEmail}. Please enter the code to complete registration.`,
     });
   } catch (err: any) {
     console.error('Unexpected error in send-signup-otp:', err);

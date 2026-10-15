@@ -34,19 +34,43 @@ export async function POST(req: Request) {
       );
     }
 
-    const anonClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+    const adminClient = createClient(env.supabaseUrl, serviceKey, {
       auth: { persistSession: false },
     });
 
-    // 1. Verify OTP code with Supabase Auth
-    const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
-      email: cleanEmail,
-      token: cleanOtp,
-      type: 'email',
-    });
+    // 1. Find user in auth.users
+    const { data: usersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const userRecord = usersData?.users?.find(
+      (u) => (u.email || '').toLowerCase() === cleanEmail
+    );
 
-    if (verifyErr || !verifyData?.user) {
-      console.warn('verifyOtp error for email:', cleanEmail, verifyErr?.message);
+    let isOtpValid = false;
+
+    // Check our stored OTP in user_metadata
+    if (userRecord?.user_metadata?.signup_otp) {
+      const storedOtp = String(userRecord.user_metadata.signup_otp).trim();
+      const expires = Number(userRecord.user_metadata.signup_otp_expires || 0);
+      if (storedOtp === cleanOtp && Date.now() < expires) {
+        isOtpValid = true;
+      }
+    }
+
+    // Fallback: also check Supabase verifyOtp
+    if (!isOtpValid) {
+      const anonClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+        auth: { persistSession: false },
+      });
+      const { data: verifyData } = await anonClient.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanOtp,
+        type: 'email',
+      });
+      if (verifyData?.user) {
+        isOtpValid = true;
+      }
+    }
+
+    if (!isOtpValid || !userRecord) {
       return NextResponse.json(
         {
           error: 'invalid_otp',
@@ -56,25 +80,27 @@ export async function POST(req: Request) {
       );
     }
 
-    const verifiedUserId = verifyData.user.id;
-    const adminClient = createClient(env.supabaseUrl, serviceKey, {
-      auth: { persistSession: false },
-    });
+    const verifiedUserId = userRecord.id;
 
-    // 2. Set the permanent password, display name, and username on the verified account
+    // 2. Set the permanent password, display name, and clear the signup OTP
+    const updatedMetadata = {
+      ...(userRecord.user_metadata || {}),
+      display_name: cleanDisplayName,
+      username: cleanUsername,
+    };
+    delete (updatedMetadata as any).signup_otp;
+    delete (updatedMetadata as any).signup_otp_expires;
+
     const { error: updateErr } = await adminClient.auth.admin.updateUserById(verifiedUserId, {
       password,
       email_confirm: true,
-      user_metadata: {
-        display_name: cleanDisplayName,
-        username: cleanUsername,
-      },
+      user_metadata: updatedMetadata,
     });
 
     if (updateErr) {
-      console.error('Error setting password on verified user:', updateErr);
+      console.error('Error updating user on OTP verification:', updateErr);
       return NextResponse.json(
-        { error: 'update_failed', message: updateErr.message || 'Failed to finalize account security.' },
+        { error: 'update_failed', message: updateErr.message || 'Failed to finalize account.' },
         { status: 500 }
       );
     }
@@ -117,7 +143,6 @@ export async function POST(req: Request) {
         display_name: cleanDisplayName,
         username: cleanUsername,
       },
-      session: verifyData.session,
       message: 'Email successfully verified! Welcome to Vibely.',
     });
   } catch (err: any) {
