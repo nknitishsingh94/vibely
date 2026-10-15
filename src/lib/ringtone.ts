@@ -559,6 +559,13 @@ export function stopAllRingtones() {
     } catch {}
   }
 
+  // Also stop native Android background service ringtone if running in APK
+  if (typeof window !== 'undefined' && (window as any).VibelyNative) {
+    try {
+      (window as any).VibelyNative.stopRingtone();
+    } catch {}
+  }
+
   if (masterGain && audioCtx) {
     try {
       masterGain.gain.cancelScheduledValues(audioCtx.currentTime);

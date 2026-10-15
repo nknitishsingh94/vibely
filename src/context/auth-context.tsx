@@ -60,6 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data) {
         setProfile(data as Profile);
+        if (typeof window !== 'undefined' && (window as any).VibelyNative) {
+          try {
+            (window as any).VibelyNative.onUserLoggedIn(data.id, data.username || '', data.display_name || '');
+          } catch (e) {
+            console.warn('Native bridge login error:', e);
+          }
+        }
       } else {
         // User profile does NOT exist in public.profiles!
         // The user was deleted from the database. Do NOT resurrect!
@@ -260,6 +267,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isConfigured) {
       const supabase = getSupabaseBrowserClient();
       await supabase.auth.signOut();
+    }
+    if (typeof window !== 'undefined' && (window as any).VibelyNative) {
+      try {
+        (window as any).VibelyNative.onUserLoggedOut();
+      } catch (e) {
+        console.warn('Native bridge logout error:', e);
+      }
     }
     setUser(null);
     setProfile(null);

@@ -16,6 +16,8 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.content.Context;
+import android.content.SharedPreferences;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.Bridge;
@@ -23,6 +25,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
+    public static volatile boolean isAppInForeground = false;
     private ContentObserver screenshotObserver;
     private String lastCapturedScreenshotPath = "";
     private long lastCapturedScreenshotTime = 0;
@@ -30,6 +33,17 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        isAppInForeground = true;
+
+        // Auto-start Vibely background service if user was previously logged in
+        try {
+            SharedPreferences prefs = getSharedPreferences("vibely_prefs", Context.MODE_PRIVATE);
+            String savedUserId = prefs.getString("user_id", null);
+            if (savedUserId != null && !savedUserId.trim().isEmpty()) {
+                VibelyBackgroundService.startService(this, savedUserId);
+            }
+        } catch (Throwable ignored) {
+        }
 
         // 1. Request runtime notification permission for Android 13+ (Tiramisu / API 33+)
         try {
@@ -89,6 +103,9 @@ public class MainActivity extends BridgeActivity {
                         }
                         settings.setUserAgentString(cleanedUa);
                     }
+
+                    // Register Native Bridge for JavaScript communication
+                    webView.addJavascriptInterface(new VibelyNativeBridge(this), "VibelyNative");
                 }
 
                 b.setWebViewClient(new BridgeWebViewClient(b) {
@@ -190,6 +207,30 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        isAppInForeground = true;
+        // Stop background ringtone and cancel notification if user opened the app
+        try {
+            VibelyBackgroundService service = VibelyBackgroundService.getInstance();
+            if (service != null) {
+                service.stopRinging();
+            }
+            android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.cancel(VibelyBackgroundService.NOTIFICATION_CALL_ID);
+            }
+        } catch (Throwable ignored) {}
+        handleIncomingIntent(getIntent());
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        isAppInForeground = false;
+    }
+
+    @Override
     protected void onNewIntent(android.content.Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -197,11 +238,23 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void handleIncomingIntent(android.content.Intent intent) {
-        if (intent == null || intent.getData() == null) return;
+        if (intent == null) return;
         try {
-            android.net.Uri data = intent.getData();
             Bridge b = getBridge();
-            if (b != null && b.getWebView() != null) {
+            if (b == null || b.getWebView() == null) return;
+
+            // 1. Direct targetUrl extra (from notification click)
+            if (intent.hasExtra("targetUrl")) {
+                String targetUrl = intent.getStringExtra("targetUrl");
+                if (targetUrl != null && !targetUrl.isEmpty()) {
+                    b.getWebView().loadUrl(targetUrl);
+                    return;
+                }
+            }
+
+            // 2. Deep Link data intent
+            if (intent.getData() != null) {
+                android.net.Uri data = intent.getData();
                 String scheme = data.getScheme();
                 String host = data.getHost();
                 if ("vibely".equals(scheme) || "com.vibely.app".equals(scheme)) {
