@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { useAuth } from '@/context/auth-context';
+import { AppStatsBanner } from '@/components/landing/app-stats-banner';
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -428,6 +429,9 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        {/* Live Downloads & Real-Time Active Users Banner (Web Only) */}
+        <AppStatsBanner />
       </main>
 
       {/* Footer */}
