@@ -159,6 +159,7 @@ export async function POST(req: Request) {
       (cleanEmail ? cleanEmail.split('@')[0] : 'Vibely User');
 
     let baseUsername = (
+      userMetadata.username ||
       userMetadata.preferred_username ||
       userMetadata.user_name ||
       (cleanEmail ? cleanEmail.split('@')[0] : 'user')

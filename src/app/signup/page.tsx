@@ -215,9 +215,11 @@ function SignupForm() {
             });
             if (!retryRes.error) {
               router.replace('/chat');
-              if (typeof window !== 'undefined') {
-                window.location.href = '/chat';
-              }
+              setTimeout(() => {
+                if (typeof window !== 'undefined' && window.location.pathname === '/signup') {
+                  window.location.href = '/chat';
+                }
+              }, 1000);
               return;
             }
           } catch (autoErr) {
@@ -226,9 +228,11 @@ function SignupForm() {
         }
       } else {
         router.replace('/chat');
-        if (typeof window !== 'undefined') {
-          window.location.href = '/chat';
-        }
+        setTimeout(() => {
+          if (typeof window !== 'undefined' && window.location.pathname === '/signup') {
+            window.location.href = '/chat';
+          }
+        }, 1000);
         return;
       }
 

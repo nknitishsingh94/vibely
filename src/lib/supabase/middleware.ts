@@ -55,7 +55,16 @@ export async function updateSession(request: NextRequest) {
   const isProtectedPath = pathname.startsWith('/chat') || pathname.startsWith('/settings');
   const isAuthPath = pathname === '/login' || pathname === '/signup';
 
-  if (!user && isProtectedPath) {
+  // Check if request is from native Android APK / WebView
+  const userAgent = request.headers.get('user-agent') || '';
+  const isNativeApp =
+    userAgent.includes('VibelyApp') ||
+    userAgent.includes('wv') ||
+    request.headers.get('x-requested-with') === 'com.vibely.app';
+
+  // If user is accessing protected path without session cookies:
+  // On native app, do not prematurely redirect so client-side localStorage session can hydrate!
+  if (!user && isProtectedPath && !isNativeApp) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirectTo', pathname);

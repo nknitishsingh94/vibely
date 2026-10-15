@@ -156,9 +156,11 @@ function LoginForm() {
               });
               if (!retryRes.error) {
                 router.replace(redirectTo);
-                if (typeof window !== 'undefined') {
-                  window.location.href = redirectTo || '/chat';
-                }
+                setTimeout(() => {
+                  if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+                    window.location.href = redirectTo || '/chat';
+                  }
+                }, 1000);
                 return;
               }
               error = retryRes.error;
@@ -179,9 +181,11 @@ function LoginForm() {
         setIsLoading(false);
       } else {
         router.replace(redirectTo);
-        if (typeof window !== 'undefined') {
-          window.location.href = redirectTo || '/chat';
-        }
+        setTimeout(() => {
+          if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+            window.location.href = redirectTo || '/chat';
+          }
+        }, 1000);
       }
     } catch (err: unknown) {
       setAuthError((err as Error)?.message || 'Sign in failed. Please try again.');
