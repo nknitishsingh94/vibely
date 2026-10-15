@@ -13,7 +13,6 @@ import {
   FileText,
   Sparkles,
   Heart,
-  FolderHeart,
   Copy,
   Check,
   CheckCheck,
@@ -54,7 +53,6 @@ export function Sidebar() {
     setActiveConversationId,
     friendPresence,
     isUserOnline,
-    setIsMediaDrawerOpen,
     incomingRequests,
     respondToRequest,
     typingUsers,
@@ -380,15 +378,6 @@ export function Sidebar() {
                   {unreadMissedCallsCount}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => setIsMediaDrawerOpen(true)}
-              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 md:px-2.5 md:py-1 rounded-full text-xs md:text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-              title="Open Our Moments gallery"
-            >
-              <FolderHeart className="w-3.5 h-3.5 text-primary" />
-              <span>Moments</span>
             </button>
           </div>
         </div>
