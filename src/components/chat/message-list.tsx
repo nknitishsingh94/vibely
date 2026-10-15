@@ -28,19 +28,11 @@ export function MessageList() {
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Filter messages based on search query and exclude persistent security alerts so reopening chat is 100% clean
+  // Filter messages based on search query (includes real-time screenshot alerts)
   const filteredMessages = React.useMemo(() => {
-    const cleanList = messages.filter(
-      m =>
-        !m.body?.startsWith('[📸 Screenshot]') &&
-        !m.body?.startsWith('[💾 Video Saved]') &&
-        !m.body?.startsWith('[🖼️ Photo Saved]') &&
-        !m.body?.startsWith('[📥 File Downloaded]')
-    );
-
-    if (!searchQuery.trim()) return cleanList;
+    if (!searchQuery.trim()) return messages;
     const q = searchQuery.toLowerCase();
-    return cleanList.filter(
+    return messages.filter(
       m =>
         (m.body && m.body.toLowerCase().includes(q)) ||
         (m.original_filename && m.original_filename.toLowerCase().includes(q))
@@ -196,8 +188,10 @@ export function MessageList() {
         </div>
       ) : null}
 
-      {/* Ephemeral Session Security Alerts (Only active during current chat session; vanished when exiting) */}
-      {sessionSecurityAlerts.map(alert => {
+      {/* Ephemeral Session Security Alerts (screenshots are rendered directly as chat bubbles) */}
+      {sessionSecurityAlerts
+        .filter(alert => alert.type !== 'screenshot')
+        .map(alert => {
         const isSelf = alert.userId === profile?.id;
         const isScreenshot = alert.type === 'screenshot';
         const isVideo = alert.type === 'video_saved';

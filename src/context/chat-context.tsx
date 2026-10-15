@@ -12,6 +12,7 @@ import {
   MessageReaction,
   DeliveryStatus,
   Message,
+  Profile,
   PartnerActivity,
   PartnerActivityType,
 } from '@/types/database';
@@ -143,6 +144,36 @@ function storeDeletedForMe(userId: string | undefined | null, messageIds: string
   } catch (e) {
     console.error('Error storing deleted for me IDs:', e);
   }
+}
+
+function createScreenshotMessageItem(
+  id: string,
+  conversationId: string,
+  senderId: string,
+  isoTime: string,
+  senderProfile?: Profile
+): MessageWithDetails {
+  return {
+    id,
+    conversation_id: conversationId,
+    sender_id: senderId,
+    message_type: 'text',
+    body: '[📸 Screenshot]',
+    storage_path: null,
+    original_filename: null,
+    mime_type: null,
+    file_size: null,
+    duration_seconds: null,
+    reply_to_message_id: null,
+    created_at: isoTime,
+    updated_at: isoTime,
+    edited_at: null,
+    deleted_at: null,
+    deliveryStatus: 'delivered',
+    sender: senderProfile,
+    receipts: [],
+    reactions: [],
+  };
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -628,6 +659,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try { navigator.vibrate([50, 70, 50]); } catch {}
           }
+
+          // If in active chat, append screenshot message to messages list in real time!
+          if (payload.type === 'screenshot' && activeConversationIdRef.current === payload.conversationId) {
+            const partnerMsg = createScreenshotMessageItem(
+              payload.id || `sec_msg_${Date.now()}`,
+              payload.conversationId,
+              payload.userId,
+              new Date(payload.timestamp || Date.now()).toISOString(),
+              {
+                id: payload.userId,
+                display_name: payload.userName,
+                username: payload.userName,
+              } as Profile
+            );
+            setMessages(prev => {
+              const exists = prev.some(
+                m => m.body === '[📸 Screenshot]' && Math.abs(new Date(m.created_at).getTime() - (payload.timestamp || Date.now())) < 4000
+              );
+              return exists ? prev : [...prev, partnerMsg];
+            });
+          }
+
           // Trigger OS notification banner if page is in background or tab not focused
           if (typeof document !== 'undefined' && (document.hidden || !document.hasFocus())) {
             const userName = payload.userName || 'Partner';
@@ -1277,6 +1330,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
           try { navigator.vibrate([50, 70, 50]); } catch {}
         }
+
+        // Realtime instant message display in chat
+        if (payload.type === 'screenshot') {
+          const partnerMsg = createScreenshotMessageItem(
+            payload.id || `sec_msg_${Date.now()}`,
+            payload.conversationId,
+            payload.userId,
+            new Date(payload.timestamp || Date.now()).toISOString(),
+            {
+              id: payload.userId,
+              display_name: payload.userName,
+              username: payload.userName,
+            } as Profile
+          );
+          setMessages(prev => {
+            const exists = prev.some(
+              m => m.body === '[📸 Screenshot]' && Math.abs(new Date(m.created_at).getTime() - (payload.timestamp || Date.now())) < 4000
+            );
+            return exists ? prev : [...prev, partnerMsg];
+          });
+        }
+
         if (typeof document !== 'undefined' && (document.hidden || !document.hasFocus())) {
           const userName = payload.userName || 'Partner';
           const isScreenshot = payload.type === 'screenshot';
@@ -1889,16 +1964,44 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         }).catch(() => {});
       }
 
-      // Record permanent screenshot security event in messages table
+      // Record permanent screenshot security event in messages table and local messages in real time!
       if (type === 'screenshot') {
+        const optimisticMsgId = `sec_msg_${now}_${Math.random().toString(36).slice(2, 7)}`;
+        const isoNow = new Date(now).toISOString();
+        const screenshotMsg = createScreenshotMessageItem(
+          optimisticMsgId,
+          convId,
+          profile.id,
+          isoNow,
+          profile
+        );
+
+        // 1. Immediately append to local messages in real time!
+        setMessages(prev => [...prev, screenshotMsg]);
+
+        // 2. Insert to Supabase messages table in real time!
         try {
           const supabase = getSupabaseBrowserClient();
-          await supabase.from('messages').insert({
-            conversation_id: convId,
-            sender_id: profile.id,
-            message_type: 'text',
-            body: '[📸 Screenshot]',
-          });
+          supabase
+            .from('messages')
+            .insert({
+              conversation_id: convId,
+              sender_id: profile.id,
+              message_type: 'text',
+              body: '[📸 Screenshot]',
+            })
+            .select()
+            .single()
+            .then((res: { data: any; error: any }) => {
+              if (res.error) {
+                console.warn('Screenshot message insert warning:', res.error);
+              }
+              if (res.data) {
+                setMessages(prev =>
+                  prev.map(m => (m.id === optimisticMsgId ? { ...m, ...res.data, sender: profile } : m))
+                );
+              }
+            });
         } catch (e) {
           console.warn('Could not record screenshot message:', e);
         }

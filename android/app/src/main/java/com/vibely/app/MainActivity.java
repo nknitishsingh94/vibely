@@ -45,14 +45,23 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable ignored) {
         }
 
-        // 1. Request runtime notification permission for Android 13+ (Tiramisu / API 33+)
+        // 1. Request runtime notification & media read permissions for real-time screenshot alerts
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                        != PackageManager.PERMISSION_GRANTED) {
+                boolean hasNotif = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+                boolean hasImages = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED;
+                if (!hasNotif || !hasImages) {
                     ActivityCompat.requestPermissions(
                             this,
-                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.READ_MEDIA_IMAGES},
+                            101
+                    );
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(
+                            this,
+                            new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
                             101
                     );
                 }
@@ -314,25 +323,52 @@ public class MainActivity extends BridgeActivity {
     private void checkScreenshotFromUri(Uri uri) {
         try {
             String[] projection = new String[]{
-                    MediaStore.Images.Media.DATA,
-                    MediaStore.Images.Media.DATE_ADDED
+                    MediaStore.Images.Media._ID,
+                    MediaStore.Images.Media.DISPLAY_NAME,
+                    MediaStore.Images.Media.DATE_ADDED,
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? MediaStore.Images.Media.RELATIVE_PATH : MediaStore.Images.Media.DATA
             };
-            try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
+            String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC";
+            try (Cursor cursor = getContentResolver().query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    null,
+                    null,
+                    sortOrder
+            )) {
                 if (cursor != null && cursor.moveToFirst()) {
-                    int dataIdx = cursor.getColumnIndex(MediaStore.Images.Media.DATA);
-                    if (dataIdx != -1) {
-                        String path = cursor.getString(dataIdx);
-                        long now = System.currentTimeMillis();
-                        if (path != null) {
-                            String lowerPath = path.toLowerCase();
-                            if ((lowerPath.contains("screenshot") || lowerPath.contains("screen_shot"))
-                                    && !path.equals(lastCapturedScreenshotPath)
-                                    && (now - lastCapturedScreenshotTime > 3000)) {
-                                lastCapturedScreenshotPath = path;
-                                lastCapturedScreenshotTime = now;
-                                notifyScreenshotDetected();
-                            }
+                    long now = System.currentTimeMillis();
+                    int dateAddedIdx = cursor.getColumnIndex(MediaStore.Images.Media.DATE_ADDED);
+                    long dateAddedSec = dateAddedIdx != -1 ? cursor.getLong(dateAddedIdx) : 0;
+                    long dateAddedMs = dateAddedSec * 1000L;
+
+                    // Must be captured recently (within last 15 seconds)
+                    if (Math.abs(now - dateAddedMs) > 15000 && dateAddedMs > 0) {
+                        return;
+                    }
+
+                    int nameIdx = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME);
+                    String name = nameIdx != -1 ? cursor.getString(nameIdx) : "";
+
+                    String path = "";
+                    try {
+                        int pathIdx = cursor.getColumnIndex(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? MediaStore.Images.Media.RELATIVE_PATH : MediaStore.Images.Media.DATA);
+                        if (pathIdx != -1) {
+                            path = cursor.getString(pathIdx);
                         }
+                    } catch (Exception ignored) {}
+
+                    String checkStr = ((name != null ? name : "") + " " + (path != null ? path : "")).toLowerCase();
+                    boolean isScreenshot = checkStr.contains("screenshot") ||
+                                           checkStr.contains("screen_shot") ||
+                                           checkStr.contains("screencap") ||
+                                           checkStr.contains("screen-shot") ||
+                                           checkStr.contains("capture");
+
+                    if (isScreenshot && !checkStr.equals(lastCapturedScreenshotPath) && (now - lastCapturedScreenshotTime > 2500)) {
+                        lastCapturedScreenshotPath = checkStr;
+                        lastCapturedScreenshotTime = now;
+                        notifyScreenshotDetected();
                     }
                 }
             }
@@ -345,7 +381,7 @@ public class MainActivity extends BridgeActivity {
             try {
                 if (getBridge() != null && getBridge().getWebView() != null) {
                     getBridge().getWebView().evaluateJavascript(
-                            "window.dispatchEvent(new CustomEvent('vibely_screenshot_captured'));",
+                            "if (window.onVibelyScreenshotDetected) { window.onVibelyScreenshotDetected(); } else { window.dispatchEvent(new CustomEvent('vibely_screenshot_captured')); }",
                             null
                     );
                 }
