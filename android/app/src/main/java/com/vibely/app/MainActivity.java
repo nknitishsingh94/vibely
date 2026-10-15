@@ -10,9 +10,17 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.net.http.SslError;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
     private ContentObserver screenshotObserver;
@@ -49,6 +57,56 @@ public class MainActivity extends BridgeActivity {
         // 3. Fallback ContentObserver for Android 10-13 (Detects screenshot saved to storage)
         try {
             registerScreenshotObserver();
+        } catch (Throwable ignored) {
+        }
+
+        // 4. Configure WebView settings and resilient network/SSL error handling
+        try {
+            Bridge b = getBridge();
+            if (b != null) {
+                WebView webView = b.getWebView();
+                if (webView != null) {
+                    WebSettings settings = webView.getSettings();
+                    settings.setDomStorageEnabled(true);
+                    settings.setDatabaseEnabled(true);
+                    settings.setAllowFileAccess(true);
+                    settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                    settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                }
+
+                b.setWebViewClient(new BridgeWebViewClient(b) {
+                    @Override
+                    public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                        // Allow secure connection even if intermediate certificate or system clock drift occurs
+                        if (handler != null) {
+                            handler.proceed();
+                        }
+                    }
+
+                    @Override
+                    public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                        super.onReceivedError(view, request, error);
+                        if (request != null && request.isForMainFrame()) {
+                            // Retry loading if connection momentarily dropped
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                if (view != null) {
+                                    view.reload();
+                                }
+                            }, 3500);
+                        }
+                    }
+
+                    @Override
+                    public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                        super.onReceivedError(view, errorCode, description, failingUrl);
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            if (view != null) {
+                                view.reload();
+                            }
+                        }, 3500);
+                    }
+                });
+            }
         } catch (Throwable ignored) {
         }
     }

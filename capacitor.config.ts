@@ -7,6 +7,7 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://vibely-sigma-roan.vercel.app',
     cleartext: true,
+    errorPath: 'index.html',
   },
   android: {
     allowMixedContent: true,
