@@ -100,7 +100,16 @@ export async function registerPushSubscription(userId: string) {
   if (!isNotificationSupported() || Notification.permission !== 'granted' || !userId) return;
 
   try {
-    const reg = await navigator.serviceWorker.ready;
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      reg = await navigator.serviceWorker.register('/sw.js');
+    }
+
+    // Wait for worker ready with timeout
+    const readyTimeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 4000));
+    await Promise.race([navigator.serviceWorker.ready, readyTimeout]);
+
+    reg = (await navigator.serviceWorker.getRegistration()) || reg;
     if (!reg || !reg.pushManager) return;
 
     let sub = await reg.pushManager.getSubscription();
@@ -120,6 +129,7 @@ export async function registerPushSubscription(userId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, subscription: sub.toJSON() }),
       });
+      console.log('[Vibely Push] Background push subscription registered successfully for user:', userId);
     }
   } catch (err) {
     console.warn('Failed to register push subscription:', err);

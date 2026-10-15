@@ -62,7 +62,7 @@ export function PwaRegister() {
       'serviceWorker' in navigator &&
       (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ) {
-      window.addEventListener('load', () => {
+      const registerSW = () => {
         navigator.serviceWorker
           .register('/sw.js')
           .then((registration) => {
@@ -71,7 +71,13 @@ export function PwaRegister() {
           .catch((error) => {
             console.warn('[Vibely PWA] Service Worker registration failed:', error);
           });
-      });
+      };
+
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+      }
     }
 
     // Capture Chrome beforeinstallprompt event

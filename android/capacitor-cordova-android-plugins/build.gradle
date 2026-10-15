@@ -51,19 +51,9 @@ dependencies {
 }
 
 // PLUGIN GRADLE EXTENSIONS START
-if (file("cordova.variables.gradle").exists()) {
-    apply from: "cordova.variables.gradle"
-} else {
-    ext {
-        cdvMinSdkVersion = project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 24
-        cdvPluginPostBuildExtras = []
-        cordovaConfig = [:]
-    }
-}
+apply from: "cordova.variables.gradle"
 // PLUGIN GRADLE EXTENSIONS END
 
-if (project.hasProperty('cdvPluginPostBuildExtras')) {
-    for (def func : cdvPluginPostBuildExtras) {
-        func()
-    }
+for (def func : cdvPluginPostBuildExtras) {
+    func()
 }

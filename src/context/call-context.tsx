@@ -1321,13 +1321,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // Auto-register device for background OS push wake-up when authenticated
   useEffect(() => {
-    if (
-      profile?.id &&
-      typeof window !== 'undefined' &&
-      'Notification' in window &&
-      Notification.permission === 'granted'
-    ) {
+    if (!profile?.id || typeof window === 'undefined' || !('Notification' in window)) return;
+
+    if (Notification.permission === 'granted') {
       registerPushSubscription(profile.id);
+    } else if (Notification.permission === 'default') {
+      const askOnGesture = async () => {
+        try {
+          const res = await Notification.requestPermission();
+          if (res === 'granted' && profile?.id) {
+            registerPushSubscription(profile.id);
+          }
+        } catch {}
+      };
+      window.addEventListener('click', askOnGesture, { once: true });
+      window.addEventListener('touchend', askOnGesture, { once: true });
+      return () => {
+        window.removeEventListener('click', askOnGesture);
+        window.removeEventListener('touchend', askOnGesture);
+      };
     }
   }, [profile?.id]);
 
