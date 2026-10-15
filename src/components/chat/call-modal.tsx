@@ -823,20 +823,23 @@ export function CallModal() {
           />
 
           {/* Floating Controls Bar */}
-          <div className="relative z-10 flex items-center justify-center gap-2.5 sm:gap-4 w-full">
+          <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-3.5 w-full flex-wrap px-2">
             {/* Toggle Mic */}
             <button
               type="button"
-              onClick={toggleMute}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleMute();
+              }}
               className={cn(
                 'w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95',
                 isMuted
-                  ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/40 ring-2 ring-rose-400'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/40 ring-2 ring-amber-400'
                   : isLightScreen
                   ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/90'
                   : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20'
               )}
-              title={isMuted ? 'Unmute' : 'Mute'}
+              title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
             >
               {isMuted ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5" />}
             </button>
@@ -908,16 +911,21 @@ export function CallModal() {
             {isVideo && isVideoEnabled && !isScreenSharing && (
               <button
                 type="button"
-                onClick={flipCamera}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  flipCamera();
+                }}
                 className={cn(
                   "w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg active:scale-95 border",
-                  isLightScreen
+                  facingMode === 'environment'
+                    ? "bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400/50 shadow-emerald-600/30"
+                    : isLightScreen
                     ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200/90"
                     : "bg-white/15 hover:bg-white/25 text-white border-white/20 backdrop-blur-md"
                 )}
-                title="Flip camera (Front / Rear)"
+                title={facingMode === 'environment' ? "Back camera active (Tap to switch to front)" : "Front camera active (Tap to switch to back)"}
               >
-                <SwitchCamera className="w-5 h-5 text-emerald-600" />
+                <SwitchCamera className={cn("w-5 h-5", facingMode === 'environment' ? "text-white" : "text-emerald-500")} />
               </button>
             )}
 
@@ -959,11 +967,14 @@ export function CallModal() {
               </button>
             )}
 
-            {/* End Call Button */}
+            {/* End Call Button - Distinct separation so it cannot be touched accidentally */}
             <button
               type="button"
-              onClick={endCall}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-90 text-white flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all cursor-pointer ring-2 ring-rose-400/40"
+              onClick={(e) => {
+                e.stopPropagation();
+                endCall();
+              }}
+              className="ml-2 sm:ml-4 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-90 text-white flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all cursor-pointer ring-2 ring-rose-400/40 shrink-0"
               title="End Call"
             >
               <PhoneOff className="w-6 h-6 text-white" />

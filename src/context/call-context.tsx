@@ -1855,21 +1855,46 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // Controls: Mute
   const toggleMute = () => {
-    const nextMuted = !isMuted;
-    if (localStreamRef.current) {
-      const audioTracks = localStreamRef.current.getAudioTracks();
-      audioTracks.forEach(track => {
-        track.enabled = !nextMuted;
-      });
-    }
-    setIsMuted(nextMuted);
+    try {
+      const nextMuted = !isMuted;
+      if (localStreamRef.current) {
+        const audioTracks = localStreamRef.current.getAudioTracks();
+        audioTracks.forEach(track => {
+          track.enabled = !nextMuted;
+        });
+      }
 
-    if (callRoomChannelRef.current && profile) {
-      callRoomChannelRef.current.send({
-        type: 'broadcast',
-        event: 'peer_muted',
-        payload: { userId: profile.id, isMuted: nextMuted },
+      // Also ensure all peer connection audio senders are enabled/disabled directly
+      peerConnectionsRef.current.forEach(pc => {
+        try {
+          if (pc.signalingState !== 'closed') {
+            pc.getSenders().forEach(sender => {
+              if (sender.track && sender.track.kind === 'audio') {
+                sender.track.enabled = !nextMuted;
+              }
+            });
+          }
+        } catch {}
       });
+
+      setIsMuted(nextMuted);
+
+      if (callRoomChannelRef.current && profile) {
+        try {
+          const res = callRoomChannelRef.current.send({
+            type: 'broadcast',
+            event: 'peer_muted',
+            payload: { userId: profile.id, isMuted: nextMuted },
+          });
+          if (res && typeof res.catch === 'function') {
+            res.catch(() => {});
+          }
+        } catch (sendErr) {
+          console.warn('Failed to broadcast peer_muted:', sendErr);
+        }
+      }
+    } catch (err) {
+      console.warn('Error in toggleMute:', err);
     }
   };
 
@@ -2000,33 +2025,79 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // Controls: Flip Camera (Snapchat / FaceTime front & rear camera switch)
   const flipCamera = async () => {
     if (!localStreamRef.current) return;
-    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    const nextMode: 'user' | 'environment' = facingMode === 'user' ? 'environment' : 'user';
+
+    const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+    const oldDeviceId = oldVideoTrack?.getSettings?.()?.deviceId;
+
+    // Temporarily stop old track so camera hardware is released on Android devices!
+    if (oldVideoTrack) {
+      oldVideoTrack.stop();
+      localStreamRef.current.removeTrack(oldVideoTrack);
+    }
+
     try {
       let newStream: MediaStream | null = null;
+
+      // 1. Check for specific deviceId from enumerateDevices if available
       try {
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: { ...HD_VIDEO_CONSTRAINTS, facingMode: { exact: nextMode } },
-        });
-      } catch {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+          if (videoDevices.length > 1) {
+            let targetDevice = videoDevices.find(d => {
+              const label = (d.label || '').toLowerCase();
+              if (nextMode === 'environment') {
+                return label.includes('back') || label.includes('rear') || label.includes('environment');
+              } else {
+                return label.includes('front') || label.includes('user') || label.includes('selfie');
+              }
+            });
+
+            if (!targetDevice && oldDeviceId) {
+              targetDevice = videoDevices.find(d => d.deviceId !== oldDeviceId);
+            }
+
+            if (targetDevice) {
+              newStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                  deviceId: { exact: targetDevice.deviceId },
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                },
+              });
+            }
+          }
+        }
+      } catch (devErr) {
+        console.warn('Device enumeration fallback:', devErr);
+      }
+
+      // 2. Standard facingMode fallback with ideal constraints (avoids exact OverconstrainedError)
+      if (!newStream) {
         try {
           newStream = await navigator.mediaDevices.getUserMedia({
-            video: { ...HD_VIDEO_CONSTRAINTS, facingMode: nextMode },
+            video: {
+              facingMode: { ideal: nextMode },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
           });
         } catch {
-          newStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: nextMode },
-          });
+          try {
+            newStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: nextMode },
+            });
+          } catch {
+            newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          }
         }
       }
 
       const newVideoTrack = newStream?.getVideoTracks()[0];
       if (newVideoTrack) {
         newVideoTrack.enabled = isVideoEnabled;
-        const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
-        if (oldVideoTrack) {
-          oldVideoTrack.stop();
-          localStreamRef.current.removeTrack(oldVideoTrack);
-        }
         localStreamRef.current.addTrack(newVideoTrack);
 
         // Replace track on all active peer connections
@@ -2045,9 +2116,30 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         localStreamRef.current = fresh;
         setLocalStream(fresh);
         setFacingMode(nextMode);
+      } else {
+        throw new Error('No video track returned');
       }
     } catch (err) {
-      console.warn('Flip camera error:', err);
+      console.warn('Flip camera error, recovering previous camera:', err);
+      try {
+        const recoveryStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode },
+        });
+        const recTrack = recoveryStream.getVideoTracks()[0];
+        if (recTrack && localStreamRef.current) {
+          recTrack.enabled = isVideoEnabled;
+          localStreamRef.current.addTrack(recTrack);
+          peerConnectionsRef.current.forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) sender.replaceTrack(recTrack).catch(() => {});
+          });
+          const fresh = new MediaStream(localStreamRef.current.getTracks());
+          localStreamRef.current = fresh;
+          setLocalStream(fresh);
+        }
+      } catch (recErr) {
+        console.error('Camera recovery failed:', recErr);
+      }
     }
   };
 
