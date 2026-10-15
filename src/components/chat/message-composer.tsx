@@ -576,15 +576,15 @@ export function MessageComposer() {
           )}
         >
           {/* Emoji button inside pill on left */}
-          <div className="relative shrink-0 mb-1">
+          <div className="relative shrink-0 mb-0.5">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(prev => !prev)}
-              className="p-1 rounded-full text-muted-foreground/80 hover:text-foreground transition-colors cursor-pointer"
+              className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-full text-muted-foreground/80 hover:text-foreground active:scale-95 transition-all cursor-pointer"
               title="Insert emoji"
               aria-label="Insert emoji"
             >
-              <Smile className="w-5 h-5" />
+              <Smile className="w-5.5 h-5.5 md:w-5 md:h-5" />
             </button>
 
             {/* Quick Emoji Popover */}
@@ -633,7 +633,7 @@ export function MessageComposer() {
             }
             rows={1}
             className={cn(
-              'flex-1 min-w-0 min-h-[36px] max-h-28 px-1 py-1.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none placeholder:text-muted-foreground leading-normal',
+              'flex-1 min-w-0 min-h-[40px] md:min-h-[36px] max-h-28 px-1.5 py-2 text-base md:text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 resize-none placeholder:text-muted-foreground leading-normal',
               isLittleNoteMode && 'font-serif italic text-amber-900 dark:text-amber-100'
             )}
           />
@@ -643,7 +643,7 @@ export function MessageComposer() {
             type="button"
             onClick={() => setShowAttachMenu(prev => !prev)}
             className={cn(
-              'p-1 mb-1 rounded-full transition-colors cursor-pointer shrink-0',
+              'w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-full transition-all cursor-pointer shrink-0 mb-0.5 active:scale-95',
               showAttachMenu
                 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
                 : 'text-muted-foreground/80 hover:text-foreground'
@@ -651,22 +651,22 @@ export function MessageComposer() {
             title="Attach documents, photos & media"
             aria-label="Attach file"
           >
-            <Paperclip className="w-5 h-5 -rotate-45" />
+            <Paperclip className="w-5.5 h-5.5 md:w-5 md:h-5 -rotate-45" />
           </button>
 
           {/* Quick Camera button */}
           <button
             type="button"
             onClick={() => openFilePicker('camera')}
-            className="p-1 mb-1 rounded-full text-muted-foreground/80 hover:text-foreground transition-colors cursor-pointer shrink-0"
+            className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-full text-muted-foreground/80 hover:text-foreground active:scale-95 transition-all cursor-pointer shrink-0 mb-0.5"
             title="Open camera"
             aria-label="Camera"
           >
-            <Camera className="w-5 h-5" />
+            <Camera className="w-5.5 h-5.5 md:w-5 md:h-5" />
           </button>
         </div>
 
-        {/* Right Action Button: Always fixed 40px in the exact same spot on any mobile device */}
+        {/* Right Action Button: Enlarged 44px on mobile, fixed spot */}
         {text.trim() || attachments.length > 0 ? (
           <button
             type="button"
@@ -681,25 +681,25 @@ export function MessageComposer() {
               }
               handleSend();
             }}
-            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-md transition-all cursor-pointer"
+            className="w-11 h-11 md:w-10 md:h-10 rounded-full shrink-0 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-md transition-all cursor-pointer"
             title="Send chat"
             aria-label="Send"
           >
             {isSending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-5 h-5 md:w-4 md:h-4 animate-spin" />
             ) : (
-              <Send className="w-4 h-4 ml-0.5 fill-current" />
+              <Send className="w-5 h-5 md:w-4 md:h-4 ml-0.5 fill-current" />
             )}
           </button>
         ) : (
           <button
             type="button"
             onClick={() => setIsRecordingVoice(true)}
-            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-md transition-all cursor-pointer"
+            className="w-11 h-11 md:w-10 md:h-10 rounded-full shrink-0 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-md transition-all cursor-pointer"
             title="Record voice note"
             aria-label="Record voice note"
           >
-            <Mic className="w-5 h-5 text-white" />
+            <Mic className="w-5.5 h-5.5 md:w-5 md:h-5 text-white" />
           </button>
         )}
       </div>

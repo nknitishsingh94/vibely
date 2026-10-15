@@ -150,7 +150,7 @@ export function ConversationHeader() {
               <button
                 type="button"
                 onClick={clearSelectedMessages}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all cursor-pointer text-foreground"
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all cursor-pointer text-foreground"
                 aria-label="Cancel selection"
               >
                 <X className="w-5 h-5" />
@@ -165,52 +165,52 @@ export function ConversationHeader() {
               <button
                 type="button"
                 onClick={handleCopySelected}
-                className="p-2 rounded-xl hover:bg-muted text-foreground transition-colors cursor-pointer"
+                className="w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl hover:bg-muted text-foreground active:scale-95 transition-all cursor-pointer"
                 title="Copy selected text"
                 aria-label="Copy selected"
               >
-                <Copy className="w-4 h-4" />
+                <Copy className="w-5 h-5 md:w-4 md:h-4" />
               </button>
               <button
                 type="button"
                 onClick={() => setIsForwardModalOpen(true)}
-                className="p-2 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+                className="w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 active:scale-95 transition-all cursor-pointer"
                 title="Forward selected"
                 aria-label="Forward selected"
               >
-                <Forward className="w-4 h-4" />
+                <Forward className="w-5 h-5 md:w-4 md:h-4" />
               </button>
               <button
                 type="button"
                 onClick={selectAllMessages}
-                className="p-2 rounded-xl hover:bg-muted text-foreground transition-colors cursor-pointer"
+                className="w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl hover:bg-muted text-foreground active:scale-95 transition-all cursor-pointer"
                 title="Select all"
                 aria-label="Select all"
               >
-                <CheckSquare className="w-4 h-4" />
+                <CheckSquare className="w-5 h-5 md:w-4 md:h-4" />
               </button>
               <button
                 type="button"
                 onClick={() => setIsBulkDeleteModalOpen(true)}
-                className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                className="w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 active:scale-95 transition-all cursor-pointer"
                 title="Delete selected"
                 aria-label="Delete selected"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between px-2.5 sm:px-4 py-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center justify-between px-2.5 sm:px-4 py-2 sm:py-2.5">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             {/* Mobile Back Button - properly spaced & touch-friendly, no cut off */}
             <button
               type="button"
               onClick={handleMobileBack}
-              className="md:hidden w-9 h-9 flex items-center justify-center rounded-full text-foreground/80 hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer shrink-0"
+              className="md:hidden w-10 h-10 flex items-center justify-center rounded-full text-foreground/80 hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer shrink-0"
               aria-label="Back to conversations list"
             >
-              <ArrowLeft className="w-5 h-5 shrink-0" />
+              <ArrowLeft className="w-6 h-6 shrink-0" />
             </button>
 
             {/* Friend Avatar with presence ring */}
@@ -220,49 +220,50 @@ export function ConversationHeader() {
                 name={friend?.display_name || 'Partner'}
                 size="md"
                 isOnline={isOnline}
+                className="w-11 h-11 md:w-10 md:h-10 text-base md:text-sm shrink-0"
               />
             </div>
 
             {/* Partner Name, Dynamic Status & Romantic Badge */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-semibold truncate text-foreground flex items-center gap-1">
+                <h2 className="text-base md:text-sm font-bold md:font-semibold truncate text-foreground flex items-center gap-1">
                   {friend?.display_name || 'My Partner'}
-                  <Sparkles className="w-3 h-3 text-rose-400 inline shrink-0" />
+                  <Sparkles className="w-3.5 h-3.5 text-rose-400 inline shrink-0" />
                 </h2>
                 <span title="Private Romantic Sanctuary" className="inline-flex">
-                  <ShieldCheck className="w-3.5 h-3.5 text-primary/80 shrink-0" />
+                  <ShieldCheck className="w-4 h-4 md:w-3.5 md:h-3.5 text-primary/80 shrink-0" />
                 </span>
               </div>
 
               <div className="flex items-center gap-2 text-xs truncate">
                 {/* Live Activity Status - ONLY when partner is ACTUALLY online */}
                 {isOnline && (partnerActivity?.activity === 'typing' || typingUsers.length > 0) ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 animate-pulse">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5 animate-pulse text-[13px] md:text-xs">
                     <span className="flex items-center gap-0.5">
-                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
-                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
-                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-bounce" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" />
                     </span>
                     <span>typing...</span>
                   </span>
                 ) : isOnline && partnerActivity?.activity === 'viewing_image' ? (
-                  <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-pulse">
+                  <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-pulse text-[13px] md:text-xs">
                     <span>📸</span>
                     <span>viewing photo...</span>
                   </span>
                 ) : isOnline && partnerActivity?.activity === 'in_chat' ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 text-[13px] md:text-xs">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-0.5" />
                     <span>👀 In chat</span>
                   </span>
                 ) : isOnline ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 text-[13px] md:text-xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
                     <span>online</span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground text-[11px]">
+                  <span className="text-muted-foreground text-xs md:text-[11px]">
                     {formatLastSeen(friend?.last_seen_at || friendPresence.lastSeen)}
                   </span>
                 )}
@@ -274,10 +275,10 @@ export function ConversationHeader() {
                       setSelectedDate(anniversary || '');
                       setIsDateDialogOpen(true);
                     }}
-                    className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 dark:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.2 rounded-full border border-rose-500/20 cursor-pointer transition-colors"
+                    className="hidden sm:inline-flex items-center gap-1 text-xs md:text-[11px] font-medium text-rose-600 dark:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/20 cursor-pointer transition-colors"
                     title="Click to view or edit our special date"
                   >
-                    <Heart className="w-2.5 h-2.5 fill-current" />
+                    <Heart className="w-3 h-3 fill-current" />
                     Day {daysTogether}
                   </button>
                 )}
@@ -286,24 +287,24 @@ export function ConversationHeader() {
           </div>
 
           {/* Action Controls: Call, Video, Delete Chat & More Menu */}
-          <div className="flex items-center gap-1 relative">
+          <div className="flex items-center gap-1.5 sm:gap-1 relative">
             <button
               type="button"
               onClick={() => handleStartCall('video')}
-              className="p-2 rounded-xl text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+              className="w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 active:scale-95 transition-all cursor-pointer shrink-0"
               title="Video Call"
               aria-label="Video Call"
             >
-              <Video className="w-4 h-4" />
+              <Video className="w-5 h-5 md:w-4 md:h-4" />
             </button>
             <button
               type="button"
               onClick={() => handleStartCall('voice')}
-              className="p-2 rounded-xl text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+              className="w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 active:scale-95 transition-all cursor-pointer shrink-0"
               title="Voice Call"
               aria-label="Voice Call"
             >
-              <Phone className="w-4 h-4" />
+              <Phone className="w-5 h-5 md:w-4 md:h-4" />
             </button>
 
             {/* Desktop Additional Buttons */}
@@ -357,11 +358,11 @@ export function ConversationHeader() {
               <button
                 type="button"
                 onClick={() => setIsMoreMenuOpen(prev => !prev)}
-                className="w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
+                className="w-10 h-10 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
                 title="More options"
                 aria-label="More options"
               >
-                <MoreVertical className="w-4 h-4" />
+                <MoreVertical className="w-5 h-5" />
               </button>
 
               {isMoreMenuOpen && (

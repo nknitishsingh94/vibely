@@ -270,28 +270,28 @@ export function Sidebar() {
               }}
             />
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={handleManualRefresh}
                 disabled={isRefreshing}
-                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="p-2.5 md:p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
                 title="Refresh chats"
                 aria-label="Refresh chats"
               >
-                <RotateCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-emerald-600 dark:text-emerald-400")} />
+                <RotateCw className={cn("w-4 h-4 md:w-3.5 md:h-3.5", isRefreshing && "animate-spin text-emerald-600 dark:text-emerald-400")} />
               </button>
 
-              <NotificationBell onOpenConnect={() => setIsInviteOpen(true)} />
+              <NotificationBell onOpenConnect={() => setIsInviteOpen(true)} className="p-2.5 md:p-2" />
 
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setIsInviteOpen(true)}
-                className="rounded-xl text-xs gap-1.5 border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 transition-all cursor-pointer font-medium"
+                className="h-9 md:h-8 px-3.5 md:px-3 rounded-xl text-xs font-bold gap-1.5 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer"
                 title="Connect partner"
               >
-                <UserPlus className="w-3.5 h-3.5" />
+                <UserPlus className="w-4 h-4 md:w-3.5 md:h-3.5" />
                 <span>Connect</span>
               </Button>
             </div>
@@ -299,36 +299,36 @@ export function Sidebar() {
         </div>
 
         {/* Vibely Branded Search Input */}
-        <div className="shrink-0 px-3 pt-2.5 pb-1.5 space-y-2">
+        <div className="shrink-0 px-3.5 sm:px-3 pt-2.5 pb-2 space-y-2">
           <div className="relative flex items-center group">
-            <div className="absolute left-2.5 flex items-center gap-1.5 pointer-events-none select-none z-10">
+            <div className="absolute left-3 flex items-center gap-1.5 pointer-events-none select-none z-10">
               <VibelyEmblem size="xs" />
-              <Search className="w-3.5 h-3.5 text-muted-foreground/70 group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400 transition-colors" />
+              <Search className="w-4 h-4 md:w-3.5 md:h-3.5 text-muted-foreground/70 group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400 transition-colors" />
             </div>
             <input
               type="text"
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
               placeholder="Search Vibely or start new chat"
-              className="w-full pl-[3.75rem] pr-8 py-2 rounded-xl text-xs bg-muted/60 hover:bg-muted/80 focus:bg-background border border-border/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder:text-muted-foreground transition-all shadow-xs"
+              className="w-full pl-[3.85rem] pr-8 py-2.5 md:py-2 rounded-xl text-sm md:text-xs bg-muted/60 hover:bg-muted/80 focus:bg-background border border-border/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder:text-muted-foreground transition-all shadow-xs"
             />
             {filterText && (
               <button
                 onClick={() => setFilterText('')}
-                className="absolute right-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted transition-colors cursor-pointer"
+                className="absolute right-2.5 text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors cursor-pointer"
                 title="Clear search"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4 md:w-3.5 md:h-3.5" />
               </button>
             )}
           </div>
 
           {/* WhatsApp Filter Tabs: All, Unread, Favourites */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
             <button
               onClick={() => setFilterTab('all')}
               className={cn(
-                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                'px-3.5 py-1.5 md:px-3 md:py-1 rounded-full text-xs md:text-[11px] font-semibold transition-colors cursor-pointer shrink-0',
                 filterTab === 'all'
                   ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -339,7 +339,7 @@ export function Sidebar() {
             <button
               onClick={() => setFilterTab('unread')}
               className={cn(
-                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                'px-3.5 py-1.5 md:px-3 md:py-1 rounded-full text-xs md:text-[11px] font-semibold transition-colors cursor-pointer shrink-0',
                 filterTab === 'unread'
                   ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -350,7 +350,7 @@ export function Sidebar() {
             <button
               onClick={() => setFilterTab('favorites')}
               className={cn(
-                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                'px-3.5 py-1.5 md:px-3 md:py-1 rounded-full text-xs md:text-[11px] font-semibold transition-colors cursor-pointer shrink-0',
                 filterTab === 'favorites'
                   ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -366,14 +366,14 @@ export function Sidebar() {
                 markCallHistoryAsRead();
               }}
               className={cn(
-                'px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1 shrink-0',
+                'px-3.5 py-1.5 md:px-3 md:py-1 rounded-full text-xs md:text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0',
                 filterTab === 'calls'
-                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-semibold shadow-2xs'
+                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-bold shadow-2xs'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               )}
               title="Call History"
             >
-              <Phone className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Calls</span>
               {unreadMissedCallsCount > 0 && (
                 <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
@@ -384,10 +384,10 @@ export function Sidebar() {
 
             <button
               onClick={() => setIsMediaDrawerOpen(true)}
-              className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 md:px-2.5 md:py-1 rounded-full text-xs md:text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
               title="Open Our Moments gallery"
             >
-              <FolderHeart className="w-3 h-3 text-primary" />
+              <FolderHeart className="w-3.5 h-3.5 text-primary" />
               <span>Moments</span>
             </button>
           </div>
@@ -427,10 +427,10 @@ export function Sidebar() {
           )}
           {/* Pending Connection Requests Banner in Sidebar */}
           {incomingRequests.length > 0 && (
-            <div className="p-2 space-y-1.5 bg-card/60">
-              <div className="flex items-center justify-between px-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="flex items-center gap-1">
-                  <Bell className="w-3 h-3 text-rose-500 animate-bounce" />
+            <div className="p-2.5 space-y-2 bg-card/60">
+              <div className="flex items-center justify-between px-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="flex items-center gap-1.5">
+                  <Bell className="w-3.5 h-3.5 text-rose-500 animate-bounce" />
                   Connection Requests ({incomingRequests.length})
                 </span>
               </div>
@@ -440,40 +440,41 @@ export function Sidebar() {
                 return (
                   <div
                     key={req.id}
-                    className="p-2.5 rounded-2xl bg-card border border-emerald-500/25 space-y-2 shadow-xs"
+                    className="p-3 rounded-2xl bg-card border border-emerald-500/25 space-y-2.5 shadow-xs"
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-3">
                       <Avatar
                         src={req.sender.avatar_path || undefined}
                         name={req.sender.display_name}
-                        size="sm"
+                        size="md"
+                        className="w-11 h-11 md:w-8 md:h-8 text-sm md:text-xs shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate">
+                        <p className="text-sm md:text-xs font-bold text-foreground truncate">
                           {req.sender.display_name}
                         </p>
-                        <p className="text-[10px] text-muted-foreground font-mono truncate">
+                        <p className="text-xs md:text-[10px] text-muted-foreground font-mono truncate">
                           {usernameText}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 pt-0.5">
+                    <div className="flex items-center gap-2 pt-0.5">
                       <Button
                         size="sm"
                         onClick={() => respondToRequest(req.id, 'accept')}
-                        className="flex-1 h-7 rounded-xl text-[11px] gap-1 font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                        className="flex-1 h-8 md:h-7 rounded-xl text-xs md:text-[11px] gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer active:scale-95"
                       >
-                        <Check className="w-3 h-3" />
+                        <Check className="w-3.5 h-3.5" />
                         <span>Accept</span>
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => respondToRequest(req.id, 'decline')}
-                        className="h-7 px-2.5 rounded-xl text-[11px] gap-1 border-border/80 text-muted-foreground hover:text-foreground cursor-pointer"
+                        className="h-8 md:h-7 px-3 md:px-2.5 rounded-xl text-xs md:text-[11px] gap-1 border-border/80 text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                         <span>Decline</span>
                       </Button>
                     </div>
@@ -486,14 +487,14 @@ export function Sidebar() {
           {filterTab === 'calls' ? (
             <div className="flex-1 flex flex-col">
               {/* Sub-bar for Calls tab: All / Missed tabs + New Call & Clear buttons */}
-              <div className="p-2.5 border-b border-border/40 flex items-center justify-between gap-2 bg-muted/20">
-                <div className="flex items-center gap-1.5">
+              <div className="p-3 md:p-2.5 border-b border-border/40 flex items-center justify-between gap-2 bg-muted/20">
+                <div className="flex items-center gap-2 md:gap-1.5">
                   <button
                     onClick={() => setCallSubTab('all')}
                     className={cn(
-                      'px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                      'px-3 py-1 md:px-2.5 md:py-0.5 rounded-full text-xs md:text-[11px] font-semibold transition-colors cursor-pointer',
                       callSubTab === 'all'
-                        ? 'bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/30'
+                        ? 'bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/30'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
@@ -505,39 +506,39 @@ export function Sidebar() {
                       markCallHistoryAsRead();
                     }}
                     className={cn(
-                      'px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1',
+                      'px-3 py-1 md:px-2.5 md:py-0.5 rounded-full text-xs md:text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1',
                       callSubTab === 'missed'
-                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-semibold border border-rose-500/30'
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold border border-rose-500/30'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     <span>Missed</span>
                     {unreadMissedCallsCount > 0 && (
-                      <span className="w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[8px] font-bold flex items-center justify-center">
+                      <span className="w-4 h-4 md:w-3.5 md:h-3.5 rounded-full bg-rose-500 text-white text-[9px] md:text-[8px] font-bold flex items-center justify-center">
                         {unreadMissedCallsCount}
                       </span>
                     )}
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2 md:gap-1.5">
                   <Button
                     size="sm"
                     onClick={() => setIsNewCallOpen(true)}
-                    className="h-7 px-2.5 rounded-xl text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs gap-1 cursor-pointer"
+                    className="h-8 md:h-7 px-3 md:px-2.5 rounded-xl text-xs md:text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs gap-1.5 cursor-pointer active:scale-95"
                     title="Start a new call"
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3.5 h-3.5 md:w-3 md:h-3" />
                     <span>New Call</span>
                   </Button>
 
                   {callHistory.length > 0 && (
                     <button
                       onClick={() => setIsClearHistoryConfirmOpen(true)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                      className="p-2 md:p-1.5 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                       title="Clear call history"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4 md:w-3.5 md:h-3.5" />
                     </button>
                   )}
                 </div>
@@ -586,7 +587,7 @@ export function Sidebar() {
                             if (targetConv) setActiveConversationId(targetConv.id);
                           }
                         }}
-                        className="flex items-center gap-3 px-3.5 py-3 hover:bg-muted/40 transition-colors cursor-pointer group relative"
+                        className="flex items-center gap-3.5 px-4 py-3.5 md:px-3.5 md:py-3 hover:bg-muted/40 transition-colors cursor-pointer group relative"
                       >
                         {/* Partner Avatar */}
                         <Avatar
@@ -594,7 +595,7 @@ export function Sidebar() {
                           name={item.partner?.display_name || 'User'}
                           size="md"
                           isOnline={item.partner?.id ? isUserOnline(item.partner.id) : false}
-                          className="shrink-0"
+                          className="w-12 h-12 md:w-10 md:h-10 text-base md:text-sm shrink-0"
                         />
 
                         {/* Call Details */}
@@ -602,13 +603,13 @@ export function Sidebar() {
                           <div className="flex items-center justify-between mb-0.5">
                             <h4
                               className={cn(
-                                'text-sm font-semibold truncate',
-                                isMissed ? 'text-rose-500 dark:text-rose-400 font-bold' : 'text-foreground'
+                                'text-base md:text-sm font-bold md:font-semibold truncate',
+                                isMissed ? 'text-rose-500 dark:text-rose-400 font-extrabold' : 'text-foreground'
                               )}
                             >
                               {item.partner?.display_name || 'User'}
                             </h4>
-                            <span className="text-[11px] text-muted-foreground shrink-0 font-medium">
+                            <span className="text-xs md:text-[11px] text-muted-foreground shrink-0 font-medium">
                               {formatCallTime(item.startedAt)}
                             </span>
                           </div>
@@ -617,14 +618,14 @@ export function Sidebar() {
                             {/* Direction Arrow */}
                             {isIncoming ? (
                               isMissed ? (
-                                <ArrowDownLeft className="w-3.5 h-3.5 text-rose-500 shrink-0 stroke-[2.5]" />
+                                <ArrowDownLeft className="w-4 h-4 md:w-3.5 md:h-3.5 text-rose-500 shrink-0 stroke-[2.5]" />
                               ) : (
-                                <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0 stroke-[2.5]" />
+                                <ArrowDownLeft className="w-4 h-4 md:w-3.5 md:h-3.5 text-emerald-500 shrink-0 stroke-[2.5]" />
                               )
                             ) : (
                               <ArrowUpRight
                                 className={cn(
-                                  'w-3.5 h-3.5 shrink-0 stroke-[2.5]',
+                                  'w-4 h-4 md:w-3.5 md:h-3.5 shrink-0 stroke-[2.5]',
                                   item.status === 'connected' ? 'text-emerald-500' : 'text-muted-foreground'
                                 )}
                               />
@@ -632,13 +633,13 @@ export function Sidebar() {
 
                             {/* Call Type Icon */}
                             {isVideo ? (
-                              <Video className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <Video className="w-3.5 h-3.5 md:w-3 md:h-3 text-muted-foreground shrink-0" />
                             ) : (
-                              <Phone className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <Phone className="w-3.5 h-3.5 md:w-3 md:h-3 text-muted-foreground shrink-0" />
                             )}
 
                             {/* Status or Duration text */}
-                            <span className={cn('truncate', isMissed && 'text-rose-500 font-medium')}>
+                            <span className={cn('truncate text-[13px] md:text-xs', isMissed && 'text-rose-500 font-semibold')}>
                               {isMissed
                                 ? item.status === 'declined'
                                   ? 'Declined'
@@ -653,17 +654,17 @@ export function Sidebar() {
                         </div>
 
                         {/* Direct Call & Delete Actions */}
-                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                        <div className="flex items-center gap-2 md:gap-1 shrink-0 ml-1">
                           <button
                             type="button"
                             onClick={e => {
                               e.stopPropagation();
                               startCall(item.partner, 'voice', item.conversationId);
                             }}
-                            className="w-8 h-8 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-all cursor-pointer"
+                            className="w-10 h-10 md:w-8 md:h-8 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-xs"
                             title="Voice Call"
                           >
-                            <Phone className="w-3.5 h-3.5" />
+                            <Phone className="w-4.5 h-4.5 md:w-3.5 md:h-3.5" />
                           </button>
                           <button
                             type="button"
@@ -671,10 +672,10 @@ export function Sidebar() {
                               e.stopPropagation();
                               startCall(item.partner, 'video', item.conversationId);
                             }}
-                            className="w-8 h-8 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-all cursor-pointer"
+                            className="w-10 h-10 md:w-8 md:h-8 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-xs"
                             title="Video Call"
                           >
-                            <Video className="w-3.5 h-3.5" />
+                            <Video className="w-4.5 h-4.5 md:w-3.5 md:h-3.5" />
                           </button>
                           <button
                             type="button"
@@ -682,10 +683,10 @@ export function Sidebar() {
                               e.stopPropagation();
                               deleteCallLog(item.id);
                             }}
-                            className="w-7 h-7 rounded-full text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                            className="w-8 h-8 md:w-7 md:h-7 rounded-full text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 flex items-center justify-center opacity-70 md:opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                             title="Delete from call history"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4 md:w-3.5 md:h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -735,7 +736,7 @@ export function Sidebar() {
                         markConversationAsRead(conv.id);
                       }}
                       className={cn(
-                        'flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150 relative group',
+                        'flex items-center gap-3.5 px-4 py-3.5 md:px-3.5 md:py-3 cursor-pointer transition-all duration-150 relative group',
                         isActive
                           ? 'bg-muted/80 dark:bg-card/90 shadow-2xs'
                           : 'hover:bg-muted/40'
@@ -752,7 +753,7 @@ export function Sidebar() {
                         name={other?.display_name || 'Partner'}
                         size="md"
                         isOnline={isOtherOnline}
-                        className="shrink-0"
+                        className="w-12 h-12 md:w-10 md:h-10 text-base md:text-sm shrink-0"
                       />
 
                       {/* WhatsApp Content Details */}
@@ -761,8 +762,8 @@ export function Sidebar() {
                         <div className="flex items-center justify-between mb-1">
                           <h4
                             className={cn(
-                              'text-sm font-semibold truncate text-foreground',
-                              hasUnread && 'font-bold'
+                              'text-base md:text-sm font-bold md:font-semibold truncate text-foreground',
+                              hasUnread && 'font-extrabold'
                             )}
                           >
                             {other?.display_name || 'Partner'}
@@ -771,7 +772,7 @@ export function Sidebar() {
                           {lastTime && (
                             <span
                               className={cn(
-                                'text-[11px] shrink-0 font-medium',
+                                'text-xs md:text-[11px] shrink-0 font-medium',
                                 hasUnread
                                   ? 'text-emerald-600 dark:text-emerald-400 font-bold'
                                   : 'text-muted-foreground'
@@ -783,24 +784,24 @@ export function Sidebar() {
                         </div>
 
                         {/* Bottom Row: Status Tick + Last Message / Typing... + Unread Badge */}
-                        <div className="flex items-center justify-between gap-1.5 text-xs">
-                          <div className="truncate flex items-center min-w-0 max-w-[190px] sm:max-w-[210px]">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <div className="truncate flex items-center min-w-0 max-w-[210px] sm:max-w-[230px]">
                             {isOtherOnline && (isPartnerTyping || (isActive && partnerActivity?.activity === 'typing')) ? (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1 animate-pulse">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[13px] md:text-xs flex items-center gap-1 animate-pulse">
                                 typing...
                               </span>
                             ) : isOtherOnline && isActive && partnerActivity?.activity === 'viewing_image' ? (
-                              <span className="text-purple-600 dark:text-purple-400 font-medium text-xs flex items-center gap-1 animate-pulse">
+                              <span className="text-purple-600 dark:text-purple-400 font-semibold text-[13px] md:text-xs flex items-center gap-1 animate-pulse">
                                 📸 viewing photo...
                               </span>
                             ) : isOtherOnline && isActive && partnerActivity?.activity === 'in_chat' ? (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs flex items-center gap-1">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[13px] md:text-xs flex items-center gap-1">
                                 👀 in chat
                               </span>
                             ) : (
                               <span
                                 className={cn(
-                                  'truncate text-xs flex items-center',
+                                  'truncate text-[13px] md:text-xs flex items-center',
                                   hasUnread
                                     ? 'text-foreground font-semibold'
                                     : 'text-muted-foreground'
@@ -834,7 +835,7 @@ export function Sidebar() {
                           <div className="flex items-center gap-1.5 shrink-0">
                             {/* WhatsApp Unread Counter Badge (Emerald Circle) */}
                             {hasUnread && (
-                              <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                              <span className="min-w-[22px] h-5.5 px-1.5 rounded-full text-xs md:text-[11px] font-bold bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                                 {conv.unreadCount}
                               </span>
                             )}
@@ -856,9 +857,9 @@ export function Sidebar() {
         </div>
 
         {/* User Profile Footer */}
-        <div className="shrink-0 p-3 border-t border-border/60 bg-card/60 flex items-center justify-between gap-1 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+        <div className="shrink-0 p-3 sm:p-3.5 border-t border-border/60 bg-card/60 flex items-center justify-between gap-1 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
           <div
-            className="flex items-center gap-2.5 min-w-0 p-1.5 flex-1 select-none"
+            className="flex items-center gap-3 min-w-0 p-1 flex-1 select-none"
           >
             <div
               onClick={() => setIsAvatarPickerOpen(true)}
@@ -868,19 +869,19 @@ export function Sidebar() {
               <Avatar
                 src={profile?.avatar_path}
                 name={profile?.display_name || 'Me'}
-                size="sm"
-                className="ring-1 ring-border/50 group-hover:ring-emerald-500/60 transition-all rounded-full"
+                size="md"
+                className="w-11 h-11 md:w-8 md:h-8 ring-1 ring-border/50 group-hover:ring-emerald-500/60 transition-all rounded-full text-sm md:text-xs"
               />
               <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
-                <Camera className="w-2.5 h-2.5" />
+                <Camera className="w-3.5 h-3.5 md:w-2.5 md:h-2.5" />
               </div>
             </div>
             <div className="min-w-0 text-left">
-              <p className="text-xs font-semibold truncate text-foreground leading-tight">
+              <p className="text-sm md:text-xs font-bold md:font-semibold truncate text-foreground leading-tight">
                 {profile?.display_name || 'My Profile'}
               </p>
-              <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono truncate">
-                <span className="text-[#0C3B2E] dark:text-emerald-400 font-semibold">{myUsername || '@user'}</span>
+              <div className="flex items-center gap-1 text-xs md:text-[11px] text-muted-foreground font-mono truncate mt-0.5">
+                <span className="text-[#0C3B2E] dark:text-emerald-400 font-bold">{myUsername || '@user'}</span>
               </div>
             </div>
           </div>
@@ -888,21 +889,21 @@ export function Sidebar() {
           <button
             type="button"
             onClick={handleCopyUsername}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 cursor-pointer"
+            className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all shrink-0 cursor-pointer"
             title="Copy your @username"
             aria-label="Copy Username"
           >
-            {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+            {copiedId ? <Check className="w-4.5 h-4.5 md:w-3.5 md:h-3.5 text-emerald-500" /> : <Copy className="w-4.5 h-4.5 md:w-3.5 md:h-3.5" />}
           </button>
 
           <div className="flex items-center shrink-0">
             <Link
               href="/settings"
-              className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transition-all"
               title="Settings & Preferences"
               aria-label="Settings"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-5 h-5 md:w-4 md:h-4" />
             </Link>
           </div>
         </div>

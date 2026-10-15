@@ -186,34 +186,33 @@ export function VoiceRecorderBar({ onSendVoice, onCancel }: VoiceRecorderBarProp
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
+        <button
+          type="button"
           onClick={onCancel}
-          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer rounded-xl"
+          className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer rounded-xl transition-colors active:scale-95"
           title="Discard recording"
         >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+          <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
+        </button>
 
         {isRecording ? (
           <Button
             size="sm"
             onClick={handleStopRecording}
             variant="outline"
-            className="rounded-xl gap-1.5 border-rose-500/30 text-rose-600 hover:bg-rose-500/10 cursor-pointer text-xs font-semibold"
+            className="h-10 md:h-8 px-4 md:px-3 rounded-xl gap-2 border-rose-500/30 text-rose-600 hover:bg-rose-500/10 cursor-pointer text-xs font-bold active:scale-95"
           >
-            <Square className="w-3.5 h-3.5 fill-current" />
-            Stop
+            <Square className="w-4 h-4 md:w-3.5 md:h-3.5 fill-current" />
+            <span>Stop</span>
           </Button>
         ) : (
           <Button
             size="sm"
             onClick={handleSend}
-            className="rounded-xl gap-1.5 bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-md text-xs font-semibold cursor-pointer"
+            className="h-10 md:h-8 px-4 md:px-3 rounded-xl gap-2 bg-[#005C4B] hover:bg-[#004D3F] text-white shadow-md text-xs font-bold cursor-pointer active:scale-95"
           >
-            <Send className="w-3.5 h-3.5" />
-            Send Audio
+            <Send className="w-4 h-4 md:w-3.5 md:h-3.5" />
+            <span>Send Audio</span>
           </Button>
         )}
       </div>
