@@ -161,16 +161,11 @@ export function AppStatsBanner() {
 
     toast.success('🚀 Downloading Vibely Android App (.apk)... Open file to install!');
 
-    // 4. Trigger direct browser download
+    // 4. Trigger direct browser download via location.assign
     try {
-      const a = document.createElement('a');
-      a.href = '/api/download';
-      a.download = 'Vibely.apk';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      window.location.assign('/api/download');
     } catch {
-      window.location.href = '/api/download';
+      window.location.href = 'https://github.com/nknitishsingh94/vibely/releases/download/v1.0.0-apk/Vibely.apk';
     } finally {
       setTimeout(() => setIsDownloading(false), 2000);
     }
@@ -223,9 +218,18 @@ export function AppStatsBanner() {
                   <span>Download Android App (.apk)</span>
                 </Button>
 
-                <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 dark:text-emerald-200/70 px-3 py-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>v1.0.0 • ~8.5 MB • Virus-Free</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-xs font-semibold text-stone-500 dark:text-emerald-200/70 px-1 py-1">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>v1.0.0 • ~3.9 MB • 100% Virus-Free APK</span>
+                  </div>
+                  <span className="hidden sm:inline">•</span>
+                  <a
+                    href="https://github.com/nknitishsingh94/vibely/releases/download/v1.0.0-apk/Vibely.apk"
+                    className="text-emerald-700 dark:text-emerald-300 underline hover:text-emerald-900 dark:hover:text-white"
+                  >
+                    Direct GitHub APK Mirror
+                  </a>
                 </div>
               </div>
 

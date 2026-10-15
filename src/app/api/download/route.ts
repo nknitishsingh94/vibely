@@ -7,7 +7,7 @@ const APK_RELEASE_URL =
 const STATS_FILE_PATH = 'system/metrics.txt';
 
 export async function GET() {
-  // Asynchronously record download count
+  // 1. Asynchronously record download count & broadcast real-time update
   try {
     if (env.supabaseUrl && env.supabaseServiceRoleKey) {
       const adminClient = createServiceClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
@@ -56,6 +56,34 @@ export async function GET() {
     }
   } catch {}
 
-  // Redirect browser to direct APK download
+  // 2. Fetch APK binary and stream directly with proper Android package MIME type
+  try {
+    const upstreamRes = await fetch(APK_RELEASE_URL, {
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Vibely-APK-Downloader',
+      },
+    });
+
+    if (upstreamRes.ok && upstreamRes.body) {
+      const contentLength = upstreamRes.headers.get('content-length');
+      const responseHeaders = new Headers();
+      responseHeaders.set('Content-Type', 'application/vnd.android.package-archive');
+      responseHeaders.set('Content-Disposition', 'attachment; filename="Vibely.apk"');
+      if (contentLength) {
+        responseHeaders.set('Content-Length', contentLength);
+      }
+      responseHeaders.set('Cache-Control', 'public, max-age=300');
+
+      return new Response(upstreamRes.body, {
+        status: 200,
+        headers: responseHeaders,
+      });
+    }
+  } catch (err) {
+    console.warn('Direct APK streaming fallback to redirect:', err);
+  }
+
+  // 3. Fallback: 302 redirect directly to GitHub Release APK
   return NextResponse.redirect(APK_RELEASE_URL, 302);
 }

@@ -24,29 +24,51 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
 
         // 1. Request runtime notification permission for Android 13+ (Tiramisu / API 33+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(
-                        this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        101
-                );
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(
+                            this,
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            101
+                    );
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        // 2. Android 14+ (API 34+) Native Official ScreenCaptureCallback via isolated helper class
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                Api34Helper.registerScreenCapture(this);
+            } catch (Throwable ignored) {
             }
         }
 
-        // 2. Android 14+ (API 34+) Native Official ScreenCaptureCallback
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            registerScreenCaptureCallback(getMainExecutor(), new ScreenCaptureCallback() {
-                @Override
-                public void onScreenCaptured() {
-                    notifyScreenshotDetected();
-                }
-            });
-        }
-
         // 3. Fallback ContentObserver for Android 10-13 (Detects screenshot saved to storage)
-        registerScreenshotObserver();
+        try {
+            registerScreenshotObserver();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private static class Api34Helper {
+        static void registerScreenCapture(MainActivity activity) {
+            try {
+                activity.registerScreenCaptureCallback(
+                    activity.getMainExecutor(),
+                    new ScreenCaptureCallback() {
+                        @Override
+                        public void onScreenCaptured() {
+                            activity.notifyScreenshotDetected();
+                        }
+                    }
+                );
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
     private void registerScreenshotObserver() {
