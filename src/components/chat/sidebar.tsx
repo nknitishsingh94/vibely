@@ -167,6 +167,8 @@ export function Sidebar() {
   };
 
   const filteredConversations = conversations.filter(c => {
+    // Never show direct chats where partner was deleted from the database
+    if (c.type === 'direct' && (!c.otherUser || !c.otherUser.id)) return false;
     if (filterTab === 'unread' && c.unreadCount <= 0) return false;
     if (filterTab === 'favorites' && c.lastMessage && !favorites.includes(c.lastMessage.id)) {
       return false;
@@ -203,6 +205,8 @@ export function Sidebar() {
 
   const filteredCalls = React.useMemo(() => {
     return callHistory.filter(call => {
+      // Must have valid partner with id and name
+      if (!call.partner?.id || !call.partner?.display_name) return false;
       if (callSubTab === 'missed') {
         const isMissed = call.direction === 'incoming' && (call.status === 'missed' || call.status === 'declined');
         if (!isMissed) return false;

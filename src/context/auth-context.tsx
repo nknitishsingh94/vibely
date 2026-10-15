@@ -61,15 +61,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data) {
         setProfile(data as Profile);
       } else {
-        // Auto-sync profile and cross-device account merges
-        const res = await fetch('/api/auth/sync-profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
-        });
-        const resData = await res.json();
-        if (resData.profile) {
-          setProfile(resData.profile);
+        // User profile does NOT exist in public.profiles!
+        // The user was deleted from the database. Do NOT resurrect!
+        console.warn('Profile not found in database. User was deleted from DB.');
+        try {
+          await releaseDeviceSession(userId);
+          await supabase.auth.signOut();
+        } catch {}
+        setUser(null);
+        setProfile(null);
+        if (typeof window !== 'undefined') {
+          try {
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && (k.startsWith('sb-') || k.includes(userId))) {
+                keysToRemove.push(k);
+              }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+          } catch {}
+          if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
+            window.location.href = '/login';
+          }
         }
       }
     } catch (err) {
@@ -130,18 +144,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('Deep link hash token error:', hashErr);
       }
 
-      // Initial session fetch
-      const { data } = await supabase.auth.getSession();
-      const session = data?.session;
-      if (session?.user) {
-        const isAllowed = await verifyAndRegisterDevice(session.user.id);
-        if (isAllowed) {
-          setUser(session.user);
-          await loadProfile(session.user.id);
-        }
-      } else {
+      // Initial session fetch with server-side validation to catch deleted users
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const verifiedUser = userData?.user;
+
+      if (userError || !verifiedUser) {
+        // User was deleted on the server or token is invalid!
+        try {
+          await supabase.auth.signOut();
+        } catch {}
         setUser(null);
         setProfile(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const isAllowed = await verifyAndRegisterDevice(verifiedUser.id);
+      if (isAllowed) {
+        setUser(verifiedUser);
+        await loadProfile(verifiedUser.id);
       }
       setIsLoading(false);
     };
@@ -153,6 +174,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (session?.user) {
+        // Double check user still exists on server
+        const { data: userData, error: uErr } = await supabase.auth.getUser();
+        if (uErr || !userData?.user) {
+          try {
+            await supabase.auth.signOut();
+          } catch {}
+          setUser(null);
+          setProfile(null);
+          setIsLoading(false);
+          return;
+        }
+
         // On sign in or token refresh, enforce device check
         if (event === 'SIGNED_IN') {
           const isAllowed = await verifyAndRegisterDevice(session.user.id);
@@ -174,6 +207,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [isConfigured, loadProfile, verifyAndRegisterDevice]);
+
+  // Real-time listener for current user's profile deletion in database
+  useEffect(() => {
+    if (!isConfigured || !user?.id) return;
+
+    const supabase = getSupabaseBrowserClient();
+    const profileChan = supabase
+      .channel(`profile-delete:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`,
+        },
+        async () => {
+          console.warn('User profile was deleted in database in real-time. Signing out...');
+          try {
+            await releaseDeviceSession(user.id);
+            await supabase.auth.signOut();
+          } catch {}
+          setUser(null);
+          setProfile(null);
+          if (typeof window !== 'undefined') {
+            try {
+              const keysToRemove: string[] = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && (k.startsWith('sb-') || k.includes(user.id))) {
+                  keysToRemove.push(k);
+                }
+              }
+              keysToRemove.forEach(k => localStorage.removeItem(k));
+            } catch {}
+            window.location.href = '/login';
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      profileChan.unsubscribe();
+    };
+  }, [isConfigured, user?.id]);
 
   const signOut = async () => {
     if (user) {

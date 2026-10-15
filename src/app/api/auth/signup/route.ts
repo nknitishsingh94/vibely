@@ -67,9 +67,31 @@ export async function POST(req: Request) {
       console.error('Error listing users for duplicate check:', listError);
     }
 
-    const emailExists = Boolean(
-      usersData?.users?.some((u) => (u.email || '').toLowerCase() === cleanEmail)
+    const existingAuthUser = usersData?.users?.find(
+      (u) => (u.email || '').toLowerCase() === cleanEmail
     );
+
+    let emailExists = false;
+    if (existingAuthUser) {
+      // Check if this auth user still has a valid row in public.profiles
+      const { data: prof } = await adminClient
+        .from('profiles')
+        .select('id')
+        .eq('id', existingAuthUser.id)
+        .maybeSingle();
+
+      if (!prof) {
+        // User was deleted from database profiles! Clean up orphaned auth user so fresh signup succeeds!
+        console.log('Cleaning up orphaned auth user whose profile was deleted in DB:', existingAuthUser.id);
+        try {
+          await adminClient.auth.admin.deleteUser(existingAuthUser.id);
+        } catch (delErr) {
+          console.warn('Error deleting orphaned auth user:', delErr);
+        }
+      } else {
+        emailExists = true;
+      }
+    }
 
     // 3. Check if username is already present in database (public.profiles or auth.users metadata)
     const { data: profileWithUsername, error: profileErr } = await adminClient
@@ -83,11 +105,30 @@ export async function POST(req: Request) {
     }
 
     const usernameExistsInProfiles = Boolean(profileWithUsername);
-    const usernameExistsInUsers = Boolean(
-      usersData?.users?.some(
-        (u) => (u.user_metadata?.username || '').toLowerCase() === cleanUsername
-      )
+
+    // Also check auth.users metadata, cleaning up any orphaned zombie records
+    const usernameAuthUser = usersData?.users?.find(
+      (u) => (u.user_metadata?.username || '').toLowerCase() === cleanUsername && u.id !== existingAuthUser?.id
     );
+
+    let usernameExistsInUsers = false;
+    if (usernameAuthUser) {
+      const { data: uProf } = await adminClient
+        .from('profiles')
+        .select('id')
+        .eq('id', usernameAuthUser.id)
+        .maybeSingle();
+
+      if (!uProf) {
+        // Orphaned username record: delete from auth.users
+        try {
+          await adminClient.auth.admin.deleteUser(usernameAuthUser.id);
+        } catch {}
+      } else {
+        usernameExistsInUsers = true;
+      }
+    }
+
     const usernameExists = usernameExistsInProfiles || usernameExistsInUsers;
 
     // 4. Strict matching and explicit error messaging

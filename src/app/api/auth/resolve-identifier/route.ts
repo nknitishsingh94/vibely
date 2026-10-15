@@ -39,31 +39,13 @@ export async function POST(req: Request) {
             (matched.app_metadata?.provider ? [matched.app_metadata.provider] : []);
           isGoogle = providers.includes('google') && !matched.app_metadata?.provider?.includes('email');
 
-          // Auto-heal missing profile for email user if needed
-          try {
-            const { data: prof } = await admin.from('profiles').select('id').eq('id', matched.id).maybeSingle();
-            if (!prof) {
-              const displayName =
-                matched.user_metadata?.display_name ||
-                matched.user_metadata?.full_name ||
-                matched.email?.split('@')[0] ||
-                'User';
-              const username =
-                matched.user_metadata?.username ||
-                `${matched.email?.split('@')[0] || 'user'}`.toLowerCase();
-
-              await admin.from('profiles').upsert(
-                {
-                  id: matched.id,
-                  display_name: displayName,
-                  username: username,
-                  updated_at: new Date().toISOString(),
-                },
-                { onConflict: 'id' }
-              );
-            }
-          } catch (profErr) {
-            console.warn('Profile sync on email resolve warning:', profErr);
+          // Check that profile still exists in public.profiles (has not been deleted)
+          const { data: prof } = await admin.from('profiles').select('id, username, display_name').eq('id', matched.id).maybeSingle();
+          if (!prof) {
+            return NextResponse.json(
+              { exists: false, error: 'This account was deleted from the database. Please sign up to create a new account.' },
+              { status: 404 }
+            );
           }
 
           // If user is unconfirmed, auto-confirm them
@@ -98,37 +80,9 @@ export async function POST(req: Request) {
       .ilike('username', cleanUsername)
       .maybeSingle();
 
-    let targetUserId = profile?.id;
-    let targetUsername = profile?.username || cleanUsername;
-    let targetDisplayName = profile?.display_name;
-
-    // 2. If not found in profiles, search auth.users user_metadata->username as fallback!
-    if (!targetUserId) {
-      const { data: usersData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      const matchedUser = usersData?.users?.find(
-        (u) => (u.user_metadata?.username || '').toLowerCase() === cleanUsername
-      );
-
-      if (matchedUser) {
-        targetUserId = matchedUser.id;
-        targetDisplayName = matchedUser.user_metadata?.display_name || cleanUsername;
-
-        // Auto-heal missing profile in profiles table
-        try {
-          await admin.from('profiles').upsert(
-            {
-              id: matchedUser.id,
-              username: cleanUsername,
-              display_name: targetDisplayName,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          );
-        } catch (healErr) {
-          console.warn('Auto-healing profile error in resolve-identifier:', healErr);
-        }
-      }
-    }
+    const targetUserId = profile?.id;
+    const targetUsername = profile?.username || cleanUsername;
+    const targetDisplayName = profile?.display_name;
 
     if (!targetUserId) {
       return NextResponse.json(

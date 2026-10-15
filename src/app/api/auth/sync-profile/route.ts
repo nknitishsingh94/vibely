@@ -40,13 +40,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    // 1. Fetch user from auth.users to ensure accurate email
-    if (!userEmail) {
-      const { data: authUserData } = await adminClient.auth.admin.getUserById(userId);
-      if (authUserData?.user) {
-        userEmail = authUserData.user.email || null;
-        userMetadata = { ...authUserData.user.user_metadata, ...userMetadata };
-      }
+    let authUserRecord: any = null;
+    const { data: authUserData } = await adminClient.auth.admin.getUserById(userId);
+    if (authUserData?.user) {
+      authUserRecord = authUserData.user;
+      userEmail = userEmail || authUserData.user.email || null;
+      userMetadata = { ...authUserData.user.user_metadata, ...userMetadata };
     }
 
     const cleanEmail = userEmail ? userEmail.trim().toLowerCase() : null;
@@ -151,7 +150,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, profile });
     }
 
-    // Auto-create profile if missing
+    // If profile is missing, check if this is an immediate signup/OAuth flow
+    const createdAt = userMetadata?.created_at || (authUserRecord?.created_at ? new Date(authUserRecord.created_at).getTime() : 0);
+    const isBrandNewUser = createdAt ? (Date.now() - new Date(createdAt).getTime()) < 180000 : false;
+
+    if (!body.isInitialSignup && !isBrandNewUser) {
+      console.warn(`User ${userId} profile was deleted from database. Rejecting recreation.`);
+      return NextResponse.json(
+        { error: 'User profile was deleted in database.', deleted: true },
+        { status: 404 }
+      );
+    }
+
+    // Auto-create profile only for new signups
     const fullName =
       userMetadata.full_name ||
       userMetadata.name ||

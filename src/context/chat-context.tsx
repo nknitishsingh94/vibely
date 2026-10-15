@@ -297,6 +297,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
         const otherMember = mappedMembers.find((m: any) => m.user_id !== profile.id);
 
+        // For direct conversations, if other member is missing or their profile was deleted from DB, do not include this conversation!
+        if (conv.type === 'direct' && (!otherMember || !otherMember.profile || !otherMember.profile.id)) {
+          continue;
+        }
+
         // Fetch last message
         const { data: lastMsgData } = await supabase
           .from('messages')
@@ -409,6 +414,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
 
       setConversations(convList);
+
+      // If active conversation was deleted or partner removed from database, clear selection
+      if (activeConversationIdRef.current && !convList.some(c => c.id === activeConversationIdRef.current)) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
     } catch (err) {
       console.error('Failed to load conversations:', err);
     }
@@ -878,10 +889,52 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           event: '*',
           schema: 'public',
           table: 'conversation_members',
-          filter: `user_id=eq.${profile.id}`,
         },
         () => {
           refreshConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'conversations',
+        },
+        () => {
+          refreshConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        (payload: any) => {
+          const deletedId = payload.old?.id;
+          if (deletedId === profile.id) {
+            if (typeof window !== 'undefined') {
+              window.location.href = '/login';
+            }
+          } else {
+            refreshConversations();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+        },
+        () => {
+          refreshConversations();
+          if (activeConversationIdRef.current) {
+            loadMessages(activeConversationIdRef.current);
+          }
         }
       )
       .on(
@@ -1364,6 +1417,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               )
             );
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${activeConversationId}`,
+        },
+        (payload: any) => {
+          const deletedId = payload.old?.id;
+          if (deletedId) {
+            setMessages(prev => prev.filter(m => m.id !== deletedId));
+          } else {
+            loadMessages(activeConversationId);
+          }
+          refreshConversations();
         }
       )
       .on(
