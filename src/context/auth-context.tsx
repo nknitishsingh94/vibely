@@ -260,6 +260,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isConfigured, user?.id]);
 
+  // Continuously sync user credentials to Native Android background service bridge
+  useEffect(() => {
+    if (profile?.id && typeof window !== 'undefined' && (window as any).VibelyNative) {
+      try {
+        (window as any).VibelyNative.onUserLoggedIn(profile.id, profile.username || '', profile.display_name || '');
+      } catch (e) {
+        console.warn('Native bridge login sync error:', e);
+      }
+    }
+  }, [profile?.id, profile?.username, profile?.display_name]);
+
   const signOut = async () => {
     if (user) {
       await releaseDeviceSession(user.id);

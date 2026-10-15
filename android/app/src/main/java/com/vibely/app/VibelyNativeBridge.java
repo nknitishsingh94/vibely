@@ -66,6 +66,13 @@ public class VibelyNativeBridge {
     }
 
     @JavascriptInterface
+    public String getPendingIncomingCall() {
+        String pending = MainActivity.lastPendingCallJson;
+        MainActivity.lastPendingCallJson = null;
+        return pending != null ? pending : "";
+    }
+
+    @JavascriptInterface
     public boolean isNativeApp() {
         return true;
     }

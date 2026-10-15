@@ -11,6 +11,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
 import android.net.http.SslError;
+import android.webkit.PermissionRequest;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -22,17 +23,58 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends BridgeActivity {
     public static volatile boolean isAppInForeground = false;
+    private static volatile MainActivity instance;
+    public static volatile String lastPendingCallJson = null;
+
     private ContentObserver screenshotObserver;
     private String lastCapturedScreenshotPath = "";
     private long lastCapturedScreenshotTime = 0;
 
+    public static MainActivity getInstance() {
+        return instance;
+    }
+
+    public void notifyIncomingCall(String callJson) {
+        lastPendingCallJson = callJson;
+        runOnUiThread(() -> {
+            try {
+                Bridge b = getBridge();
+                if (b != null && b.getWebView() != null) {
+                    b.getWebView().evaluateJavascript(
+                        "if (window.onVibelyNativeIncomingCall) { window.onVibelyNativeIncomingCall(" + callJson + "); } else { window.dispatchEvent(new CustomEvent('vibely_native_incoming_call', { detail: " + callJson + " })); }",
+                        null
+                    );
+                }
+            } catch (Throwable ignored) {}
+        });
+    }
+
+    public void notifyCallCancelled(String callJson) {
+        lastPendingCallJson = null;
+        runOnUiThread(() -> {
+            try {
+                Bridge b = getBridge();
+                if (b != null && b.getWebView() != null) {
+                    b.getWebView().evaluateJavascript(
+                        "if (window.onVibelyNativeCallCancelled) { window.onVibelyNativeCallCancelled(" + callJson + "); } else { window.dispatchEvent(new CustomEvent('vibely_native_call_cancelled', { detail: " + callJson + " })); }",
+                        null
+                    );
+                }
+            } catch (Throwable ignored) {}
+        });
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
         isAppInForeground = true;
 
         // Auto-start Vibely background service if user was previously logged in
@@ -45,26 +87,40 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable ignored) {
         }
 
-        // 1. Request runtime notification & media read permissions for real-time screenshot alerts
+        // 1. Request runtime notification, camera, microphone & media storage permissions
         try {
+            List<String> neededPermissions = new ArrayList<>();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                boolean hasNotif = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
-                boolean hasImages = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED;
-                if (!hasNotif || !hasImages) {
-                    ActivityCompat.requestPermissions(
-                            this,
-                            new String[]{Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.READ_MEDIA_IMAGES},
-                            101
-                    );
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    neededPermissions.add(Manifest.permission.POST_NOTIFICATIONS);
+                }
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                    neededPermissions.add(Manifest.permission.READ_MEDIA_IMAGES);
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(
-                            this,
-                            new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                            101
-                    );
+                    neededPermissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
                 }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    neededPermissions.add(Manifest.permission.RECORD_AUDIO);
+                }
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    neededPermissions.add(Manifest.permission.CAMERA);
+                }
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS) != PackageManager.PERMISSION_GRANTED) {
+                    neededPermissions.add(Manifest.permission.MODIFY_AUDIO_SETTINGS);
+                }
+            }
+
+            if (!neededPermissions.isEmpty()) {
+                ActivityCompat.requestPermissions(
+                        this,
+                        neededPermissions.toArray(new String[0]),
+                        101
+                );
             }
         } catch (Throwable ignored) {
         }
@@ -95,6 +151,7 @@ public class MainActivity extends BridgeActivity {
                     settings.setAllowFileAccess(true);
                     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                     settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                    settings.setMediaPlaybackRequiresUserGesture(false);
 
                     // Ensure cookies are enabled and persisted for Supabase Auth and Next.js
                     android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
@@ -115,6 +172,24 @@ public class MainActivity extends BridgeActivity {
 
                     // Register Native Bridge for JavaScript communication
                     webView.addJavascriptInterface(new VibelyNativeBridge(this), "VibelyNative");
+
+                    // Crucial: Automatically grant WebRTC Audio & Video permissions to WebView
+                    webView.setWebChromeClient(new BridgeWebChromeClient(b) {
+                        @Override
+                        public void onPermissionRequest(final PermissionRequest request) {
+                            runOnUiThread(() -> {
+                                try {
+                                    if (request != null) {
+                                        request.grant(request.getResources());
+                                    }
+                                } catch (Throwable t) {
+                                    try {
+                                        super.onPermissionRequest(request);
+                                    } catch (Throwable ignored) {}
+                                }
+                            });
+                        }
+                    });
                 }
 
                 b.setWebViewClient(new BridgeWebViewClient(b) {
@@ -251,6 +326,14 @@ public class MainActivity extends BridgeActivity {
         try {
             Bridge b = getBridge();
             if (b == null || b.getWebView() == null) return;
+
+            // 0. Native incoming call payload from notification action
+            if (intent.hasExtra("callData")) {
+                String callData = intent.getStringExtra("callData");
+                if (callData != null && !callData.trim().isEmpty()) {
+                    notifyIncomingCall(callData);
+                }
+            }
 
             // 1. Direct targetUrl extra (from notification click)
             if (intent.hasExtra("targetUrl")) {
@@ -393,6 +476,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (instance == this) {
+            instance = null;
+        }
         if (screenshotObserver != null) {
             try {
                 getContentResolver().unregisterContentObserver(screenshotObserver);

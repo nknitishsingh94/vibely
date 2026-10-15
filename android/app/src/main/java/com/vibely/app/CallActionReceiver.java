@@ -49,6 +49,9 @@ public class CallActionReceiver extends BroadcastReceiver {
             appIntent.putExtra("targetUrl", targetUrl);
             appIntent.putExtra("callAction", "answer");
             appIntent.putExtra("callId", callId);
+            if (intent.hasExtra("callData")) {
+                appIntent.putExtra("callData", intent.getStringExtra("callData"));
+            }
             context.startActivity(appIntent);
         } else if (ACTION_DECLINE.equals(action)) {
             Log.d(TAG, "Call declined by user via notification action: " + callId);

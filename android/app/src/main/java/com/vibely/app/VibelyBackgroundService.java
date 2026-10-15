@@ -376,8 +376,15 @@ public class VibelyBackgroundService extends Service {
         JSONObject caller = data.optJSONObject("caller");
         String callerName = caller != null ? caller.optString("display_name", "Partner") : "Partner";
 
+        // If MainActivity is alive, immediately forward the incoming call directly into the WebView
+        MainActivity activity = MainActivity.getInstance();
+        if (activity != null) {
+            activity.notifyIncomingCall(data.toString());
+        }
+
         // If MainActivity is in foreground, in-app React UI rings and handles the call
         if (MainActivity.isAppInForeground) {
+            Log.d(TAG, "App is in foreground, forwarded call directly to React WebView");
             return;
         }
 
@@ -390,6 +397,7 @@ public class VibelyBackgroundService extends Service {
         answerIntent.putExtra("callId", callId);
         answerIntent.putExtra("conversationId", conversationId);
         answerIntent.putExtra("callType", callType);
+        answerIntent.putExtra("callData", data.toString());
         PendingIntent answerPi = PendingIntent.getBroadcast(
                 this,
                 101,
@@ -418,6 +426,7 @@ public class VibelyBackgroundService extends Service {
         String targetUrl = "https://vibely-sigma-roan.vercel.app/chat/" + conversationId + "?callAction=answer&callId=" + callId;
         fullScreenIntent.setData(Uri.parse(targetUrl));
         fullScreenIntent.putExtra("targetUrl", targetUrl);
+        fullScreenIntent.putExtra("callData", data.toString());
         PendingIntent fullScreenPi = PendingIntent.getActivity(
                 this,
                 103,
@@ -450,6 +459,10 @@ public class VibelyBackgroundService extends Service {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {
             nm.cancel(NOTIFICATION_CALL_ID);
+        }
+        MainActivity activity = MainActivity.getInstance();
+        if (activity != null) {
+            activity.notifyCallCancelled(data != null ? data.toString() : "{}");
         }
     }
 

@@ -390,43 +390,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         timestamp: payload?.timestamp || Date.now(),
       };
 
-      // 1. Instant Direct Client WebSocket Broadcast (<20ms delivery)
-      try {
-        const supabase = getSupabaseBrowserClient();
-        const callChan = supabase.channel(`call-user:${targetUserId}`);
-        callChan.subscribe((status: string) => {
-          if (status === 'SUBSCRIBED') {
-            callChan.send({
-              type: 'broadcast',
-              event,
-              payload: enrichedPayload,
-            }).finally(() => {
-              setTimeout(() => {
-                supabase.removeChannel(callChan);
-              }, 2500);
-            });
-          }
-        });
-
-        const notifChan = supabase.channel(`user-notifications:${targetUserId}`);
-        notifChan.subscribe((status: string) => {
-          if (status === 'SUBSCRIBED') {
-            notifChan.send({
-              type: 'broadcast',
-              event,
-              payload: enrichedPayload,
-            }).finally(() => {
-              setTimeout(() => {
-                supabase.removeChannel(notifChan);
-              }, 2500);
-            });
-          }
-        });
-      } catch (clientErr) {
-        console.warn('Client-side signal dispatch error:', clientErr);
-      }
-
-      // 2. Direct Server-Side Broadcast (<50ms delivery across all channels via service role)
+      // 1. Direct Server-Side Broadcast (<50ms delivery across all channels via service role + web push)
       fetch('/api/chat/call-signal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -440,6 +404,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }).catch(err => {
         console.warn('Server-side signal dispatch error:', err);
       });
+
+      // 2. Also send on active call room channel if connected
+      if (callRoomChannelRef.current?.state === 'joined') {
+        try {
+          callRoomChannelRef.current.send({
+            type: 'broadcast',
+            event,
+            payload: enrichedPayload,
+          });
+        } catch {}
+      }
     },
     []
   );
@@ -561,19 +536,27 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     // Step C: Audio-only fallback (or voice call)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-        video: false,
-      }).catch(async () => {
-        return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      });
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        return null;
+      }
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: false,
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      }
 
-      stream.getAudioTracks().forEach(t => { t.enabled = true; });
-      localStreamRef.current = stream;
-      setLocalStream(stream);
+      if (stream) {
+        stream.getAudioTracks().forEach(t => { t.enabled = true; });
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+      }
       return stream;
     } catch (errC) {
-      console.error('All media acquisition failed (Microphone/Camera blocked):', errC);
+      console.warn('All media acquisition failed (Microphone/Camera blocked):', errC);
       return null;
     }
   };
@@ -1031,9 +1014,28 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const callChannel = supabase.channel(`call-user:${profile.id}`);
     const notifChannel = supabase.channel(`user-notifications:${profile.id}`);
 
-    const handleIncomingCall = (payload: any) => {
-      if (!payload || !payload.caller) return;
+    const handleIncomingCall = (rawPayload: any) => {
+      let payload = rawPayload;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch {}
+      }
+      if (!payload) return;
+
+      // Normalize caller info if coming from Android Native bridge
+      if (!payload.caller && payload.callerId) {
+        payload.caller = {
+          id: payload.callerId,
+          display_name: payload.callerName || 'Partner',
+          username: '',
+          avatar_path: payload.avatarUrl || null,
+        };
+      }
+      if (!payload.caller) return;
       if (isDuplicateSignal('incoming_call', payload)) return;
+
+      unlockAudioSession();
 
       // Check if user is actively engaged in a connected call
       const isConnected =
@@ -1287,9 +1289,50 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe();
 
+    // Native Android bridge hook for incoming calls from VibelyBackgroundService
+    const handleNativeIncomingCall = (e: any) => {
+      const payload = e?.detail || e;
+      if (payload) handleIncomingCall(payload);
+    };
+    const handleNativeCallCancelled = (e: any) => {
+      const payload = e?.detail || e;
+      handleCallCancelled(payload);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('vibely_native_incoming_call', handleNativeIncomingCall as any);
+      window.addEventListener('vibely_native_call_cancelled', handleNativeCallCancelled as any);
+      (window as any).onVibelyNativeIncomingCall = (payload: any, autoAnswer?: boolean) => {
+        handleIncomingCall(payload);
+        if (autoAnswer) {
+          setTimeout(() => {
+            acceptCall();
+          }, 400);
+        }
+      };
+      (window as any).onVibelyNativeCallCancelled = (payload: any) => {
+        handleCallCancelled(payload);
+      };
+
+      // Check if there was a pending incoming call waiting in the native bridge
+      try {
+        if ((window as any).VibelyNative?.getPendingIncomingCall) {
+          const pendingJson = (window as any).VibelyNative.getPendingIncomingCall();
+          if (pendingJson && pendingJson.trim().length > 0) {
+            const parsed = JSON.parse(pendingJson);
+            handleIncomingCall(parsed);
+          }
+        }
+      } catch {}
+    }
+
     return () => {
       supabase.removeChannel(callChannel);
       supabase.removeChannel(notifChannel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('vibely_native_incoming_call', handleNativeIncomingCall as any);
+        window.removeEventListener('vibely_native_call_cancelled', handleNativeCallCancelled as any);
+      }
     };
   }, [profile?.id, sendSignalToUser, cleanupMedia, isDuplicateSignal, joinCallRoom, handlePeerLeft, flushPendingIceCandidates, handleReceiveIceCandidate, handleReceiveOffer, handleReceiveAnswer]);
 
@@ -1394,15 +1437,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setIsSpeakerOn(type === 'video');
     setIsMuted(false);
 
-    // Acquire local media tracks immediately
-    await acquireLocalMedia(type);
+    // Acquire local media tracks safely without blocking
+    try {
+      await acquireLocalMedia(type);
+    } catch (mediaErr) {
+      console.warn('Initial media acquisition warning:', mediaErr);
+    }
 
     // Pre-create RTCPeerConnection for partner
-    const pc = createPeerConnection(partner, roomId);
-
-    // Create SDP Offer immediately
     let initialOffer: RTCSessionDescriptionInit | null = null;
     try {
+      const pc = createPeerConnection(partner, roomId);
       initialOffer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
@@ -1412,8 +1457,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       console.warn('Initial offer error:', err);
     }
 
-    // Join room channel
-    await joinCallRoom(roomId, type, false);
+    // Join room channel safely
+    try {
+      await joinCallRoom(roomId, type, false);
+    } catch (roomErr) {
+      console.warn('Join room channel warning:', roomErr);
+    }
 
     // Send call invite to partner with periodic retry
     let attempts = 0;
@@ -1611,8 +1660,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setIsMuted(false);
     setIncomingCall(null);
 
-    // 1. Acquire local media tracks
-    const stream = await acquireLocalMedia(callType);
+    // 1. Acquire local media tracks safely
+    let stream: MediaStream | null = null;
+    try {
+      stream = await acquireLocalMedia(callType);
+    } catch (mediaErr) {
+      console.warn('Acquire local media on accept warning:', mediaErr);
+    }
 
     // 2. Pre-create connection for caller
     const pc = createPeerConnection(caller, roomId);
@@ -1629,8 +1683,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // 3. Join room channel
-    await joinCallRoom(roomId, callType, false);
+    // 3. Join room channel safely
+    try {
+      await joinCallRoom(roomId, callType, false);
+    } catch (roomErr) {
+      console.warn('Join call room on accept warning:', roomErr);
+    }
 
     // 4. If initialOffer was provided in incoming_call, generate answer right now!
     let answerSdp: RTCSessionDescriptionInit | null = null;
@@ -1836,16 +1894,47 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const action = url.searchParams.get('callAction');
       const targetCallId = url.searchParams.get('callId');
 
-      if (action === 'answer' && incomingCall) {
-        if (!targetCallId || incomingCall.callId === targetCallId) {
-          unlockAudioSession();
-          acceptCall();
-          url.searchParams.delete('callAction');
-          url.searchParams.delete('callId');
-          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+      if (action === 'answer') {
+        if (incomingCall) {
+          if (!targetCallId || incomingCall.callId === targetCallId) {
+            unlockAudioSession();
+            acceptCall();
+            url.searchParams.delete('callAction');
+            url.searchParams.delete('callId');
+            window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+          }
+        } else if ((window as any).VibelyNative?.getPendingIncomingCall) {
+          // If incomingCall state is not hydrated yet, fetch immediately from native bridge
+          try {
+            const pendingJson = (window as any).VibelyNative.getPendingIncomingCall();
+            if (pendingJson && pendingJson.trim().length > 0) {
+              const parsed = JSON.parse(pendingJson);
+              if (parsed && (!targetCallId || parsed.callId === targetCallId)) {
+                unlockAudioSession();
+                setIncomingCall({
+                  caller: parsed.caller || { id: parsed.callerId || 'partner', display_name: parsed.callerName || 'Partner', username: '' },
+                  callType: parsed.callType || 'voice',
+                  conversationId: parsed.conversationId || '',
+                  callId: parsed.callId,
+                  roomId: parsed.roomId || `room_${parsed.callId}`,
+                  sdp: parsed.sdp || null,
+                  isMerge: !!parsed.isMerge,
+                  existingParticipants: parsed.existingParticipants || [],
+                });
+                setTimeout(() => {
+                  acceptCall();
+                }, 300);
+                url.searchParams.delete('callAction');
+                url.searchParams.delete('callId');
+                window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+              }
+            }
+          } catch {}
         }
-      } else if (action === 'decline' && incomingCall) {
-        declineCall();
+      } else if (action === 'decline') {
+        if (incomingCall) {
+          declineCall();
+        }
         url.searchParams.delete('callAction');
         url.searchParams.delete('callId');
         window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
