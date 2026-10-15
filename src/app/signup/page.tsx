@@ -42,9 +42,9 @@ function SignupForm() {
   // Auto-redirect if already logged in
   React.useEffect(() => {
     if (user) {
-      window.location.href = '/chat';
+      router.replace('/chat');
     }
-  }, [user]);
+  }, [user, router]);
 
   const {
     register,
@@ -198,7 +198,7 @@ function SignupForm() {
               password: data.password,
             });
             if (!retryRes.error) {
-              window.location.href = '/chat';
+              router.replace('/chat');
               return;
             }
           } catch (autoErr) {
@@ -206,7 +206,7 @@ function SignupForm() {
           }
         }
       } else {
-        window.location.href = '/chat';
+        router.replace('/chat');
         return;
       }
 

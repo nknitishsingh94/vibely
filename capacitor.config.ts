@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Vibely',
   webDir: 'public',
   server: {
-    url: 'https://vibely-sigma-roan.vercel.app/chat',
+    url: 'https://vibely-sigma-roan.vercel.app',
     cleartext: true,
     errorPath: 'index.html',
   },

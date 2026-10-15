@@ -15,6 +15,7 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 
 function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/chat';
   const initialEmail = searchParams.get('email') || '';
@@ -28,20 +29,20 @@ function LoginForm() {
   const [attemptedEmail, setAttemptedEmail] = React.useState(initialEmail);
   const [isLoading, setIsLoading] = React.useState(false);
 
-  // Auto-redirect if already logged in
+  // Auto-redirect if already logged in - uses client router to remain strictly inside native app
   React.useEffect(() => {
     if (user) {
-      window.location.href = redirectTo;
+      router.replace(redirectTo);
     }
-  }, [user, redirectTo]);
+  }, [user, redirectTo, router]);
 
   // If OAuth code landed on /login, forward immediately to /auth/callback
   React.useEffect(() => {
     const code = searchParams.get('code');
     if (code) {
-      window.location.href = `/auth/callback?${searchParams.toString()}`;
+      router.replace(`/auth/callback?${searchParams.toString()}`);
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const {
     register,
@@ -133,7 +134,7 @@ function LoginForm() {
                 password: data.password,
               });
               if (!retryRes.error) {
-                window.location.href = redirectTo;
+                router.replace(redirectTo);
                 return;
               }
               error = retryRes.error;
@@ -153,7 +154,7 @@ function LoginForm() {
         }
         setIsLoading(false);
       } else {
-        window.location.href = redirectTo;
+        router.replace(redirectTo);
       }
     } catch (err: unknown) {
       setAuthError((err as Error)?.message || 'Sign in failed. Please try again.');

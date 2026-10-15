@@ -28,8 +28,20 @@ export function GoogleSignInButton({
         typeof window !== 'undefined' && !window.location.origin.includes('localhost')
           ? window.location.origin
           : 'https://vibely-sigma-roan.vercel.app';
+
+      const isNative =
+        typeof window !== 'undefined' &&
+        Boolean(
+          (window as any).Capacitor?.isNativePlatform?.() ||
+          (window as any).AndroidBridge ||
+          navigator.userAgent.includes('VibelyApp') ||
+          (window as any).Capacitor?.getPlatform?.() === 'android'
+        );
+
       const safeRedirect = redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`;
-      const callbackUrl = `${origin}/auth/callback?redirectTo=${encodeURIComponent(safeRedirect)}`;
+      const callbackUrl = `${origin}/auth/callback?redirectTo=${encodeURIComponent(safeRedirect)}${
+        isNative ? '&isNative=1' : ''
+      }`;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

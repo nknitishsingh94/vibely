@@ -155,6 +155,51 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Return deep link to Vibely app if request originated from native mobile APK
+    const isNative = searchParams.get('isNative') === '1' || Boolean(request.headers.get('user-agent')?.includes('VibelyApp'));
+    if (isNative && data?.session) {
+      const accessToken = data.session.access_token;
+      const refreshToken = data.session.refresh_token;
+      const appDeepLink = `vibely://chat#access_token=${accessToken}&refresh_token=${refreshToken}`;
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Returning to Vibely...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="background:#061410;color:#F0FDF4;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:24px;box-sizing:border-box;">
+  <div>
+    <h2 style="font-size:22px;font-weight:700;margin-bottom:8px;">Signed in!</h2>
+    <p style="color:#9CA3AF;font-size:14px;margin-bottom:24px;">Returning to your Vibely app...</p>
+    <a href="${appDeepLink}" style="display:inline-block;background:#10B981;color:#FFFFFF;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px;box-shadow:0 4px 14px rgba(16,185,129,0.35);">Open Vibely App</a>
+  </div>
+  <script>
+    try {
+      window.location.replace("${appDeepLink}");
+    } catch(e) {
+      window.location.href = "${appDeepLink}";
+    }
+    setTimeout(function() {
+      window.location.replace("${redirectTarget}");
+    }, 1500);
+  </script>
+</body>
+</html>`;
+
+      const htmlResponse = new NextResponse(html, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+        },
+      });
+      // Copy session cookies to htmlResponse
+      response.cookies.getAll().forEach(c => {
+        htmlResponse.cookies.set(c.name, c.value, c);
+      });
+      return htmlResponse;
+    }
+
     // Return the response WITH the Set-Cookie headers
     return response;
   }

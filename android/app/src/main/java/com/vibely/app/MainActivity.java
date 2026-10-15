@@ -73,14 +73,48 @@ public class MainActivity extends BridgeActivity {
                     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                     settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-                    // Add VibelyApp identifier to User-Agent for instant native app detection
+                    // Clean UserAgent: Strip 'Version/X.X' and '; wv' so Google/SSO treat WebView as Chrome Mobile
                     String originalUa = settings.getUserAgentString();
-                    if (originalUa != null && !originalUa.contains("VibelyApp")) {
-                        settings.setUserAgentString(originalUa + " VibelyApp/1.0");
+                    if (originalUa != null) {
+                        String cleanedUa = originalUa
+                                .replaceAll(";\\s*wv", "")
+                                .replaceAll("Version/\\d+\\.\\d+\\s*", "");
+                        if (!cleanedUa.contains("VibelyApp")) {
+                            cleanedUa = cleanedUa + " VibelyApp/1.0";
+                        }
+                        settings.setUserAgentString(cleanedUa);
                     }
                 }
 
                 b.setWebViewClient(new BridgeWebViewClient(b) {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                        if (request != null && request.getUrl() != null) {
+                            String url = request.getUrl().toString();
+                            // Keep all Vibely pages, localhost, and Google/Supabase Auth inside the in-app WebView
+                            if (url.contains("vibely-sigma-roan.vercel.app") || url.startsWith("/") || url.contains("localhost")) {
+                                return false;
+                            }
+                            if (url.contains("accounts.google.com") || url.contains("supabase.co/auth")) {
+                                return false;
+                            }
+                        }
+                        return super.shouldOverrideUrlLoading(view, request);
+                    }
+
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                        if (url != null) {
+                            if (url.contains("vibely-sigma-roan.vercel.app") || url.startsWith("/") || url.contains("localhost")) {
+                                return false;
+                            }
+                            if (url.contains("accounts.google.com") || url.contains("supabase.co/auth")) {
+                                return false;
+                            }
+                        }
+                        return super.shouldOverrideUrlLoading(view, url);
+                    }
+
                     @Override
                     public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                         // Allow secure connection even if intermediate certificate or system clock drift occurs
@@ -126,12 +160,44 @@ public class MainActivity extends BridgeActivity {
                     }
                 });
 
+                // Check if launched via Deep Link intent
+                handleIncomingIntent(getIntent());
+
                 // Immediately load live Vibely chat so the app directly opens the app/login and NEVER stays on localhost or marketing page
                 if (webView != null) {
                     String current = webView.getUrl();
                     if (current == null || current.contains("localhost")) {
                         webView.loadUrl("https://vibely-sigma-roan.vercel.app/chat");
                     }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(android.content.Intent intent) {
+        if (intent == null || intent.getData() == null) return;
+        try {
+            android.net.Uri data = intent.getData();
+            Bridge b = getBridge();
+            if (b != null && b.getWebView() != null) {
+                String scheme = data.getScheme();
+                String host = data.getHost();
+                if ("vibely".equals(scheme) || "com.vibely.app".equals(scheme)) {
+                    String path = data.getPath() != null ? data.getPath() : "";
+                    String query = data.getQuery() != null ? "?" + data.getQuery() : "";
+                    String fragment = data.getFragment() != null ? "#" + data.getFragment() : "";
+                    String target = "https://vibely-sigma-roan.vercel.app" + path + query + fragment;
+                    b.getWebView().loadUrl(target);
+                } else if ("vibely-sigma-roan.vercel.app".equals(host)) {
+                    b.getWebView().loadUrl(data.toString());
                 }
             }
         } catch (Throwable ignored) {
