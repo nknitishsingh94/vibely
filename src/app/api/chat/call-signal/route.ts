@@ -2,9 +2,15 @@ import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 import { sendWebPushToUser } from '@/lib/push-sender';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const callerId = auth.user.id; // Strictly bound to verified authenticated user
+
     const body = await req.json().catch(() => ({}));
     const { targetUserId, event, payload, conversationId, roomId } = body;
 
@@ -17,8 +23,26 @@ export async function POST(req: Request) {
       auth: { persistSession: false },
     });
 
+    // 1. If conversationId is provided, verify caller is a member
+    if (conversationId) {
+      const { data: membership } = await adminClient
+        .from('conversation_members')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', callerId)
+        .maybeSingle();
+
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'Forbidden: You are not a member of this conversation' },
+          { status: 403 }
+        );
+      }
+    }
+
     const enrichedPayload = {
       ...payload,
+      callerId,
       timestamp: payload?.timestamp || Date.now(),
     };
 
@@ -47,12 +71,11 @@ export async function POST(req: Request) {
       // 2. Direct user notification channel
       broadcastPromises.push(sendToChannel(`user-notifications:${targetUserId}`));
 
-      // 3. High-Priority Background Web Push (Wakes up mobile phone when app is closed / locked)
+      // 3. High-Priority Background Web Push (Only for valid communication events)
       if (
         event === 'incoming_call' ||
         event === 'new_message' ||
-        event === 'call_cancelled' ||
-        event === 'chat_security_alert'
+        event === 'call_cancelled'
       ) {
         broadcastPromises.push(sendWebPushToUser(targetUserId, event, enrichedPayload));
       }

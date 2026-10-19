@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server';
 import { createClient as createServerSupabase } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
     const body = await req.json().catch(() => ({}));
-    let userId: string | null = body.userId || null;
-    let userEmail: string | null = body.email || null;
-    let userMetadata: any = body.userMetadata || {};
+    const userId = auth.user.id;
+    let userEmail: string | null = auth.user.email || null;
+    let userMetadata: any = { ...auth.user.user_metadata, ...(body.userMetadata || {}) };
 
     const serviceKey = env.supabaseServiceRoleKey;
     if (!serviceKey || !env.supabaseUrl) {
@@ -21,24 +25,6 @@ export async function POST(req: Request) {
     const adminClient = createServiceClient(env.supabaseUrl, serviceKey, {
       auth: { persistSession: false },
     });
-
-    if (!userId) {
-      try {
-        const userClient = await createServerSupabase();
-        const {
-          data: { user },
-        } = await userClient.auth.getUser();
-        if (user) {
-          userId = user.id;
-          userEmail = user.email || userEmail;
-          userMetadata = user.user_metadata || userMetadata;
-        }
-      } catch {}
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
 
     let authUserRecord: any = null;
     const { data: authUserData } = await adminClient.auth.admin.getUserById(userId);

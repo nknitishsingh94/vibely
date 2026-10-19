@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { cleanDuoIdentifier } from '@/lib/duo-id';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const senderId = auth.user.id; // Cryptographically verified caller ID
+
+    // Rate limit connection requests per user: max 20 requests per hour
+    const limit = checkRateLimit(`connect-req:${senderId}`, 20, 60 * 60 * 1000);
+    if (!limit.success) {
+      return NextResponse.json(
+        { error: 'Connection request rate limit reached. Please wait before sending more requests.' },
+        { status: 429 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
     const { identifier } = body;
 
     if (!identifier || typeof identifier !== 'string') {
@@ -16,29 +31,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Get authenticated user (sender)
-    let senderId: string | null = body.senderId || req.headers.get('x-user-id') || null;
-
-    if (!senderId) {
-      try {
-        const userClient = await createServerSupabase();
-        const { data: { user } } = await userClient.auth.getUser();
-        if (user) {
-          senderId = user.id;
-        }
-      } catch {
-        // Fallback check
-      }
-    }
-
-    if (!senderId) {
-      return NextResponse.json(
-        { error: 'You must be logged in to connect with a partner' },
-        { status: 401 }
-      );
-    }
-
-    // 2. Prepare database client
     const serviceKey = env.supabaseServiceRoleKey;
     if (!serviceKey || !env.supabaseUrl) {
       return NextResponse.json(
@@ -54,13 +46,13 @@ export async function POST(req: Request) {
     const clean = cleanDuoIdentifier(identifier);
     const rawTrimmed = identifier.trim();
 
-    // 3. Search for target profile (receiver)
+    // Search for target profile (receiver)
     let targetProfile = null;
 
     // Search by username
     const { data: byUsername } = await db
       .from('profiles')
-      .select('*')
+      .select('id, username, display_name, avatar_path')
       .ilike('username', clean)
       .maybeSingle();
 
@@ -72,7 +64,7 @@ export async function POST(req: Request) {
     if (!targetProfile && rawTrimmed.length >= 32) {
       const { data: byFullId } = await db
         .from('profiles')
-        .select('*')
+        .select('id, username, display_name, avatar_path')
         .eq('id', rawTrimmed)
         .maybeSingle();
       if (byFullId) targetProfile = byFullId;
@@ -82,7 +74,7 @@ export async function POST(req: Request) {
     if (!targetProfile && clean.length >= 4) {
       const { data: allProfiles } = await db
         .from('profiles')
-        .select('*')
+        .select('id, username, display_name, avatar_path')
         .limit(100);
 
       if (allProfiles) {
@@ -111,7 +103,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Check if direct conversation already exists between current user & target
+    // Check if direct conversation already exists between current user & target
     const { data: userMemberships } = await db
       .from('conversation_members')
       .select('conversation_id')
@@ -138,7 +130,7 @@ export async function POST(req: Request) {
     const tokenHash = `req:${senderId}:${targetProfile.id}`;
     const reverseTokenHash = `req:${targetProfile.id}:${senderId}`;
 
-    // 5. Check if target user has ALREADY sent a pending request to current user!
+    // Check if target user has ALREADY sent a pending request to current user (Auto-accept)
     const { data: existingReverseReq } = await db
       .from('invitations')
       .select('id, used_at, revoked_at')
@@ -148,7 +140,6 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existingReverseReq) {
-      // Both users wanted to connect! Auto-accept!
       await db
         .from('invitations')
         .update({ used_at: new Date().toISOString() })
@@ -175,7 +166,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 6. Check if current user already sent a pending request
+    // Check if current user already sent a pending request
     const { data: existingReq } = await db
       .from('invitations')
       .select('id, used_at, revoked_at')
@@ -191,8 +182,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 7. Insert the pending connection request
-    // Set expiry 30 days into future
+    // Insert the pending connection request with 30-day expiry
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const { error: insertError } = await db.from('invitations').upsert(
@@ -225,7 +215,7 @@ export async function POST(req: Request) {
       });
       db.removeChannel(channel);
     } catch {
-      // Broadcast is non-blocking
+      // Non-blocking
     }
 
     return NextResponse.json({

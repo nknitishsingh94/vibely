@@ -1,32 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const userId = auth.user.id; // Strictly bound to verified user
+
     const body = await req.json().catch(() => ({}));
     const { conversationId } = body;
-
-    let userId: string | null = body.userId || req.headers.get('x-user-id') || null;
-
-    if (!userId) {
-      try {
-        const userClient = await createServerSupabase();
-        const {
-          data: { user },
-        } = await userClient.auth.getUser();
-        if (user) {
-          userId = user.id;
-        }
-      } catch {
-        // Fallback check
-      }
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized: User ID required' }, { status: 401 });
-    }
 
     if (!conversationId) {
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });

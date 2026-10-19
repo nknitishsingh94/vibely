@@ -1,35 +1,14 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const paramUserId = searchParams.get('userId');
-    const headerUserId = req.headers.get('x-user-id');
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
 
-    let currentUserId: string | null = paramUserId || headerUserId || null;
-
-    // Fall back to server session if no header/param provided
-    if (!currentUserId) {
-      try {
-        const userClient = await createServerSupabase();
-        const { data: { user } } = await userClient.auth.getUser();
-        if (user) {
-          currentUserId = user.id;
-        }
-      } catch {
-        // Continue to check
-      }
-    }
-
-    if (!currentUserId) {
-      return NextResponse.json(
-        { error: 'Unauthorized: User ID required' },
-        { status: 401 }
-      );
-    }
+    const currentUserId = auth.user.id; // Strictly bound to verified authenticated user
 
     const serviceKey = env.supabaseServiceRoleKey;
     if (!serviceKey || !env.supabaseUrl) {

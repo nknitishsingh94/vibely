@@ -35,6 +35,11 @@ export async function middleware(request: NextRequest) {
   const response = await updateSession(request);
   response.headers.set('X-RateLimit-Limit', String(rateLimit.limit));
   response.headers.set('X-RateLimit-Remaining', String(rateLimit.remaining));
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
   return response;
 }
 

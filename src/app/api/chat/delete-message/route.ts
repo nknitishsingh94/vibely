@@ -1,33 +1,25 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const userId = auth.user.id; // Strictly bound to verified user
+
     const body = await req.json().catch(() => ({}));
     const { messageIds, mode, conversationId } = body;
 
-    let userId: string | null = body.userId || req.headers.get('x-user-id') || null;
-
-    if (!userId) {
-      try {
-        const userClient = await createServerSupabase();
-        const {
-          data: { user },
-        } = await userClient.auth.getUser();
-        if (user) {
-          userId = user.id;
-        }
-      } catch {}
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized: User ID required' }, { status: 401 });
-    }
-
     if (!Array.isArray(messageIds) || messageIds.length === 0) {
       return NextResponse.json({ error: 'No message IDs provided' }, { status: 400 });
+    }
+
+    // Limit batch size to prevent DoS
+    if (messageIds.length > 100) {
+      return NextResponse.json({ error: 'Cannot delete more than 100 messages at once' }, { status: 400 });
     }
 
     const serviceKey = env.supabaseServiceRoleKey;
@@ -55,7 +47,7 @@ export async function POST(req: Request) {
       .map(m => m.storage_path)
       .filter((p): p is string => Boolean(p));
 
-    // Remove files from Supabase Storage bucket ('chat-media') to free up storage space
+    // Remove files from Supabase Storage bucket ('chat-media')
     if (storagePathsToRemove.length > 0) {
       try {
         await db.storage.from('chat-media').remove(storagePathsToRemove);
@@ -65,7 +57,8 @@ export async function POST(req: Request) {
     }
 
     if (mode === 'for_everyone') {
-      // 2. Delete for everyone: permanently wipe body (encrypted ciphertext), storage_path, and metadata from DB
+      // Delete for everyone: permanently wipe body, storage_path, and metadata from DB
+      // Strictly enforced: only the message sender can delete for everyone
       const { error: updateErr } = await db
         .from('messages')
         .update({
@@ -89,6 +82,7 @@ export async function POST(req: Request) {
 
     if (mode === 'permanent' || mode === 'hard_delete') {
       // Hard delete: completely delete the rows from messages table
+      // Strictly enforced: only the sender can hard delete their message rows
       const { error: deleteErr } = await db
         .from('messages')
         .delete()
@@ -102,8 +96,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, count: messageIds.length });
     }
 
-    // For 'for_me', if any message was already marked deleted_at (a placeholder) AND the user is the sender,
-    // or if only that user was in the conversation, we ensure state is recorded
     return NextResponse.json({ success: true, count: messageIds.length });
   } catch (err: any) {
     console.error('Error in /api/chat/delete-message:', err);

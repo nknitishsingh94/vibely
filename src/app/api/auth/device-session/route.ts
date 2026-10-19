@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
 
 export interface DeviceInfo {
   deviceId: string;
@@ -20,11 +21,18 @@ export interface RegisteredDevices {
  */
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get('userId') || auth.user.id;
+
+    // Security check: users can only view their own registered devices
+    if (userId !== auth.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden: You cannot inspect another user\'s registered devices' },
+        { status: 403 }
+      );
     }
 
     const serviceKey = env.supabaseServiceRoleKey;
@@ -56,16 +64,19 @@ export async function GET(req: Request) {
 /**
  * POST: Register or verify a device session.
  * Enforces strictly: At most 1 Desktop and at most 1 Mobile device per account!
- * Any 2nd desktop or 2nd mobile (or 3rd device) is blocked until existing slot is freed.
  */
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const { userId, deviceId, deviceType, deviceName, userAgent } = body;
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
 
-    if (!userId || !deviceId || !deviceType) {
+    const body = await req.json().catch(() => ({}));
+    const { deviceId, deviceType, deviceName, userAgent } = body;
+    const userId = auth.user.id; // Strictly bound to verified authenticated user
+
+    if (!deviceId || !deviceType) {
       return NextResponse.json(
-        { error: 'Missing required device information (userId, deviceId, deviceType)' },
+        { error: 'Missing required device information (deviceId, deviceType)' },
         { status: 400 }
       );
     }
@@ -94,11 +105,6 @@ export async function POST(req: Request) {
     const nowIso = new Date().toISOString();
     const existingSlot = registeredDevices[deviceType as 'desktop' | 'mobile'];
 
-    // 1. Register or update this device slot
-    // An authenticated user claims the slot for their device type (at most 1 Desktop + 1 Mobile simultaneously).
-    // This allows seamless re-installation of the APK, app updates, and device switching without lock-outs.
-
-    // 2. Register or update this device slot
     const updatedSlot: DeviceInfo = {
       deviceId,
       name: deviceName || (deviceType === 'desktop' ? 'Desktop Browser' : 'Mobile Phone'),
@@ -137,15 +143,16 @@ export async function POST(req: Request) {
 
 /**
  * DELETE: Remove a registered device slot (freeing it for another device) or delete full account
+ * Strictly enforces that only the verified account owner can perform these actions.
  */
 export async function DELETE(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const { userId, deviceType, deviceId, action } = body;
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
-    }
+    const body = await req.json().catch(() => ({}));
+    const { deviceType, deviceId, action } = body;
+    const userId = auth.user.id; // Strictly bound to verified authenticated session
 
     const serviceKey = env.supabaseServiceRoleKey;
     if (!serviceKey || !env.supabaseUrl) {
@@ -156,7 +163,7 @@ export async function DELETE(req: Request) {
       auth: { persistSession: false },
     });
 
-    // Action: Complete Account Purge
+    // Action: Complete Account Purge (Self-service deletion)
     if (action === 'delete_account') {
       try {
         // Delete messages, conversations, friendships, receipts
@@ -176,7 +183,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: true, message: 'Account permanently deleted' });
     }
 
-    // Action: Free specific device slot
+    // Action: Free specific device slot for current authenticated user
     const { data: userData, error: getUserError } = await adminClient.auth.admin.getUserById(userId);
     if (getUserError || !userData?.user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

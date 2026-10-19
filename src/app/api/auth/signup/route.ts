@@ -5,18 +5,18 @@ import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    // 1. Rate limiting: 100 requests per second per IP
+    // 1. Rate limiting: max 5 signup requests per minute per IP to stop bot spam
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       req.headers.get('x-real-ip') ||
       '127.0.0.1';
 
-    const rateLimit = checkRateLimit(ip, 100, 1000);
+    const rateLimit = checkRateLimit(`signup:${ip}`, 5, 60000);
     if (!rateLimit.success) {
       return NextResponse.json(
         {
           error: 'rate_limited',
-          message: 'Rate limit exceeded. Maximum 100 signups per second allowed.',
+          message: 'Too many signup attempts. Please wait a minute before trying again.',
           retryAfter: Math.ceil(rateLimit.resetMs / 1000),
         },
         {
@@ -37,6 +37,13 @@ export async function POST(req: Request) {
     if (!email || !password || !displayName || !username) {
       return NextResponse.json(
         { error: 'missing_fields', message: 'All fields (email, password, displayName, username) are required' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof password !== 'string' || password.length < 8) {
+      return NextResponse.json(
+        { error: 'weak_password', message: 'Password must be at least 8 characters long.' },
         { status: 400 }
       );
     }

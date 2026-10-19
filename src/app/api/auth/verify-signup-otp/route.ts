@@ -1,10 +1,28 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
+    // Anti brute-force rate limit: max 5 OTP verification attempts per 10 minutes per IP
+    const ipLimit = checkRateLimit(`verify-otp-ip:${ip}`, 5, 10 * 60 * 1000);
+    if (!ipLimit.success) {
+      return NextResponse.json(
+        {
+          error: 'too_many_attempts',
+          message: 'Too many verification attempts. Please wait 10 minutes before trying again.',
+        },
+        { status: 429 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
     const { email, otp, password, displayName, username } = body;
 
     if (!email || !otp || !password || !displayName || !username) {
@@ -14,14 +32,33 @@ export async function POST(req: Request) {
       );
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.trim();
-    const cleanUsername = username.trim().toLowerCase();
-    const cleanDisplayName = displayName.trim();
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+    const cleanUsername = String(username).trim().toLowerCase();
+    const cleanDisplayName = String(displayName).trim();
+
+    // Check per-email rate limit: max 5 attempts per email
+    const emailLimit = checkRateLimit(`verify-otp-email:${cleanEmail}`, 5, 10 * 60 * 1000);
+    if (!emailLimit.success) {
+      return NextResponse.json(
+        {
+          error: 'too_many_attempts',
+          message: 'Too many failed verification attempts for this email. Please request a new code.',
+        },
+        { status: 429 }
+      );
+    }
 
     if (!/^\d{6}$/.test(cleanOtp)) {
       return NextResponse.json(
         { error: 'invalid_format', message: 'Verification code must be exactly 6 digits.' },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'weak_password', message: 'Password must be at least 8 characters long.' },
         { status: 400 }
       );
     }

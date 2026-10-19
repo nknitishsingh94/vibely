@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const BASE_DOWNLOADS = 184; // Realistic starting base
 const STATS_FILE_PATH = 'system/metrics.txt';
@@ -113,6 +114,16 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
+    const limit = checkRateLimit(`stats-inc:${ip}`, 10, 60000); // Max 10 increments per minute per IP
+    if (!limit.success) {
+      return NextResponse.json({ success: false, error: 'Rate limit exceeded' }, { status: 429 });
+    }
+
     const adminClient = await getAdminClient();
     if (!adminClient) {
       return NextResponse.json({ success: false, error: 'Database client unavailable' });

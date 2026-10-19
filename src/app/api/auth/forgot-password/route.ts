@@ -1,10 +1,26 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { maskEmail } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
+    // Anti-abuse rate limit: max 5 requests per 15 mins per IP
+    const rateLimit = checkRateLimit(`forgot-pwd:${ip}`, 5, 15 * 60 * 1000);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many password reset requests. Please wait 15 minutes before trying again.' },
+        { status: 429 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
     const { identifier } = body;
 
     if (!identifier || typeof identifier !== 'string') {
@@ -77,7 +93,7 @@ export async function POST(req: Request) {
     const origin = req.headers.get('origin') || 'https://vibely-sigma-roan.vercel.app';
     const redirectUrl = `${origin}/reset-password`;
 
-    // 3. Send password recovery email using IMPLICIT flow to prevent PKCE code verifier mismatches across devices!
+    // Send password recovery email using implicit flow
     const implicitClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
       auth: {
         flowType: 'implicit',
@@ -97,8 +113,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
+      maskedEmail: maskEmail(targetEmail),
       email: targetEmail,
-      message: 'Password reset link sent! Check your email to update your password.',
+      message: `Password reset link sent to ${maskEmail(targetEmail)}! Check your email to update your password.`,
     });
   } catch (err: unknown) {
     console.error('Unexpected error in forgot-password:', err);

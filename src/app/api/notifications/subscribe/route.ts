@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const { userId, subscription } = body;
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
 
-    if (!userId || !subscription?.endpoint) {
-      return NextResponse.json({ error: 'Missing userId or subscription endpoint' }, { status: 400 });
+    const userId = auth.user.id; // Strictly bound to verified user
+
+    const body = await req.json().catch(() => ({}));
+    const { subscription } = body;
+
+    if (!subscription?.endpoint) {
+      return NextResponse.json({ error: 'Missing subscription endpoint' }, { status: 400 });
     }
 
     const serviceKey = env.supabaseServiceRoleKey;

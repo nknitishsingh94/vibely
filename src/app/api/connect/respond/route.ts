@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServerSupabase } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const receiverId = auth.user.id; // Strictly bound to verified receiver
+
+    const body = await req.json().catch(() => ({}));
     const { requestId, action } = body;
 
     if (!requestId || !action || !['accept', 'decline'].includes(action)) {
@@ -13,25 +18,6 @@ export async function POST(req: Request) {
         { error: 'Valid requestId and action ("accept" | "decline") are required' },
         { status: 400 }
       );
-    }
-
-    // 1. Authenticate current user (receiver)
-    let receiverId: string | null = body.userId || req.headers.get('x-user-id') || null;
-
-    if (!receiverId) {
-      try {
-        const userClient = await createServerSupabase();
-        const { data: { user } } = await userClient.auth.getUser();
-        if (user) {
-          receiverId = user.id;
-        }
-      } catch {
-        // Fallback check
-      }
-    }
-
-    if (!receiverId) {
-      return NextResponse.json({ error: 'Unauthorized: User ID required' }, { status: 401 });
     }
 
     const serviceKey = env.supabaseServiceRoleKey;
@@ -46,7 +32,7 @@ export async function POST(req: Request) {
       auth: { persistSession: false },
     });
 
-    // 2. Fetch the invitation
+    // Fetch the invitation
     const { data: requestRow, error: reqErr } = await db
       .from('invitations')
       .select('*')
@@ -60,25 +46,24 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Verify user is receiver
+    // Verify user is actually the intended receiver
     const expectedSuffix = `:${receiverId}`;
-    if (!requestRow.token_hash.endsWith(expectedSuffix)) {
+    if (!requestRow.token_hash || !requestRow.token_hash.endsWith(expectedSuffix)) {
       return NextResponse.json(
-        { error: 'You are not authorized to respond to this request' },
+        { error: 'Forbidden: You are not authorized to respond to this request' },
         { status: 403 }
       );
     }
 
     const senderId = requestRow.created_by;
 
-    // 4. Handle Decline
+    // Handle Decline
     if (action === 'decline') {
       await db
         .from('invitations')
         .update({ revoked_at: new Date().toISOString() })
         .eq('id', requestId);
 
-      // Broadcast decline to sender
       try {
         const channel = db.channel(`user-notifications:${senderId}`);
         await channel.subscribe();
@@ -99,7 +84,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 5. Handle Accept
+    // Handle Accept
     await db
       .from('invitations')
       .update({ used_at: new Date().toISOString() })
@@ -169,7 +154,6 @@ export async function POST(req: Request) {
       .eq('id', senderId)
       .maybeSingle();
 
-    // Broadcast acceptance to sender so their screen updates instantly
     try {
       const channel = db.channel(`user-notifications:${senderId}`);
       await channel.subscribe();
