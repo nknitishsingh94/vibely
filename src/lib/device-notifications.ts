@@ -201,8 +201,11 @@ export async function showIncomingCallNotification(options: CallNotificationOpti
     return;
   }
 
-  const title = `📞 Incoming ${options.callType === 'video' ? 'Video' : 'Voice'} Call`;
-  const body = `${options.callerName} is calling you on Vibely... Tap to answer`;
+  const isVideo = options.callType === 'video';
+  const title = isVideo ? '📹 Incoming Video Call' : '📞 Incoming Voice Call';
+  const body = isVideo
+    ? `📹 ${options.callerName} is video calling you! Tap to answer with camera`
+    : `📞 ${options.callerName} is voice calling you! Tap to answer`;
   const tag = `call-${options.callId}`;
   const icon = options.avatarUrl || '/icon-192.png';
 
@@ -226,7 +229,7 @@ export async function showIncomingCallNotification(options: CallNotificationOpti
             url: options.conversationId ? `/chat/${options.conversationId}?callId=${options.callId}` : '/chat',
           },
           actions: [
-            { action: 'answer', title: '📞 Answer' },
+            { action: 'answer', title: isVideo ? '📹 Answer Video' : '📞 Answer Call' },
             { action: 'decline', title: '❌ Decline' },
           ],
         } as any);

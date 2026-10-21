@@ -3,6 +3,7 @@
 import * as React from 'react';
 import {
   Video,
+  Phone,
   PhoneOff,
   Mic,
   MicOff,
@@ -710,6 +711,21 @@ export function CallModal() {
                 >
                   <ShieldCheck className="w-2.5 h-2.5" />
                   <span>Encrypted</span>
+                </span>
+                <span
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold shadow-xs",
+                    isVideo
+                      ? isLightScreen
+                        ? "bg-violet-500/15 border border-violet-500/30 text-violet-800"
+                        : "bg-violet-500/25 border border-violet-500/40 text-violet-300 ring-1 ring-violet-500/30"
+                      : isLightScreen
+                      ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-800"
+                      : "bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/30"
+                  )}
+                >
+                  {isVideo ? <Video className="w-2.5 h-2.5" /> : <Phone className="w-2.5 h-2.5" />}
+                  <span>{isVideo ? 'Video Call' : 'Voice Call'}</span>
                 </span>
                 {isVideo && isVideoEnabled && !isScreenActive && (
                   <span

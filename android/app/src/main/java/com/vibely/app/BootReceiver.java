@@ -21,6 +21,6 @@ public class BootReceiver extends BroadcastReceiver {
                 Log.d(TAG, "Starting VibelyBackgroundService for user: " + userId);
                 VibelyBackgroundService.startService(context, userId);
             }
-        }
+        } 
     }
 }

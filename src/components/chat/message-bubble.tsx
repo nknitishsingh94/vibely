@@ -49,6 +49,7 @@ const COMMON_EMOJIS = ['❤️', '💕', '🥰', '✨', '😂', '🔥', '☕'];
 export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleProps) {
   const { profile } = useAuth();
   const {
+    activeConversation,
     setReplyingTo,
     toggleReaction,
     editMessage,
@@ -59,6 +60,7 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
     toggleSelectMessage,
   } = useChat();
 
+  const isGroup = activeConversation?.type === 'group';
   const isSelected = selectedMessageIds.includes(message.id);
 
   const { isFavorite, toggleFav } = useRomanticFeatures();
@@ -750,6 +752,13 @@ export function MessageBubble({ message, isFirstInGroup = true }: MessageBubbleP
               )}
             </div>
           )}
+
+        {/* Group Message Incoming Sender Label */}
+        {isGroup && !isOutgoing && (
+          <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mb-1 select-none flex items-center gap-1">
+            <span>{message.sender?.display_name || 'Member'}</span>
+          </div>
+        )}
 
         {/* Little Note Header Badge */}
         {isLittleNote && (

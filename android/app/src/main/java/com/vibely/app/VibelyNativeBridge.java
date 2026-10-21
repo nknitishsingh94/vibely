@@ -99,4 +99,39 @@ public class VibelyNativeBridge {
             }
         });
     }
+
+    @JavascriptInterface
+    public void downloadFile(String url, String filename, String mimeType) {
+        if (url == null || url.trim().isEmpty()) return;
+        activity.runOnUiThread(() -> {
+            try {
+                String safeFilename = filename != null && !filename.trim().isEmpty() 
+                        ? filename.trim() 
+                        : "vibely_download_" + System.currentTimeMillis();
+
+                Uri downloadUri = Uri.parse(url);
+                android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(downloadUri);
+
+                if (mimeType != null && !mimeType.trim().isEmpty()) {
+                    request.setMimeType(mimeType.trim());
+                }
+
+                request.setTitle(safeFilename);
+                request.setDescription("Downloading file to Files...");
+                request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, safeFilename);
+
+                android.app.DownloadManager dm = (android.app.DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE);
+                if (dm != null) {
+                    dm.enqueue(request);
+                    android.widget.Toast.makeText(activity, "Downloading " + safeFilename + " to Files...", android.widget.Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to download file via DownloadManager", e);
+                try {
+                    android.widget.Toast.makeText(activity, "Download failed: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+                } catch (Exception ignored) {}
+            }
+        });
+    }
 }

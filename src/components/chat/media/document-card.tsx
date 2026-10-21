@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { FileText, Download, FileSpreadsheet, FileArchive, FileCode, File, Image as ImageIcon } from 'lucide-react';
+import { FileText, Download, FileSpreadsheet, FileArchive, FileCode, File, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 import { useChat } from '@/context/chat-context';
+import { downloadMediaFile } from '@/lib/file-downloader';
 
 interface DocumentCardProps {
   src?: string | null;
@@ -54,6 +55,23 @@ export function DocumentCard({
     return <File className="w-5 h-5 text-sky-500" />;
   };
 
+  const [isDownloading, setIsDownloading] = React.useState(false);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!src || isDownloading) return;
+
+    notifySecurityEvent?.('file_downloaded', filename || 'document');
+    await downloadMediaFile({
+      url: src,
+      filename: filename || (isImage ? 'photo.jpg' : 'document'),
+      mimeType: mimeType || undefined,
+      onStart: () => setIsDownloading(true),
+      onFinish: () => setIsDownloading(false),
+    });
+  };
+
   return (
     <div
       className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all max-w-sm sm:max-w-md ${
@@ -91,21 +109,24 @@ export function DocumentCard({
       </div>
 
       {src && (
-        <a
-          href={src}
-          download={filename || 'document'}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => notifySecurityEvent?.('file_downloaded', filename || 'document')}
-          className={`p-2 rounded-xl shrink-0 transition-opacity cursor-pointer ${
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={isDownloading}
+          className={`p-2 rounded-xl shrink-0 transition-all cursor-pointer active:scale-95 ${
             isOutgoing
-              ? 'bg-white text-primary hover:bg-white/90'
-              : 'bg-primary text-primary-foreground hover:opacity-90'
+              ? 'bg-white text-primary hover:bg-white/90 disabled:opacity-50'
+              : 'bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50'
           }`}
-          title="Download file"
+          title="Download file directly to storage"
+          aria-label="Download file directly to storage"
         >
-          <Download className="w-4 h-4" />
-        </a>
+          {isDownloading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+        </button>
       )}
     </div>
   );

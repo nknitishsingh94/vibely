@@ -173,6 +173,35 @@ public class MainActivity extends BridgeActivity {
                     // Register Native Bridge for JavaScript communication
                     webView.addJavascriptInterface(new VibelyNativeBridge(this), "VibelyNative");
 
+                    // Route all in-app file/video/document downloads to Android DownloadManager directly into Files
+                    webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+                        try {
+                            String guessName = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype);
+                            android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(url));
+                            if (mimetype != null && !mimetype.isEmpty()) {
+                                request.setMimeType(mimetype);
+                            }
+                            String cookies = android.webkit.CookieManager.getInstance().getCookie(url);
+                            if (cookies != null) {
+                                request.addRequestHeader("cookie", cookies);
+                            }
+                            if (userAgent != null) {
+                                request.addRequestHeader("User-Agent", userAgent);
+                            }
+                            request.setTitle(guessName);
+                            request.setDescription("Downloading file to Files...");
+                            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                            request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, guessName);
+                            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                            if (dm != null) {
+                                dm.enqueue(request);
+                                runOnUiThread(() -> android.widget.Toast.makeText(MainActivity.this, "Downloading " + guessName + " to Files...", android.widget.Toast.LENGTH_SHORT).show());
+                            }
+                        } catch (Exception e) {
+                            Log.e("MainActivity", "DownloadListener error", e);
+                        }
+                    });
+
                     // Crucial: Automatically grant WebRTC Audio & Video permissions to WebView
                     webView.setWebChromeClient(new BridgeWebChromeClient(b) {
                         @Override

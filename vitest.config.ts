@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    fileParallelism: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
   resolve: {

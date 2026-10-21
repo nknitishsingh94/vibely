@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL DEFAULT 'direct' CHECK (type IN ('direct', 'group')),
+  name TEXT,
+  avatar_path TEXT,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -339,6 +342,19 @@ CREATE POLICY "Users can update their own membership row"
   TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can delete their membership to leave group" ON public.conversation_members;
+CREATE POLICY "Users can delete their membership to leave group"
+  ON public.conversation_members FOR DELETE
+  TO authenticated
+  USING (user_id = auth.uid() OR public.is_conversation_member(conversation_id, auth.uid()));
+
+DROP POLICY IF EXISTS "Users can update conversations they belong to" ON public.conversations;
+CREATE POLICY "Users can update conversations they belong to"
+  ON public.conversations FOR UPDATE
+  TO authenticated
+  USING (public.is_conversation_member(id, auth.uid()))
+  WITH CHECK (public.is_conversation_member(id, auth.uid()));
 
 -- Messages
 DROP POLICY IF EXISTS "Users can view messages in their conversations" ON public.messages;

@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Download, Film } from 'lucide-react';
+import { Download, Film, Loader2 } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 import { useChat } from '@/context/chat-context';
+import { downloadMediaFile } from '@/lib/file-downloader';
 
 interface VideoPlayerProps {
   src: string;
@@ -14,9 +15,21 @@ interface VideoPlayerProps {
 
 export function VideoPlayer({ src, filename, fileSize, mimeType }: VideoPlayerProps) {
   const { notifySecurityEvent } = useChat();
+  const [isDownloading, setIsDownloading] = React.useState(false);
 
-  const handleDownloadNotify = () => {
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!src || isDownloading) return;
+
     notifySecurityEvent?.('video_saved', filename || 'video.mp4');
+    await downloadMediaFile({
+      url: src,
+      filename: filename || 'vibely-video.mp4',
+      mimeType: mimeType || 'video/mp4',
+      onStart: () => setIsDownloading(true),
+      onFinish: () => setIsDownloading(false),
+    });
   };
 
   return (
@@ -41,17 +54,20 @@ export function VideoPlayer({ src, filename, fileSize, mimeType }: VideoPlayerPr
           )}
         </div>
 
-        <a
-          href={src}
-          download={filename || 'vibely-video.mp4'}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={handleDownloadNotify}
-          className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
-          title="Download video"
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={isDownloading}
+          className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer disabled:opacity-50 active:scale-95"
+          title="Download video directly to Files"
+          aria-label="Download video directly to Files"
         >
-          <Download className="w-4 h-4" />
-        </a>
+          {isDownloading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+        </button>
       </div>
     </div>
   );

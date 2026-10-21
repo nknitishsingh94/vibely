@@ -22,6 +22,7 @@ import {
   Forward,
   Lock,
   Unlock,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -33,6 +34,7 @@ import { toast } from '@/components/ui/toast';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { Dialog } from '@/components/ui/dialog';
 import { ForwardModal } from './forward-modal';
+import { GroupDetailsModal } from './group-details-modal';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCall } from '@/context/call-context';
@@ -77,11 +79,26 @@ export function ConversationHeader() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = React.useState(false);
   const [isDeletingMessages, setIsDeletingMessages] = React.useState(false);
   const [isForwardModalOpen, setIsForwardModalOpen] = React.useState(false);
+  const [isGroupDetailsOpen, setIsGroupDetailsOpen] = React.useState(false);
 
   // Stealth Chat Lock State & Long-Press Gesture Detection
   const [isSecretLockModalOpen, setIsSecretLockModalOpen] = React.useState(false);
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const isLongPressTriggered = React.useRef(false);
+
+  const isGroup = activeConversation?.type === 'group';
+  const friend = activeConversation?.otherUser;
+  const isOnline = friend?.id ? isUserOnline(friend.id) || friendPresence.online : friendPresence.online;
+
+  const groupTitle =
+    activeConversation?.name ||
+    activeConversation?.members.map(m => m.profile?.display_name).filter(Boolean).join(', ') ||
+    'Group Chat';
+
+  const groupOnlineCount = React.useMemo(() => {
+    if (!isGroup || !activeConversation) return 0;
+    return activeConversation.members.filter(m => isUserOnline(m.user_id)).length;
+  }, [isGroup, activeConversation, isUserOnline]);
 
   const startLongPress = React.useCallback(() => {
     isLongPressTriggered.current = false;
@@ -106,8 +123,12 @@ export function ConversationHeader() {
       isLongPressTriggered.current = false;
       return;
     }
-    setIsContactInfoOpen(true);
-  }, []);
+    if (isGroup) {
+      setIsGroupDetailsOpen(true);
+    } else {
+      setIsContactInfoOpen(true);
+    }
+  }, [isGroup]);
 
   // Only allow "Delete for everyone" if ALL selected messages were sent by current user and not already deleted
   const canDeleteForEveryone = React.useMemo(() => {
@@ -134,10 +155,11 @@ export function ConversationHeader() {
     }
   };
 
-  const friend = activeConversation?.otherUser;
-  const isOnline = friend?.id ? isUserOnline(friend.id) || friendPresence.online : friendPresence.online;
-
   const handleStartCall = (type: 'voice' | 'video') => {
+    if (isGroup) {
+      toast.info('Group voice & video calling is coming soon! Use direct chat with a partner for live calls.');
+      return;
+    }
     if (friend) {
       startCall(friend, type, activeConversation?.id);
     }
@@ -269,32 +291,55 @@ export function ConversationHeader() {
             className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer select-none group/partner hover:opacity-90 transition-opacity"
             title="Tap for chat details, hold space to manage stealth lock"
           >
-            {/* Friend Avatar with presence ring */}
+            {/* Friend / Group Avatar with presence ring */}
             <div className="relative">
-              <Avatar
-                src={friend?.avatar_path}
-                name={friend?.display_name || 'Partner'}
-                size="md"
-                isOnline={isOnline}
-                className="w-11 h-11 md:w-10 md:h-10 text-base md:text-sm shrink-0 ring-2 ring-emerald-500/20 group-hover/partner:ring-emerald-500/50 transition-all"
-              />
+              {isGroup ? (
+                <div className="w-11 h-11 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 ring-2 ring-emerald-500/20 shadow-xs">
+                  <Users className="w-5 h-5 md:w-4 md:h-4" />
+                </div>
+              ) : (
+                <Avatar
+                  src={friend?.avatar_path}
+                  name={friend?.display_name || 'Partner'}
+                  size="md"
+                  isOnline={isOnline}
+                  className="w-11 h-11 md:w-10 md:h-10 text-base md:text-sm shrink-0 ring-2 ring-emerald-500/20 group-hover/partner:ring-emerald-500/50 transition-all"
+                />
+              )}
             </div>
 
-            {/* Partner Name, Dynamic Status & Romantic Badge */}
+            {/* Partner / Group Name, Dynamic Status & Badges */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-base md:text-sm font-bold md:font-semibold truncate text-foreground flex items-center gap-1">
-                  {friend?.display_name || 'My Partner'}
-                  <Sparkles className="w-3.5 h-3.5 text-rose-400 inline shrink-0" />
+                  {isGroup ? groupTitle : (friend?.display_name || 'My Partner')}
+                  {isGroup ? (
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md shrink-0 ml-0.5">
+                      Group
+                    </span>
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5 text-rose-400 inline shrink-0" />
+                  )}
                 </h2>
-                <span title="Private Romantic Sanctuary" className="inline-flex">
-                  <ShieldCheck className="w-4 h-4 md:w-3.5 md:h-3.5 text-primary/80 shrink-0" />
-                </span>
+                {!isGroup && (
+                  <span title="Private Romantic Sanctuary" className="inline-flex">
+                    <ShieldCheck className="w-4 h-4 md:w-3.5 md:h-3.5 text-primary/80 shrink-0" />
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2 text-xs truncate">
-                {/* Live Activity Status - ONLY when partner is ACTUALLY online */}
-                {isOnline && (partnerActivity?.activity === 'typing' || typingUsers.length > 0) ? (
+                {isGroup ? (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <span>{activeConversation?.members.length || 0} members</span>
+                    {groupOnlineCount > 0 && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                        {groupOnlineCount} online
+                      </span>
+                    )}
+                  </span>
+                ) : isOnline && (partnerActivity?.activity === 'typing' || typingUsers.length > 0) ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5 animate-pulse text-[13px] md:text-xs">
                     <span className="flex items-center gap-0.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
@@ -954,6 +999,14 @@ export function ConversationHeader() {
           </div>
         </div>
       </Dialog>
+
+      {isGroup && activeConversation && (
+        <GroupDetailsModal
+          isOpen={isGroupDetailsOpen}
+          onClose={() => setIsGroupDetailsOpen(false)}
+          conversation={activeConversation}
+        />
+      )}
     </>
   );
 }

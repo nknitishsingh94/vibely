@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Download, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Download, X, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 import { useChat } from '@/context/chat-context';
+import { downloadMediaFile } from '@/lib/file-downloader';
 
 interface ImagePreviewProps {
   src: string;
@@ -15,6 +16,7 @@ interface ImagePreviewProps {
 export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isZoomed, setIsZoomed] = React.useState(false);
+  const [isDownloading, setIsDownloading] = React.useState(false);
   const { broadcastActivity, notifySecurityEvent } = useChat();
 
   const handleOpen = () => {
@@ -29,8 +31,19 @@ export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps
     broadcastActivity?.('in_chat');
   };
 
-  const handleDownloadNotify = () => {
+  const handleDownloadNotify = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!src || isDownloading) return;
+
     notifySecurityEvent?.('media_saved', filename || 'vibely-photo.jpg');
+    await downloadMediaFile({
+      url: src,
+      filename: filename || 'vibely-photo.jpg',
+      mimeType: 'image/jpeg',
+      onStart: () => setIsDownloading(true),
+      onFinish: () => setIsDownloading(false),
+    });
   };
 
   return (
@@ -95,17 +108,20 @@ export function ImagePreview({ src, alt, filename, fileSize }: ImagePreviewProps
                 {isZoomed ? <ZoomOut className="w-5 h-5" /> : <ZoomIn className="w-5 h-5" />}
               </button>
 
-              <a
-                href={src}
-                download={filename || 'vibely-photo.jpg'}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
                 onClick={handleDownloadNotify}
-                className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-all cursor-pointer shadow-md"
-                title="Download photo"
+                disabled={isDownloading}
+                className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-all cursor-pointer shadow-md disabled:opacity-50 active:scale-95"
+                title="Download photo directly to Files"
+                aria-label="Download photo directly to Files"
               >
-                <Download className="w-5 h-5" />
-              </a>
+                {isDownloading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Download className="w-5 h-5" />
+                )}
+              </button>
             </div>
           </div>
 

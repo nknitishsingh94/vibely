@@ -20,6 +20,7 @@ import { formatBytes, formatMessageDate } from '@/lib/utils';
 import { ImagePreview } from './media/image-preview';
 import { useRomanticFeatures } from '@/lib/romantic-features';
 import { Button } from '@/components/ui/button';
+import { downloadMediaFile } from '@/lib/file-downloader';
 
 export function MediaGalleryDrawer() {
   const {
@@ -271,14 +272,21 @@ export function MediaGalleryDrawer() {
                           </p>
                         </div>
                       </div>
-                      <a
-                        href={audio.signedMediaUrl!}
-                        download={audio.original_filename || 'audio.mp3'}
-                        onClick={() => notifySecurityEvent?.('media_saved', audio.original_filename || 'audio.mp3')}
-                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          notifySecurityEvent?.('media_saved', audio.original_filename || 'audio.mp3');
+                          downloadMediaFile({
+                            url: audio.signedMediaUrl!,
+                            filename: audio.original_filename || 'audio.mp3',
+                            mimeType: audio.mime_type || 'audio/mpeg',
+                          });
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer active:scale-95 transition-all"
+                        title="Download audio directly to Files"
                       >
                         <Download className="w-4 h-4" />
-                      </a>
+                      </button>
                     </div>
                   ))
                 )}
@@ -309,14 +317,21 @@ export function MediaGalleryDrawer() {
                           </p>
                         </div>
                       </div>
-                      <a
-                        href={vid.signedMediaUrl!}
-                        download={vid.original_filename || 'video.mp4'}
-                        onClick={() => notifySecurityEvent?.('video_saved', vid.original_filename || 'video.mp4')}
-                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          notifySecurityEvent?.('video_saved', vid.original_filename || 'video.mp4');
+                          downloadMediaFile({
+                            url: vid.signedMediaUrl!,
+                            filename: vid.original_filename || 'video.mp4',
+                            mimeType: vid.mime_type || 'video/mp4',
+                          });
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer active:scale-95 transition-all"
+                        title="Download video directly to Files"
                       >
                         <Download className="w-4 h-4" />
-                      </a>
+                      </button>
                     </div>
                   ))
                 )}
@@ -349,14 +364,21 @@ export function MediaGalleryDrawer() {
                         </div>
                       </div>
                       {doc.signedMediaUrl && (
-                        <a
-                          href={doc.signedMediaUrl}
-                          download={doc.original_filename || 'document'}
-                          onClick={() => notifySecurityEvent?.('file_downloaded', doc.original_filename || 'document')}
-                          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            notifySecurityEvent?.('file_downloaded', doc.original_filename || 'document');
+                            downloadMediaFile({
+                              url: doc.signedMediaUrl!,
+                              filename: doc.original_filename || 'document',
+                              mimeType: doc.mime_type || undefined,
+                            });
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer active:scale-95 transition-all"
+                          title="Download document directly to Files"
                         >
                           <Download className="w-4 h-4" />
-                        </a>
+                        </button>
                       )}
                     </div>
                   ))

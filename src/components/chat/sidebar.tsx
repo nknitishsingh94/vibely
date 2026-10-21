@@ -31,6 +31,7 @@ import {
   ArrowUpRight,
   PhoneOff,
   Plus,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useChat } from '@/context/chat-context';
@@ -41,6 +42,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { BrandLogo, VibelyEmblem } from '@/components/ui/brand-logo';
 import { InviteModal } from './invite-modal';
 import { AvatarPickerModal } from './avatar-picker-modal';
+import { CreateGroupModal } from './create-group-modal';
 import { NotificationBell } from './notification-bar';
 import { NotificationPermissionBanner } from './notification-permission-banner';
 import { formatConversationTime, cn } from '@/lib/utils';
@@ -82,6 +84,7 @@ export function Sidebar() {
   } = useChatLock();
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = React.useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = React.useState(false);
   const [filterText, setFilterText] = React.useState('');
   const [filterTab, setFilterTab] = React.useState<'all' | 'unread' | 'favorites' | 'calls'>('all');
   const [callSubTab, setCallSubTab] = React.useState<'all' | 'missed'>('all');
@@ -204,14 +207,22 @@ export function Sidebar() {
   const filteredConversations = conversations.filter(c => {
     // Never show direct chats where partner was deleted from the database
     if (c.type === 'direct' && (!c.otherUser || !c.otherUser.id)) return false;
+    // For group chats, ensure group has members
+    if (c.type === 'group' && (!c.members || c.members.length === 0)) return false;
     if (filterTab === 'unread' && c.unreadCount <= 0) return false;
     if (filterTab === 'favorites' && c.lastMessage && !favorites.includes(c.lastMessage.id)) {
       return false;
     }
     if (!filterText) return true;
+    const q = filterText.toLowerCase();
+    if (c.type === 'group') {
+      const gName = c.name?.toLowerCase() || '';
+      const memberNames = c.members?.map(m => m.profile?.display_name?.toLowerCase()).filter(Boolean).join(' ') || '';
+      return gName.includes(q) || memberNames.includes(q);
+    }
     const name = c.otherUser?.display_name?.toLowerCase() || '';
     const user = c.otherUser?.username?.toLowerCase() || '';
-    return name.includes(filterText.toLowerCase()) || user.includes(filterText.toLowerCase());
+    return name.includes(q) || user.includes(q);
   });
 
   const regularConversations = React.useMemo(() => {
@@ -352,8 +363,19 @@ export function Sidebar() {
               <Button
                 size="sm"
                 variant="outline"
+                onClick={() => setIsCreateGroupOpen(true)}
+                className="h-9 md:h-8 px-2.5 md:px-2 rounded-xl text-xs font-bold gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+                title="Create Group Chat"
+              >
+                <Users className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                <span className="hidden sm:inline">Group</span>
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={() => setIsInviteOpen(true)}
-                className="h-9 md:h-8 px-3.5 md:px-3 rounded-xl text-xs font-bold gap-1.5 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+                className="h-9 md:h-8 px-3 md:px-2.5 rounded-xl text-xs font-bold gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer"
                 title="Connect partner"
               >
                 <UserPlus className="w-4 h-4 md:w-3.5 md:h-3.5" />
@@ -952,6 +974,7 @@ export function Sidebar() {
                 </div>
               ) : (
                 regularConversations.map(conv => {
+                  const isGroup = conv.type === 'group';
                   const other = conv.otherUser;
                   const isActive = conv.id === activeConversationId;
                   const isOtherOnline = other?.id ? isUserOnline(other.id) : (other?.id === friendPresence.userId ? friendPresence.online : false);
@@ -959,8 +982,16 @@ export function Sidebar() {
                     u => u === other?.display_name || u === other?.username
                   );
 
+                  const groupTitle = conv.name || (conv.members.map(m => m.profile?.display_name).filter(Boolean).join(', ') || 'Group Chat');
+                  const chatTitle = isGroup ? groupTitle : (other?.display_name || 'Partner');
+
                   const lastTime = conv.lastMessage?.created_at || conv.updated_at;
                   const hasUnread = conv.unreadCount > 0;
+
+                  // For group chats: show sender name prefix if incoming
+                  const incomingSender = isGroup && conv.lastMessage && conv.lastMessage.sender_id !== profile?.id
+                    ? conv.members.find(m => m.user_id === conv.lastMessage?.sender_id)?.profile?.display_name?.split(' ')[0]
+                    : null;
 
                   return (
                     <div
@@ -981,26 +1012,37 @@ export function Sidebar() {
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600 dark:bg-emerald-500" />
                       )}
 
-                      {/* Partner Avatar with live green online dot */}
-                      <Avatar
-                        src={other?.avatar_path}
-                        name={other?.display_name || 'Partner'}
-                        size="md"
-                        isOnline={isOtherOnline}
-                        className="w-12 h-12 md:w-10 md:h-10 text-base md:text-sm shrink-0"
-                      />
+                      {/* Avatar: Group icon for group chat, Partner Avatar for direct chat */}
+                      {isGroup ? (
+                        <div className="w-12 h-12 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 shadow-xs ring-2 ring-emerald-500/20">
+                          <Users className="w-5 h-5 md:w-4 md:h-4" />
+                        </div>
+                      ) : (
+                        <Avatar
+                          src={other?.avatar_path}
+                          name={other?.display_name || 'Partner'}
+                          size="md"
+                          isOnline={isOtherOnline}
+                          className="w-12 h-12 md:w-10 md:h-10 text-base md:text-sm shrink-0"
+                        />
+                      )}
 
                       {/* WhatsApp Content Details */}
                       <div className="flex-1 min-w-0">
-                        {/* Top Row: Partner Name + WhatsApp Timestamp */}
+                        {/* Top Row: Partner / Group Name + WhatsApp Timestamp */}
                         <div className="flex items-center justify-between mb-1">
                           <h4
                             className={cn(
-                              'text-base md:text-sm font-bold md:font-semibold truncate text-foreground',
+                              'text-base md:text-sm font-bold md:font-semibold truncate text-foreground flex items-center gap-1.5',
                               hasUnread && 'font-extrabold'
                             )}
                           >
-                            {other?.display_name || 'Partner'}
+                            <span className="truncate">{chatTitle}</span>
+                            {isGroup && (
+                              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md shrink-0">
+                                {conv.members.length} members
+                              </span>
+                            )}
                           </h4>
 
                           {lastTime && (
@@ -1044,6 +1086,13 @@ export function Sidebar() {
                                 {/* WhatsApp Status Tick if outgoing */}
                                 {renderLastMessageStatus(conv.lastMessage, isOtherOnline)}
 
+                                {/* Incoming group message sender prefix */}
+                                {incomingSender && (
+                                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 mr-1 shrink-0">
+                                    {incomingSender}:
+                                  </span>
+                                )}
+
                                 {/* Media icon if media */}
                                 {renderMediaPreview(
                                   conv.lastMessage?.message_type,
@@ -1074,17 +1123,17 @@ export function Sidebar() {
                               </span>
                             )}
 
-                            {/* Single-User Chat Lock Button */}
+                            {/* Chat Lock Button */}
                             <button
                               type="button"
                               onClick={e => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                toggleLockChat(conv.id, other?.display_name);
+                                toggleLockChat(conv.id, chatTitle);
                               }}
                               className="w-7 h-7 rounded-lg text-muted-foreground/60 hover:text-emerald-600 hover:bg-emerald-500/10 dark:hover:text-emerald-400 opacity-60 sm:opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center cursor-pointer active:scale-95"
-                              title={`Lock chat with ${other?.display_name || 'partner'}`}
-                              aria-label={`Lock chat with ${other?.display_name || 'partner'}`}
+                              title={`Lock chat ${chatTitle}`}
+                              aria-label={`Lock chat ${chatTitle}`}
                             >
                               <Lock className="w-3.5 h-3.5" />
                             </button>
@@ -1357,6 +1406,11 @@ export function Sidebar() {
       <InviteModal
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}
+      />
+
+      <CreateGroupModal
+        isOpen={isCreateGroupOpen}
+        onClose={() => setIsCreateGroupOpen(false)}
       />
 
       <AvatarPickerModal

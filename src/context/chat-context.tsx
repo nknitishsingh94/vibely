@@ -87,6 +87,22 @@ export interface ChatContextType {
     friendId: string,
     conversationId?: string
   ) => Promise<{ success: boolean; error?: string; message?: string }>;
+  createGroup: (
+    name: string,
+    memberIds: string[],
+    avatarPath?: string
+  ) => Promise<{ success: boolean; conversationId?: string; error?: string }>;
+  updateGroup: (
+    conversationId: string,
+    updates: { name?: string; avatarPath?: string }
+  ) => Promise<{ success: boolean; error?: string }>;
+  addGroupMembers: (
+    conversationId: string,
+    memberIds: string[]
+  ) => Promise<{ success: boolean; error?: string }>;
+  leaveGroup: (
+    conversationId: string
+  ) => Promise<{ success: boolean; error?: string }>;
   notifySecurityEvent: (type: SecurityEventType, filename?: string) => Promise<void>;
   securityAlert: SecurityEventAlert | null;
   dismissSecurityAlert: () => void;
@@ -281,7 +297,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     try {
       const supabase = getSupabaseBrowserClient();
       // Fetch conversations the user is a member of
-      const { data: memberRows, error: memberErr } = await supabase
+      // Fetch conversations the user is a member of (with column fallback for schema compatibility)
+      let memberRows: any[] | null = null;
+      const { data: rowsWithMeta, error: metaErr } = await supabase
         .from('conversation_members')
         .select(`
           conversation_id,
@@ -289,15 +307,42 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           conversations (
             id,
             type,
+            name,
+            avatar_path,
+            created_by,
             created_at,
             updated_at
           )
         `)
         .eq('user_id', profile.id);
 
-      if (memberErr || !memberRows) {
-        const errDetail = memberErr ? (memberErr.message || memberErr.code || JSON.stringify(memberErr)) : 'No data';
-        console.warn('Unable to fetch member rows from database:', errDetail);
+      if (!metaErr && rowsWithMeta) {
+        memberRows = rowsWithMeta;
+      } else {
+        const { data: rowsBasic, error: basicErr } = await supabase
+          .from('conversation_members')
+          .select(`
+            conversation_id,
+            last_read_at,
+            conversations (
+              id,
+              type,
+              created_at,
+              updated_at
+            )
+          `)
+          .eq('user_id', profile.id);
+
+        if (basicErr || !rowsBasic) {
+          const errDetail = basicErr ? (basicErr.message || basicErr.code || JSON.stringify(basicErr)) : 'No data';
+          console.warn('Unable to fetch member rows from database:', errDetail);
+          setConversations([]);
+          return;
+        }
+        memberRows = rowsBasic;
+      }
+
+      if (!memberRows || memberRows.length === 0) {
         setConversations([]);
         return;
       }
@@ -330,6 +375,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
         // For direct conversations, if other member is missing or their profile was deleted from DB, do not include this conversation!
         if (conv.type === 'direct' && (!otherMember || !otherMember.profile || !otherMember.profile.id)) {
+          continue;
+        }
+
+        // For group conversations, must have valid members
+        if (conv.type === 'group' && mappedMembers.length === 0) {
           continue;
         }
 
@@ -435,6 +485,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         convList.push({
           id: conv.id,
           type: conv.type,
+          name: conv.name || null,
+          avatar_path: conv.avatar_path || null,
+          created_by: conv.created_by || null,
           created_at: conv.created_at,
           updated_at: conv.updated_at,
           members: mappedMembers,
@@ -601,6 +654,173 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [profile?.id, activeConversationId, refreshConversations, refreshRequests]
   );
 
+  // Create a new group chat
+  const createGroup = useCallback(
+    async (name: string, memberIds: string[], avatarPath?: string) => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
+        };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        const res = await fetch('/api/chat/create-group', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name,
+            memberIds,
+            avatarPath,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          return { success: false, error: data.error || 'Failed to create group' };
+        }
+
+        await refreshConversations();
+        if (data.conversationId) {
+          setActiveConversationId(data.conversationId);
+        }
+
+        return {
+          success: true,
+          conversationId: data.conversationId,
+        };
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Network error' };
+      }
+    },
+    [profile?.id, refreshConversations]
+  );
+
+  // Update group details (name / avatar)
+  const updateGroup = useCallback(
+    async (conversationId: string, updates: { name?: string; avatarPath?: string }) => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
+        };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        const res = await fetch('/api/chat/group-details', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'update_group',
+            conversationId,
+            name: updates.name,
+            avatarPath: updates.avatarPath,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          return { success: false, error: data.error || 'Failed to update group' };
+        }
+
+        await refreshConversations();
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Network error' };
+      }
+    },
+    [profile?.id, refreshConversations]
+  );
+
+  // Add members to an existing group
+  const addGroupMembers = useCallback(
+    async (conversationId: string, memberIds: string[]) => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
+        };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        const res = await fetch('/api/chat/group-details', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'add_members',
+            conversationId,
+            memberIds,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          return { success: false, error: data.error || 'Failed to add members' };
+        }
+
+        await refreshConversations();
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Network error' };
+      }
+    },
+    [profile?.id, refreshConversations]
+  );
+
+  // Leave a group
+  const leaveGroup = useCallback(
+    async (conversationId: string) => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
+        };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        const res = await fetch('/api/chat/group-details', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'leave_group',
+            conversationId,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          return { success: false, error: data.error || 'Failed to leave group' };
+        }
+
+        if (activeConversationId === conversationId) {
+          setActiveConversationId(null);
+        }
+
+        await refreshConversations();
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Network error' };
+      }
+    },
+    [profile?.id, activeConversationId, refreshConversations]
+  );
+
   // Real-time synchronization for connection requests and friends
   useEffect(() => {
     if (!profile?.id) return;
@@ -622,6 +842,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       })
       .on('broadcast', { event: 'request-declined' }, () => {
         refreshRequests();
+      })
+      .on('broadcast', { event: 'new-group' }, () => {
+        refreshConversations();
+      })
+      .on('broadcast', { event: 'group-updated' }, () => {
+        refreshConversations();
+        if (activeConversationIdRef.current) {
+          loadMessages(activeConversationIdRef.current);
+        }
       })
       .on('broadcast', { event: 'new_message' }, ({ payload }: any) => {
         if (!payload || payload.sender?.id === profile.id) return;
@@ -2439,6 +2668,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         respondToRequest,
         connectWithPartner,
         deleteFriend,
+        createGroup,
+        updateGroup,
+        addGroupMembers,
+        leaveGroup,
         notifySecurityEvent,
         securityAlert,
         dismissSecurityAlert,
