@@ -29,29 +29,43 @@ export default function LandingPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const [activeReaction, setActiveReaction] = React.useState<string | null>('💜');
+
+  const checkIsNative = React.useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    return Boolean(
+      (window as any).VibelyNative ||
+      (window as any).AndroidBridge ||
+      (window as any).Capacitor?.isNativePlatform?.() ||
+      (window as any).Capacitor?.getPlatform?.() === 'android' ||
+      ua.includes('VibelyApp') ||
+      ua.includes('wv') ||
+      window.location.protocol === 'capacitor:' ||
+      (typeof document !== 'undefined' && document.cookie.includes('vibely_is_native=true'))
+    );
+  }, []);
+
   const [isNativeApp, setIsNativeApp] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const ua = navigator.userAgent || '';
     return Boolean(
-      (window as any).Capacitor?.isNativePlatform?.() ||
+      (window as any).VibelyNative ||
       (window as any).AndroidBridge ||
+      (window as any).Capacitor?.isNativePlatform?.() ||
+      (window as any).Capacitor?.getPlatform?.() === 'android' ||
       ua.includes('VibelyApp') ||
-      (window as any).Capacitor?.getPlatform?.() === 'android'
+      ua.includes('wv') ||
+      window.location.protocol === 'capacitor:' ||
+      (typeof document !== 'undefined' && document.cookie.includes('vibely_is_native=true'))
     );
   });
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const ua = navigator.userAgent || '';
-    const native = Boolean(
-      (window as any).Capacitor?.isNativePlatform?.() ||
-      (window as any).AndroidBridge ||
-      ua.includes('VibelyApp') ||
-      (window as any).Capacitor?.getPlatform?.() === 'android'
-    );
-    if (native !== isNativeApp) {
-      setIsNativeApp(native);
+    const native = checkIsNative();
+    if (native && !isNativeApp) {
+      setIsNativeApp(true);
     }
 
     // If OAuth code landed on the landing page, forward immediately to /auth/callback
@@ -62,16 +76,16 @@ export default function LandingPage() {
       return;
     }
 
-    if (!isLoading) {
-      if (user) {
-        // Authenticated user: immediately enter the Vibely chat application
-        router.replace('/chat');
-      } else if (native) {
-        // Native mobile app: open the login screen directly so user can sign in immediately
-        router.replace('/login');
-      }
+    // Inside the mobile APK, NEVER show the marketing landing page!
+    if (native) {
+      router.replace(user ? '/chat' : '/login');
+      return;
     }
-  }, [user, isLoading, isNativeApp, router]);
+
+    if (!isLoading && user) {
+      router.replace('/chat');
+    }
+  }, [user, isLoading, isNativeApp, router, checkIsNative]);
 
   // Inside the mobile app or when user is authenticated, NEVER render marketing landing page
   if (isNativeApp || user) {
@@ -170,24 +184,22 @@ export default function LandingPage() {
               Vibely is the aesthetic, zero-noise sanctuary built exclusively for two souls. Share unfiltered thoughts, romantic Little Notes, midnight soundtracks, audio snaps, and treasured memories — free from algorithms, feeds, and prying eyes.
             </p>
 
-            {/* CTAs */}
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+            {/* CTAs - Sleek, balanced, perfectly proportioned on mobile */}
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4 w-full max-w-sm sm:max-w-none mx-auto px-2 sm:px-0">
               {user ? (
                 <>
                   <Link href="/chat" className="w-full sm:w-auto">
                     <Button
-                      size="lg"
-                      className="w-full sm:w-auto rounded-2xl gap-2 font-bold shadow-lg shadow-[#0C3B2E]/25 bg-[#0C3B2E] text-white hover:bg-[#155E49] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ring-1 ring-[#0C3B2E]/30"
+                      className="w-full sm:w-auto h-10 sm:h-12 px-5 sm:px-7 rounded-xl sm:rounded-2xl gap-2 text-xs sm:text-base font-bold shadow-md shadow-[#0C3B2E]/20 bg-[#0C3B2E] text-white hover:bg-[#155E49] hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer ring-1 ring-[#0C3B2E]/30"
                     >
                       <span>Continue to Your Space</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </Button>
                   </Link>
                   <Link href="/settings" className="w-full sm:w-auto">
                     <Button
-                      size="lg"
                       variant="outline"
-                      className="w-full sm:w-auto rounded-2xl border-[#0C3B2E]/30 dark:border-white/30 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/5 dark:hover:bg-white/10 font-semibold cursor-pointer"
+                      className="w-full sm:w-auto h-9 sm:h-12 px-4 sm:px-6 rounded-xl sm:rounded-2xl border-[#0C3B2E]/30 dark:border-white/30 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/5 dark:hover:bg-white/10 text-xs sm:text-base font-semibold cursor-pointer"
                     >
                       Settings
                     </Button>
@@ -195,34 +207,36 @@ export default function LandingPage() {
                 </>
               ) : (
                 <>
+                  {/* Primary Action on mobile: Start Vibing Free */}
                   <Link href="/signup" className="w-full sm:w-auto">
                     <Button
-                      size="lg"
-                      className="w-full sm:w-auto rounded-2xl gap-2 font-bold shadow-lg shadow-[#0C3B2E]/25 bg-[#0C3B2E] text-white hover:bg-[#155E49] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ring-1 ring-[#0C3B2E]/30"
+                      className="w-full sm:w-auto h-10 sm:h-12 px-5 sm:px-7 rounded-xl sm:rounded-2xl gap-2 text-xs sm:text-base font-bold shadow-md shadow-[#0C3B2E]/20 bg-[#0C3B2E] text-white hover:bg-[#155E49] hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer ring-1 ring-[#0C3B2E]/30"
                     >
-                      Start Vibing Free
-                      <ArrowRight className="w-4 h-4" />
+                      <span>Start Vibing Free</span>
+                      <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </Button>
                   </Link>
-                  <Link href="/login" className="w-full sm:w-auto">
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="w-full sm:w-auto rounded-2xl border-[#0C3B2E]/30 dark:border-white/30 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/5 dark:hover:bg-white/10 font-semibold cursor-pointer"
-                    >
-                      Sign In
-                    </Button>
-                  </Link>
-                  <Link href="/chat" className="w-full sm:w-auto">
-                    <Button
-                      size="lg"
-                      variant="secondary"
-                      className="w-full sm:w-auto rounded-2xl gap-1.5 font-semibold bg-[#0C3B2E]/5 dark:bg-white/10 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/10 dark:hover:bg-white/15 cursor-pointer"
-                    >
-                      <Sparkles className="w-4 h-4 text-[#0C3B2E] dark:text-emerald-400" />
-                      Live Preview
-                    </Button>
-                  </Link>
+
+                  {/* Secondary Actions: Sign In & Live Preview paired side-by-side on mobile */}
+                  <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:items-center sm:gap-3">
+                    <Link href="/login" className="w-full sm:w-auto">
+                      <Button
+                        variant="outline"
+                        className="w-full sm:w-auto h-9 sm:h-12 px-3 sm:px-6 rounded-xl sm:rounded-2xl border-[#0C3B2E]/30 dark:border-white/30 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/5 dark:hover:bg-white/10 text-xs sm:text-base font-semibold cursor-pointer"
+                      >
+                        Sign In
+                      </Button>
+                    </Link>
+                    <Link href="/chat" className="w-full sm:w-auto">
+                      <Button
+                        variant="secondary"
+                        className="w-full sm:w-auto h-9 sm:h-12 px-3 sm:px-6 rounded-xl sm:rounded-2xl gap-1.5 text-xs sm:text-base font-semibold bg-[#0C3B2E]/5 dark:bg-white/10 text-[#0C3B2E] dark:text-white hover:bg-[#0C3B2E]/10 dark:hover:bg-white/15 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#0C3B2E] dark:text-emerald-400" />
+                        <span>Live Preview</span>
+                      </Button>
+                    </Link>
+                  </div>
                 </>
               )}
             </div>

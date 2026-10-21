@@ -35,10 +35,14 @@ export function AppStatsBanner() {
     const isCapacitorNative =
       typeof window !== 'undefined' &&
       Boolean(
-        (window as any).Capacitor?.isNativePlatform?.() ||
+        (window as any).VibelyNative ||
         (window as any).AndroidBridge ||
+        (window as any).Capacitor?.isNativePlatform?.() ||
+        (window as any).Capacitor?.getPlatform?.() === 'android' ||
         navigator.userAgent.includes('VibelyApp') ||
-        (window as any).Capacitor?.getPlatform?.() === 'android'
+        navigator.userAgent.includes('wv') ||
+        window.location.protocol === 'capacitor:' ||
+        (typeof document !== 'undefined' && document.cookie.includes('vibely_is_native=true'))
       );
 
     if (isCapacitorNative) {

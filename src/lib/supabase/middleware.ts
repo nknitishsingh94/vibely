@@ -57,10 +57,20 @@ export async function updateSession(request: NextRequest) {
 
   // Check if request is from native Android APK / WebView
   const userAgent = request.headers.get('user-agent') || '';
+  const isNativeCookie = request.cookies.get('vibely_is_native')?.value === 'true';
   const isNativeApp =
+    isNativeCookie ||
     userAgent.includes('VibelyApp') ||
     userAgent.includes('wv') ||
     request.headers.get('x-requested-with') === 'com.vibely.app';
+
+  // CRITICAL: Inside the mobile Android APK, NEVER show the marketing landing page!
+  // Immediately forward to /chat if authenticated or /login if not authenticated.
+  if (pathname === '/' && isNativeApp) {
+    const url = request.nextUrl.clone();
+    url.pathname = user ? '/chat' : '/login';
+    return NextResponse.redirect(url);
+  }
 
   // If user is accessing protected path without session cookies:
   // On native app, do not prematurely redirect so client-side localStorage session can hydrate!

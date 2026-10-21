@@ -157,6 +157,7 @@ public class MainActivity extends BridgeActivity {
                     android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
                     cookieManager.setAcceptCookie(true);
                     cookieManager.setAcceptThirdPartyCookies(webView, true);
+                    cookieManager.setCookie("https://vibely-sigma-roan.vercel.app", "vibely_is_native=true; path=/; max-age=31536000; SameSite=Lax");
 
                     // Clean UserAgent: Strip 'Version/X.X' and '; wv' so Google/SSO treat WebView as Chrome Mobile
                     String originalUa = settings.getUserAgentString();
@@ -171,7 +172,9 @@ public class MainActivity extends BridgeActivity {
                     }
 
                     // Register Native Bridge for JavaScript communication
-                    webView.addJavascriptInterface(new VibelyNativeBridge(this), "VibelyNative");
+                    VibelyNativeBridge nativeBridge = new VibelyNativeBridge(this);
+                    webView.addJavascriptInterface(nativeBridge, "VibelyNative");
+                    webView.addJavascriptInterface(nativeBridge, "AndroidBridge");
 
                     // Route all in-app file/video/document downloads to Android DownloadManager directly into Files
                     webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
@@ -235,6 +238,13 @@ public class MainActivity extends BridgeActivity {
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                         if (request != null && request.getUrl() != null) {
                             String url = request.getUrl().toString();
+                            // In native app, NEVER show marketing landing page: forward root to /chat (or login)
+                            if (url.equals("https://vibely-sigma-roan.vercel.app") || url.equals("https://vibely-sigma-roan.vercel.app/")) {
+                                if (view != null) {
+                                    view.loadUrl("https://vibely-sigma-roan.vercel.app/chat");
+                                }
+                                return true;
+                            }
                             // Keep all Vibely pages, localhost, and Google/Supabase Auth inside the in-app WebView
                             if (url.contains("vibely-sigma-roan.vercel.app") || url.startsWith("/") || url.contains("localhost")) {
                                 return false;
@@ -249,6 +259,13 @@ public class MainActivity extends BridgeActivity {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, String url) {
                         if (url != null) {
+                            // In native app, NEVER show marketing landing page: forward root to /chat (or login)
+                            if (url.equals("https://vibely-sigma-roan.vercel.app") || url.equals("https://vibely-sigma-roan.vercel.app/")) {
+                                if (view != null) {
+                                    view.loadUrl("https://vibely-sigma-roan.vercel.app/chat");
+                                }
+                                return true;
+                            }
                             if (url.contains("vibely-sigma-roan.vercel.app") || url.startsWith("/") || url.contains("localhost")) {
                                 return false;
                             }
@@ -310,7 +327,7 @@ public class MainActivity extends BridgeActivity {
                 // Immediately load live Vibely chat so the app directly opens the app/login and NEVER stays on localhost or marketing page
                 if (webView != null) {
                     String current = webView.getUrl();
-                    if (current == null || current.contains("localhost")) {
+                    if (current == null || current.contains("localhost") || current.equals("https://vibely-sigma-roan.vercel.app/") || current.equals("https://vibely-sigma-roan.vercel.app")) {
                         webView.loadUrl("https://vibely-sigma-roan.vercel.app/chat");
                     }
                 }
